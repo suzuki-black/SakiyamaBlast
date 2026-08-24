@@ -89,14 +89,7 @@ static void finish_blast(void)
             if (c < 0 || c >= COLS || r < 0 || r >= ROWS) {
                 continue;
             }
-            draw_cell_dirt(c, r);
-            draw_dug_cell(c, r);
-            if (powder[(uint16_t)(uint8_t)r * COLS + (uint8_t)c]) {
-                draw_powder((uint8_t)c, (uint8_t)r);
-            }
-            if (bath_on && (uint8_t)c == bath_c && (uint8_t)r == bath_r) {
-                draw_bath((uint8_t)c, (uint8_t)r);
-            }
+            field_redraw_cell(c, r);
         }
     }
     player_carve();             /* 塗り直しで消えた自機の掘り跡を戻す */

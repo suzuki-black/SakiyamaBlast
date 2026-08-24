@@ -96,6 +96,23 @@ void bath_destroy_at(int8_t cx, int8_t cy)
     draw_dug_cell(cx, cy);
 }
 
+/* セル1枚を「土 → 坑道 → 火薬 → 風呂」の順で描き直す。文字を消すときや
+   爆風の跡を戻すときに使う。 */
+void field_redraw_cell(int8_t cx, int8_t cy)
+{
+    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
+        return;
+    }
+    draw_cell_dirt(cx, cy);
+    draw_dug_cell(cx, cy);
+    if (powder[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
+        draw_powder((uint8_t)cx, (uint8_t)cy);
+    }
+    if (bath_on && (uint8_t)cx == bath_c && (uint8_t)cy == bath_r) {
+        draw_bath((uint8_t)cx, (uint8_t)cy);
+    }
+}
+
 static void carve_rect(uint8_t c1, uint8_t r1, uint8_t c2, uint8_t r2)
 {
     uint8_t c, r;

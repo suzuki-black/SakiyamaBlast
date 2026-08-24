@@ -192,6 +192,29 @@ wblk_done:
 	ret
 
 ;-------------------------------------------------------------------
+; void psg_write(uint16_t rv) __z88dk_fastcall;   H=値 / L=レジスタ番号
+; uint8_t psg_read(uint8_t r) __z88dk_fastcall;
+;   PSG (AY-3-8910) は 0xA0=レジスタ選択 / 0xA1=書き込み / 0xA2=読み出し。
+;-------------------------------------------------------------------
+PSG_ADDR	= 0xA0
+PSG_WDATA	= 0xA1
+PSG_RDATA	= 0xA2
+
+_psg_write::
+	ld	a, l
+	out	(PSG_ADDR), a
+	ld	a, h
+	out	(PSG_WDATA), a
+	ret
+
+_psg_read::
+	ld	a, l
+	out	(PSG_ADDR), a
+	in	a, (PSG_RDATA)
+	ld	l, a
+	ret
+
+;-------------------------------------------------------------------
 ; void bank_select(uint8_t seg) __z88dk_fastcall;
 ;   0xA000-0xBFFF のデータ窓に ROM セグメント seg を割り当てる。
 ;-------------------------------------------------------------------
@@ -205,6 +228,8 @@ _bank_select::
 ;   R#16 (パレットポインタ) を設定してから RB/G の2バイトを続けて送る。
 ;-------------------------------------------------------------------
 	.globl	_vdp_wpal
+	.globl	_psg_write
+	.globl	_psg_read
 _vdp_wpal::
 	ld	a, l
 	out	(VDP_PALT), a

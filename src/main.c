@@ -7,6 +7,8 @@
 #include "vdp.h"
 #include "sprite.h"
 #include "game.h"
+#include "text.h"
+#include "sound.h"
 
 /* 仮スプライト: 先山 (ヘルメット姿の炭鉱夫)。テーマ用の本番絵は後で差し替える。 */
 static const uint16_t pat_miner[16] = {
@@ -109,10 +111,18 @@ static const uint16_t pat_bat[16] = {
 };
 
 #define ST_TITLE 0
-#define ST_PLAY  1
+#define ST_START 1        /* 面を描き切って "STAGE n START" を出している間 */
+#define ST_PLAY  2
+#define ST_CLEAR 3        /* クリア。自機も敵もその場で停止しファンファーレ */
+
+#define START_HOLD  60    /* 開始表示を出しておくフレーム数 (1秒) */
+#define MSG_ROW     5     /* 開始表示を出すセル行 */
 
 static uint8_t state;
 static uint8_t prev_trig;
+static uint8_t timer;
+static uint8_t msg_c0, msg_c1;    /* 開始表示が占めたセル列 (消すとき使う) */
+static char    msg[16];
 
 static void wait_vsync(void)
 {
@@ -147,6 +157,33 @@ static void set_game_palette(void)
     vdp_set_palette(COL_BATH,   2, 5, 7);
 }
 
+/* "STAGE n START" を面の上に出す。フォントは本体 BIOS のものを使う。 */
+static void show_stage_msg(void)
+{
+    uint8_t n = 0, i;
+    uint16_t x;
+    const char *a = "STAGE ";
+    const char *b = " START";
+    for (i = 0; a[i]; i++) { msg[n++] = a[i]; }
+    n = (uint8_t)(n + text_u8(&msg[n], stage));
+    for (i = 0; b[i]; i++) { msg[n++] = b[i]; }
+    msg[n] = 0;
+
+    x = (uint16_t)((256 - (uint16_t)n * 16) >> 1) & 0xFFFE;
+    text_draw(x, MSG_ROW * CELL, msg, COL_WHITE, COL_TUNNEL, 2);
+    msg_c0 = (uint8_t)(x >> 4);
+    msg_c1 = (uint8_t)((x + (uint16_t)n * 16 - 1) >> 4);
+}
+
+static void hide_stage_msg(void)
+{
+    uint8_t c;
+    for (c = msg_c0; c <= msg_c1 && c < COLS; c++) {
+        field_redraw_cell((int8_t)c, (int8_t)MSG_ROW);
+    }
+    player_carve();          /* 表示が自機の掘り跡に掛かっていた場合に備えて */
+}
+
 static void start_stage(void)
 {
     set_game_palette();
@@ -156,6 +193,9 @@ static void start_stage(void)
     enemy_stage_reset();
     hud_reset();
     hud_draw();
+    show_stage_msg();        /* 面を描き切ってから開始表示を出す */
+    timer = START_HOLD;
+    state = ST_START;
 }
 
 static void new_game(void)
@@ -173,8 +213,22 @@ static void next_stage(void)
     start_stage();
 }
 
+/* スプライトを OAM へ流し込む。停止中 (ST_START / ST_CLEAR) もその場に出したままにする。 */
+static void draw_actors(void)
+{
+    if (invuln && (invuln & 4)) {
+        spr_park(SPR_PLAYER);           /* 無敵中は点滅 */
+    } else {
+        spr_set(SPR_PLAYER, px, (uint8_t)(py - 1), PAT_MINER);
+    }
+    rock_draw();
+    enemy_draw();
+    oam_flush();
+}
+
 static void goto_title(void)
 {
+    snd_stop();
     spr_park_all();         /* 1枚絵の上にスプライトが残らないように */
     oam_flush();
     title_draw();
@@ -185,6 +239,8 @@ void main(void)
 {
     vdp_screen5();
     set_game_palette();
+    text_init();
+    snd_init();
 
     spr_init();
     spr_pattern_rows(PAT_MINER, pat_miner);
@@ -205,11 +261,31 @@ void main(void)
 
     for (;;) {
         wait_vsync();
+        snd_tick();
 
         if (state == ST_TITLE) {
             if (fire_pressed()) {
-                new_game();
+                new_game();      /* start_stage() が ST_START にする */
+            }
+            continue;
+        }
+
+        if (state == ST_START) {
+            timer--;
+            if (timer == 0) {
+                hide_stage_msg();
+                snd_play_bgm();
                 state = ST_PLAY;
+            }
+            draw_actors();
+            continue;
+        }
+
+        if (state == ST_CLEAR) {
+            /* 自機も敵もその場で停止したまま、ファンファーレが終わるのを待つ */
+            draw_actors();
+            if (!snd_busy()) {
+                next_stage();
             }
             continue;
         }
@@ -239,18 +315,12 @@ void main(void)
                 }
             }
         } else if (dug_pct >= WIN_PCT) {
-            next_stage();
+            snd_stop();
+            snd_play_fanfare();
+            state = ST_CLEAR;
         }
 
-        /* 無敵中は自機を点滅させる */
-        if (invuln && (invuln & 4)) {
-            spr_park(SPR_PLAYER);
-        } else {
-            spr_set(SPR_PLAYER, px, (uint8_t)(py - 1), PAT_MINER);
-        }
-        rock_draw();
-        enemy_draw();
-        oam_flush();
+        draw_actors();
         hud_draw();
     }
 }

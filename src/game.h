@@ -114,6 +114,7 @@ void    draw_cell_dirt(int8_t cx, int8_t cy);
 void    draw_powder(uint8_t cx, uint8_t cy);
 void    draw_bath(uint8_t cx, uint8_t cy);
 void    bath_destroy_at(int8_t cx, int8_t cy);   /* 岩・爆風で壊れる (敵では壊れない) */
+void    field_redraw_cell(int8_t cx, int8_t cy);
 void    build_stage(void);
 
 /* --- player.c --- */
