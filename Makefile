@@ -31,6 +31,14 @@ TITLE_SEG := 4
 # 元絵の透かしを黒で消し、4:3 になるよう左右を落としてから 256x212 へ縮める
 TITLE_OPTS := --black 1275,0,1536,82 --crop 88,0,1498,1024
 
+# スプライトと背景タイルの絵。PNG が正で、描き替えて make し直せば差し替わる。
+ART_SPR_SRC  := assets/sprites.png
+ART_TILE_SRC := assets/tiles.png
+ART_SPR      := $(BUILDDIR)/sprites.h
+ART_TILE     := $(BUILDDIR)/tiles.h
+ART_SPR_NAMES  := miner,bomb,rock,rat,bat
+ART_TILE_NAMES := powder,bath,dia
+
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT
 MACHINE   ?= C-BIOS_MSX2+_JP
 
@@ -47,7 +55,13 @@ $(BUILDDIR)/%.rel: $(SRCDIR)/%.s | $(BUILDDIR)
 $(TITLE_BIN) $(TITLE_PAL): $(TITLE_SRC) tools/png2sc5.py | $(BUILDDIR)
 	python3 tools/png2sc5.py $(TITLE_SRC) $(BUILDDIR)/title $(TITLE_OPTS)
 
-$(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(TITLE_PAL) | $(BUILDDIR)
+$(ART_SPR): $(ART_SPR_SRC) tools/png2art.py tools/palette.py | $(BUILDDIR)
+	python3 tools/png2art.py $(ART_SPR_SRC) $@ --mode sprite --names $(ART_SPR_NAMES)
+
+$(ART_TILE): $(ART_TILE_SRC) tools/png2art.py tools/palette.py | $(BUILDDIR)
+	python3 tools/png2art.py $(ART_TILE_SRC) $@ --mode tile --names $(ART_TILE_NAMES)
+
+$(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(TITLE_PAL) $(ART_SPR) $(ART_TILE) | $(BUILDDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # crt0 が必ず先頭に来るようにリンク順を固定する

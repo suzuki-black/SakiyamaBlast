@@ -1,6 +1,7 @@
 /* SakiyamaBlast - 盤面 (掘り地図・火薬・ステージ構築と描画) */
 #include "game.h"
 #include "vdp.h"
+#include "art.h"
 
 uint8_t  dug[NCELL];
 uint8_t  powder[NCELL];
@@ -53,6 +54,22 @@ void dig_sweep(uint8_t cx, uint8_t cy)
     dug_pct = (uint8_t)((dug_n * 100u) / NCELL);
 }
 
+/* 16x16 のタイルを1セルへ描く。inset=2 にすると外周2pxを残すので、
+   坑道の「薄い土の膜」を消さずに火薬や風呂を重ねられる。 */
+static void draw_tile(uint8_t cx, uint8_t cy, const uint8_t *tile, uint8_t inset)
+{
+    uint8_t y, i;
+    uint8_t x0 = (uint8_t)(inset >> 1);
+    uint8_t n  = (uint8_t)(8 - inset);
+    uint16_t top = (uint16_t)cy << 4;
+    for (y = inset; y < (uint8_t)(16 - inset); y++) {
+        vdp_setwrite((uint16_t)(((top + y) << 7) + ((uint16_t)cx << 3) + x0));
+        for (i = 0; i < n; i++) {
+            vdp_wdata(tile[((uint16_t)y << 3) + x0 + i]);
+        }
+    }
+}
+
 void draw_cell_dirt(int8_t cx, int8_t cy)
 {
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
@@ -83,34 +100,19 @@ void draw_dug_cell(int8_t cx, int8_t cy)
 /* 火薬 (旧チェリー相当)。拾うと得点でなくダイナマイトのストックが1増える。 */
 void draw_powder(uint8_t cx, uint8_t cy)
 {
-    uint16_t x = (uint16_t)cx << 4;
-    uint16_t y = (uint16_t)cy << 4;
-    vdp_fill(x + 4, y + 6, 8, 8, COL_RED);      /* 樽 */
-    vdp_fill(x + 4, y + 9, 8, 2, COL_FUSE);     /* たが */
-    vdp_fill(x + 9, y + 2, 2, 4, COL_FUSE);     /* 導火線 */
+    draw_tile(cx, cy, art_tile_of(TILE_POWDER), 2);
 }
 
 /* ダイヤモンドブロック。硬い鉱脈。ダイナマイトでしか砕けない。 */
 void draw_diamond(uint8_t cx, uint8_t cy)
 {
-    uint16_t x = (uint16_t)cx << 4;
-    uint16_t y = (uint16_t)cy << 4;
-    vdp_fill(x,      y,      16, 16, COL_TUNNEL);
-    vdp_fill(x + 1,  y + 1,  14, 14, COL_DIA);
-    vdp_fill(x + 3,  y + 3,   4,  4, COL_WHITE);   /* 光の当たる面 */
-    vdp_fill(x + 8,  y + 8,   5,  5, COL_TUNNEL);  /* 面の切れ目 */
-    vdp_fill(x + 9,  y + 9,   3,  3, COL_DIA);
+    draw_tile(cx, cy, art_tile_of(TILE_DIA), 0);
 }
 
 /* 風呂 (温泉)。触れると体温が一気に下がる。 */
 void draw_bath(uint8_t cx, uint8_t cy)
 {
-    uint16_t x = (uint16_t)cx << 4;
-    uint16_t y = (uint16_t)cy << 4;
-    vdp_fill(x + 2, y + 8, 12, 6, COL_BATH);     /* 湯 */
-    vdp_fill(x + 1, y + 6, 14, 2, COL_WHITE);    /* 縁 */
-    vdp_fill(x + 4, y + 2, 2, 3, COL_WHITE);     /* 湯気 */
-    vdp_fill(x + 9, y + 1, 2, 4, COL_WHITE);
+    draw_tile(cx, cy, art_tile_of(TILE_BATH), 2);
 }
 
 void bath_destroy_at(int8_t cx, int8_t cy)

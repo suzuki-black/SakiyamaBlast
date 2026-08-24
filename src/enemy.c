@@ -13,6 +13,7 @@
 #include "game.h"
 #include "vdp.h"
 #include "sprite.h"
+#include "art.h"
 
 uint8_t en_state[ENEMY_MAX];
 uint8_t en_x[ENEMY_MAX], en_y[ENEMY_MAX];
@@ -330,10 +331,10 @@ void enemy_draw(void)
             spr_park((uint8_t)(SPR_ENEMY + i));
             continue;
         }
-        col = (uint8_t)(en_digger[i] ? COL_BAT : COL_RAT);
+        col = (uint8_t)(en_digger[i] ? PAT_BAT : PAT_RAT);
         if (col != en_col[i]) {
             en_col[i] = col;
-            spr_color((uint8_t)(SPR_ENEMY + i), col);
+            spr_color_lines((uint8_t)(SPR_ENEMY + i), art_colours(col));
         }
         spr_set((uint8_t)(SPR_ENEMY + i), en_x[i], (uint8_t)(en_y[i] - 1),
                 (uint8_t)(en_digger[i] ? PAT_BAT : PAT_RAT));

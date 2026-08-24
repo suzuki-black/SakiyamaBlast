@@ -65,8 +65,11 @@
 
 /* --- パレット番号 --- */
 #define COL_TUNNEL 1
+#define COL_SKIN   2
+#define COL_DARK   3
 #define COL_DIRT   6
 #define COL_HUD    4
+#define COL_BODY   7
 #define COL_BLAST  11
 #define COL_WHITE  15
 #define COL_RED    8

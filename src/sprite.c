@@ -44,6 +44,16 @@ void spr_color(uint8_t plane, uint8_t color)
     }
 }
 
+/* mode 2 のスプライトは1行に1色を持てる。16バイトの色表をそのまま焼く。 */
+void spr_color_lines(uint8_t plane, const uint8_t *cols)
+{
+    uint8_t i;
+    vdp_setwrite((uint16_t)(VRAM_SPRCOL + ((uint16_t)plane << 4)));
+    for (i = 0; i < 16; i++) {
+        vdp_wdata(cols[i]);
+    }
+}
+
 void spr_set(uint8_t plane, uint8_t x, uint8_t y, uint8_t pat)
 {
     uint8_t *p = &oam[plane * 4];

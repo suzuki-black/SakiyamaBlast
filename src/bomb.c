@@ -11,6 +11,7 @@
 #include "vdp.h"
 #include "sprite.h"
 #include "sound.h"
+#include "art.h"
 
 uint8_t stock;
 uint8_t bomb_state;
@@ -109,10 +110,14 @@ void bomb_update(void)
         }
         /* 導火線が燃えている見た目: 8フレームごとに色を入れ替える */
         {
-            uint8_t col = (uint8_t)((fuse & 8) ? COL_RED : COL_FUSE);
+            uint8_t col = (uint8_t)((fuse & 8) ? 0 : 1);
             if (col != blink_col) {
                 blink_col = col;
-                spr_color(SPR_BOMB, col);
+                if (col) {
+                    spr_color(SPR_BOMB, COL_FUSE);          /* 導火線が燃える閃き */
+                } else {
+                    spr_color_lines(SPR_BOMB, art_colours(PAT_BOMB));
+                }
             }
         }
         spr_set(SPR_BOMB, (uint8_t)(bomb_c << 4), (uint8_t)((bomb_r << 4) - 1), PAT_BOMB);

@@ -15,7 +15,8 @@ void spr_pattern(uint8_t pat, const uint8_t *data);   /* VRAM 並びそのまま
 /* 16行 x 16bit で書いた絵を登録する。VRAM は「左半分16バイト→右半分16バイト」の
    並びなので、作画しやすい行指向の表からこちらで並べ替える。 */
 void spr_pattern_rows(uint8_t pat, const uint16_t *rows);
-void spr_color(uint8_t plane, uint8_t color);         /* mode 2 は行ごとに色を持つ */
+void spr_color(uint8_t plane, uint8_t color);         /* 全16行を同じ色にする */
+void spr_color_lines(uint8_t plane, const uint8_t *cols);  /* mode 2 の行ごとの色 */
 void spr_set(uint8_t plane, uint8_t x, uint8_t y, uint8_t pat);
 void spr_park(uint8_t plane);
 void spr_park_all(void);
