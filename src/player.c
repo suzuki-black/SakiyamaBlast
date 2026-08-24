@@ -2,6 +2,7 @@
 #include "game.h"
 #include "vdp.h"
 #include "sprite.h"
+#include "sound.h"
 
 uint8_t px, py;
 uint8_t lives;
@@ -78,6 +79,7 @@ static void collect(void)
         draw_dug_cell((int8_t)c, (int8_t)r);   /* 火薬の絵を消して坑道へ戻す */
         player_carve();
         stock++;
+        snd_sfx(SFX_PICK);
     }
 }
 
@@ -212,5 +214,8 @@ void player_update(void)
     /* DUG は「丸々掘り切った」時だけ立てる (掠めただけでは掘れた扱いにしない)。 */
     if (((px & 15) == 0) && ((py & 15) == 0)) {
         dig_sweep((uint8_t)(px >> 4), (uint8_t)(py >> 4));
+        if (chewing) {
+            snd_sfx(SFX_DIG);          /* 1セル掘り切るごとに鳴らす */
+        }
     }
 }

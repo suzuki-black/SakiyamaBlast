@@ -11,9 +11,19 @@ void    snd_play_fanfare(void);
 void    snd_stop(void);
 uint8_t snd_busy(void);          /* ファンファーレが鳴っている間だけ 1 */
 
+/* 効果音。BGM は3声とも使っているので、効果音は ch C (ドラム) を一時的に奪って鳴らし、
+   鳴り終わったらドラムへ戻す。優先度の低い音は、鳴っている音を止めない。 */
+#define SFX_DIG  0       /* 土を掘る */
+#define SFX_PICK 1       /* 火薬を拾う */
+#define SFX_SET  2       /* ダイナマイトを置く */
+#define SFX_BOOM 3       /* 爆発 */
+#define SFX_MISS 4       /* ミス */
+void snd_sfx(uint8_t id);
+
 /* 曲データ (music.c)。3チャンネルぶんの (音程, 長さ) の並び。
    音程 0=休符 / 0xFE=終わり / 0xFF=先頭へ戻る。長さはフレーム数。 */
 extern const uint8_t bgm_a[], bgm_b[], bgm_c[];
 extern const uint8_t fan_a[], fan_b[], fan_c[];
+extern const uint8_t sfx_dig[], sfx_pick[], sfx_set[], sfx_boom[], sfx_miss[];
 
 #endif

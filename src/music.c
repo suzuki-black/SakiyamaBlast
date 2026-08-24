@@ -87,3 +87,13 @@ const uint8_t fan_b[] = {
 const uint8_t fan_c[] = {
     B2,32, Fs3,28, B2,40, 0xFE
 };
+
+/*
+ * 効果音。ch C を一時的に奪って鳴らす。
+ * ノイズの音は値がノイズ周期 (0-31, 大きいほど低い)、トーンの音は音程テーブル番号。
+ */
+const uint8_t sfx_dig[]  = { 14,3, 8,4, 0xFE };                     /* 掘る: 短い擦り音 */
+const uint8_t sfx_pick[] = { B4,4, D5,4, Fs5,8, 0xFE };             /* 拾う: 上がる3音 */
+const uint8_t sfx_set[]  = { B2,5, Fs2,6, 0xFE };                   /* 置く: 低い2音 */
+const uint8_t sfx_boom[] = { 6,4, 12,5, 18,6, 24,8, 30,14, 0xFE };  /* 爆発: 低く落ちる轟音 */
+const uint8_t sfx_miss[] = { B4,5, A4,5, Fs4,5, D4,5, B3,7, Fs3,16, 0xFE };  /* ミス: 下降 */

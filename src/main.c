@@ -306,6 +306,7 @@ void main(void)
             /* 自爆の場合は爆風の閃光を見せ切ってからミス処理する。
                閃光中に片付けると finish_blast() が走らず黄色が残ってしまう。 */
             if (bomb_state != 2) {
+                snd_sfx(SFX_MISS);
                 if (lives <= 1) {
                     lives = 0;
                     goto_title();       /* 残機が尽きたらタイトルへ戻る */

@@ -10,6 +10,7 @@
 #include "game.h"
 #include "vdp.h"
 #include "sprite.h"
+#include "sound.h"
 
 uint8_t stock;
 uint8_t bomb_state;
@@ -40,6 +41,7 @@ void bomb_fire(void)
     bomb_r = player_cell_r();
     bomb_state = 1;
     fuse = FUSE_FRAMES;
+    snd_sfx(SFX_SET);
 }
 
 /* 爆風1セル: 掘って閃光を出し、そこに居る自機を殺す。 */
@@ -70,6 +72,7 @@ static void explode(void)
     bomb_state = 2;
     flash = FLASH_FRAMES;
     spr_park(SPR_BOMB);
+    snd_sfx(SFX_BOOM);
 }
 
 /* 閃光の跡を正規のトンネル描画 (膜つき) へ差し替える。
