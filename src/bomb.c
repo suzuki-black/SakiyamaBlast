@@ -50,6 +50,8 @@ static void blast_one(int8_t cx, int8_t cy)
     }
     dig_sweep((uint8_t)cx, (uint8_t)cy);
     rock_destroy_at(cx, cy);        /* 爆風にかかった岩は吹き飛ぶ */
+    enemy_kill_at(cx, cy);          /* 爆風は敵も倒す */
+    bath_destroy_at(cx, cy);        /* 風呂は爆風で壊れる (敵には壊されない) */
     vdp_fill((uint16_t)((uint8_t)cx << 4), (uint16_t)((uint8_t)cy << 4), 16, 16, COL_BLAST);
     if (player_cell_c() == (uint8_t)cx && player_cell_r() == (uint8_t)cy) {
         dead = 1;               /* 自爆も1ミス */
@@ -92,6 +94,9 @@ static void finish_blast(void)
             if (powder[(uint16_t)(uint8_t)r * COLS + (uint8_t)c]) {
                 draw_powder((uint8_t)c, (uint8_t)r);
             }
+            if (bath_on && (uint8_t)c == bath_c && (uint8_t)r == bath_r) {
+                draw_bath((uint8_t)c, (uint8_t)r);
+            }
         }
     }
     player_carve();             /* 塗り直しで消えた自機の掘り跡を戻す */
@@ -113,7 +118,7 @@ void bomb_update(void)
                 spr_color(SPR_BOMB, col);
             }
         }
-        spr_set(SPR_BOMB, (uint8_t)(bomb_c << 4), (uint8_t)((bomb_r << 4) - 1), SPR_BOMB);
+        spr_set(SPR_BOMB, (uint8_t)(bomb_c << 4), (uint8_t)((bomb_r << 4) - 1), PAT_BOMB);
     } else if (bomb_state == 2) {
         flash--;
         if (flash == 0) {

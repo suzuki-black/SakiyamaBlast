@@ -7,10 +7,12 @@ uint8_t px, py;
 uint8_t lives;
 uint8_t dead;
 uint8_t invuln;
+uint8_t temp;                 /* 体温 */
 
 static uint8_t cdir;      /* 現在の向き */
 static uint8_t chewing;   /* 未掘の土を食い進んでいるか (減速する) */
 static uint8_t acc;       /* 速度の分子 */
+static uint8_t temp_acc;  /* 体温上昇の分子 */
 
 uint8_t player_cell_c(void) { return (uint8_t)((px + 8) >> 4); }
 uint8_t player_cell_r(void) { return (uint8_t)((py + 8) >> 4); }
@@ -35,6 +37,29 @@ static uint8_t read_dir(void)
     if (j == 4 || j == 5 || j == 6) { d = DIR_DOWN; }
     if (j == 1 || j == 2 || j == 8) { d = DIR_UP; }
     return d;
+}
+
+/* 体温。毎フレームわずかに上がり、上限でオーバーヒート = 1ミス。
+   風呂の升目を通過すると一瞬で下がる (仕様は後で調整するかもしれない)。 */
+static void update_temp(void)
+{
+    if (bath_on && ((px & 15) == 0) && ((py & 15) == 0)
+        && ((uint8_t)(px >> 4) == bath_c) && ((uint8_t)(py >> 4) == bath_r)) {
+        temp = 0;
+        temp_acc = 0;
+        return;
+    }
+    temp_acc++;
+    if (temp_acc < TEMP_TICK) {
+        return;
+    }
+    temp_acc = 0;
+    if (temp < TEMP_MAX) {
+        temp++;
+        if (temp >= TEMP_MAX && !invuln) {
+            dead = 1;               /* オーバーヒート */
+        }
+    }
 }
 
 /* 火薬を拾う。節点に乗った時だけ判定する。 */
@@ -112,6 +137,8 @@ void player_start(void)
     acc = 0;
     dead = 0;
     invuln = INVULN_FRAMES;
+    temp = 0;
+    temp_acc = 0;
     dig_sweep(start_c, start_r);
     draw_dug_cell((int8_t)start_c, (int8_t)start_r);
     player_carve();
@@ -135,6 +162,7 @@ void player_update(void)
     if (invuln) {
         invuln--;
     }
+    update_temp();
     collect();
 
     q = read_dir();

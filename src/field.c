@@ -8,6 +8,9 @@ uint16_t dug_n;
 uint8_t  dug_pct;
 uint8_t  stage;
 uint8_t  start_c, start_r;
+uint8_t  nest_c, nest_r;
+uint8_t  bath_c, bath_r;
+uint8_t  bath_on;
 
 uint8_t cell_dug(int8_t cx, int8_t cy)
 {
@@ -69,6 +72,30 @@ void draw_powder(uint8_t cx, uint8_t cy)
     vdp_fill(x + 9, y + 2, 2, 4, COL_FUSE);     /* 導火線 */
 }
 
+/* 風呂 (温泉)。触れると体温が一気に下がる。 */
+void draw_bath(uint8_t cx, uint8_t cy)
+{
+    uint16_t x = (uint16_t)cx << 4;
+    uint16_t y = (uint16_t)cy << 4;
+    vdp_fill(x + 2, y + 8, 12, 6, COL_BATH);     /* 湯 */
+    vdp_fill(x + 1, y + 6, 14, 2, COL_WHITE);    /* 縁 */
+    vdp_fill(x + 4, y + 2, 2, 3, COL_WHITE);     /* 湯気 */
+    vdp_fill(x + 9, y + 1, 2, 4, COL_WHITE);
+}
+
+void bath_destroy_at(int8_t cx, int8_t cy)
+{
+    if (!bath_on) {
+        return;
+    }
+    if ((int8_t)bath_c != cx || (int8_t)bath_r != cy) {
+        return;
+    }
+    bath_on = 0;
+    draw_cell_dirt(cx, cy);
+    draw_dug_cell(cx, cy);
+}
+
 static void carve_rect(uint8_t c1, uint8_t r1, uint8_t c2, uint8_t r2)
 {
     uint8_t c, r;
@@ -97,9 +124,16 @@ static void set_stage_layout(void)
 
     start_c = 8;
     start_r = 9;
-    carve_rect(8, 1, 8, 9);            /* 縦の背骨 */
+    nest_c = 8;                        /* 敵の巣 = 画面のほぼ中央 */
+    nest_r = 5;
+    carve_rect(8, 1, 8, 9);            /* 縦の背骨。巣と自機の出現位置を含む */
 
     /* 岩は土の中 (真下も土) に置く。真下を掘り抜くと揺れて落ちてくる。 */
+    /* 風呂は自機の出現位置の近くに、面ごとに違う場所へ置く */
+    bath_c = 8;
+    bath_r = (uint8_t)(8 - sidx);
+    bath_on = 1;
+
     if (sidx == 0) {
         vdp_set_palette(COL_DIRT, 4, 2, 1);      /* 炭層まじりの茶 */
         place_powder_line(2, 3, 6);
@@ -156,5 +190,8 @@ void build_stage(void)
                 draw_powder(c, r);
             }
         }
+    }
+    if (bath_on) {
+        draw_bath(bath_c, bath_r);
     }
 }

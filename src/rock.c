@@ -83,7 +83,7 @@ static uint8_t supported(uint8_t i)
     return rock_solid_at(c, (int8_t)(r + 1));
 }
 
-uint8_t rock_push(int8_t i, int8_t dx)
+uint8_t rock_can_push(int8_t i, int8_t dx)
 {
     int8_t c, r, nc;
     if (i < 0 || rock_state[i] == ROCK_NONE || rock_state[i] == ROCK_FALL) {
@@ -101,6 +101,18 @@ uint8_t rock_push(int8_t i, int8_t dx)
     if (rock_at(nc, r) >= 0) {
         return 0;                       /* 別の岩があれば押せない */
     }
+    return 1;
+}
+
+uint8_t rock_push(int8_t i, int8_t dx)
+{
+    int8_t c, r, nc;
+    if (!rock_can_push(i, dx)) {
+        return 0;
+    }
+    c = (int8_t)(rock_x[i] >> 4);
+    r = (int8_t)(rock_y[i] >> 4);
+    nc = (int8_t)(c + dx);
     rock_x[i] = (uint8_t)((uint8_t)nc << 4);
     rock_state[i] = ROCK_WAIT;          /* 支えの有無は次の更新で見る */
     jig_t[i] = 0;
@@ -144,12 +156,17 @@ static void rock_fall_step(uint8_t i)
         dead = 1;
         crushed[i] = 1;
     }
+    /* 落下中の岩は縦一列の敵をまとめて潰す (Mr. Do! 準拠) */
+    if (enemy_kill_at((int8_t)(rock_x[i] >> 4), (int8_t)((rock_y[i] + 8) >> 4))) {
+        crushed[i] = 1;
+    }
 
     if (rock_y[i] & 15) {
         return;                         /* セル境界でだけ着地判定 */
     }
     c = (int8_t)(rock_x[i] >> 4);
     r = (int8_t)(rock_y[i] >> 4);
+    bath_destroy_at(c, r);              /* 落ちてきた岩は風呂を壊す */
     if (r + 1 < ROWS && cell_dug(c, (int8_t)(r + 1)) && !rock_solid_at(c, (int8_t)(r + 1))) {
         return;                         /* まだ落ちる */
     }
@@ -205,7 +222,7 @@ void rock_draw(void)
             if (rock_state[i] == ROCK_JIG && (jig_t[i] & 2)) {
                 x = (uint8_t)(x + 1);
             }
-            spr_set((uint8_t)(SPR_ROCK + i), x, (uint8_t)(rock_y[i] - 1), SPR_ROCK);
+            spr_set((uint8_t)(SPR_ROCK + i), x, (uint8_t)(rock_y[i] - 1), PAT_ROCK);
         }
     }
 }

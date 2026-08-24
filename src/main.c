@@ -68,6 +68,46 @@ static const uint16_t pat_rock[16] = {
     0x0000    /* ................ */
 };
 
+/* 仮スプライト: 敵 = ネズミ (坑道を走る通常種) */
+static const uint16_t pat_rat[16] = {
+    0x0000,   /* ................ */
+    0x0000,   /* ................ */
+    0x0C30,   /* ....##....##.... */
+    0x1E78,   /* ...####..####... */
+    0x3FFC,   /* ..############.. */
+    0x7FFE,   /* .##############. */
+    0xFFFF,   /* ################ */
+    0xFFFF,   /* ################ */
+    0xFFFF,   /* ################ */
+    0x7FFE,   /* .##############. */
+    0x3FFC,   /* ..############.. */
+    0x1FF8,   /* ...##########... */
+    0x0DB0,   /* ....##.##.##.... */
+    0x0000,   /* ................ */
+    0x0000,   /* ................ */
+    0x0000    /* ................ */
+};
+
+/* 仮スプライト: 敵 = コウモリ (掘り屋へ変異した姿。土を掘って迫る) */
+static const uint16_t pat_bat[16] = {
+    0x0000,   /* ................ */
+    0x0000,   /* ................ */
+    0xC003,   /* ##............## */
+    0xE007,   /* ###..........### */
+    0xF81F,   /* #####......##### */
+    0xFFFF,   /* ################ */
+    0x7FFE,   /* .##############. */
+    0x3FFC,   /* ..############.. */
+    0x1FF8,   /* ...##########... */
+    0x0FF0,   /* ....########.... */
+    0x07E0,   /* .....######..... */
+    0x03C0,   /* ......####...... */
+    0x0180,   /* .......##....... */
+    0x0000,   /* ................ */
+    0x0000,   /* ................ */
+    0x0000    /* ................ */
+};
+
 static uint8_t prev_trig;
 
 static void wait_vsync(void)
@@ -92,12 +132,14 @@ static void start_stage(void)
     build_stage();
     bomb_clear();
     player_start();
+    enemy_stage_reset();
     hud_reset();
     hud_draw();
 }
 
 static void new_game(void)
 {
+    rnd_seed((uint16_t)((uint16_t)JIFFY << 8 | (uint16_t)JIFFY));
     lives = LIVES_INIT;
     stage = 1;
     stock = 0;              /* 開始ストックは0。火薬を拾って貯める。 */
@@ -123,11 +165,16 @@ void main(void)
     vdp_set_palette(COL_FUSE,   7, 6, 2);
     vdp_set_palette(COL_WHITE,  7, 7, 7);
     vdp_set_palette(COL_ROCK,   5, 5, 5);
+    vdp_set_palette(COL_RAT,    7, 3, 2);
+    vdp_set_palette(COL_BAT,    7, 2, 7);
+    vdp_set_palette(COL_BATH,   2, 5, 7);
 
     spr_init();
-    spr_pattern_rows(SPR_PLAYER, pat_miner);
-    spr_pattern_rows(SPR_BOMB, pat_bomb);
-    spr_pattern_rows(SPR_ROCK, pat_rock);
+    spr_pattern_rows(PAT_MINER, pat_miner);
+    spr_pattern_rows(PAT_BOMB, pat_bomb);
+    spr_pattern_rows(PAT_ROCK, pat_rock);
+    spr_pattern_rows(PAT_RAT, pat_rat);
+    spr_pattern_rows(PAT_BAT, pat_bat);
     spr_color(SPR_PLAYER, COL_WHITE);
     spr_color(SPR_BOMB, COL_RED);
     {
@@ -152,6 +199,7 @@ void main(void)
         }
         bomb_update();
         rock_update();
+        enemy_update();
 
         if (dead) {
             /* 自爆の場合は爆風の閃光を見せ切ってからミス処理する。
@@ -172,9 +220,10 @@ void main(void)
         if (invuln && (invuln & 4)) {
             spr_park(SPR_PLAYER);
         } else {
-            spr_set(SPR_PLAYER, px, (uint8_t)(py - 1), SPR_PLAYER);
+            spr_set(SPR_PLAYER, px, (uint8_t)(py - 1), PAT_MINER);
         }
         rock_draw();
+        enemy_draw();
         oam_flush();
         hud_draw();
     }

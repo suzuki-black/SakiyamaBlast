@@ -11,7 +11,13 @@
 #define BAR_Y   (HUD_Y + 13)
 #define BAR_H   10
 
-static uint8_t h_lives, h_stock, h_pct, h_stage;
+/* 体温ゲージ (採掘率バーの上)。黄→赤で焦らせる。 */
+#define TBAR_X  150
+#define TBAR_W  96
+#define TBAR_Y  (HUD_Y + 2)
+#define TBAR_H  8
+
+static uint8_t h_lives, h_stock, h_pct, h_stage, h_temp;
 
 void hud_reset(void)
 {
@@ -19,14 +25,30 @@ void hud_reset(void)
     h_stock = 0xFF;
     h_pct   = 0xFF;
     h_stage = 0xFF;
+    h_temp  = 0xFF;
+}
+
+static void draw_temp_bar(uint8_t w)
+{
+    vdp_fill(TBAR_X, TBAR_Y, TBAR_W, TBAR_H, COL_TUNNEL);
+    if (w) {
+        vdp_fill(TBAR_X, TBAR_Y, w, TBAR_H,
+                 (uint8_t)((w > (TBAR_W * 3 / 4)) ? COL_RED : COL_FUSE));
+    }
 }
 
 void hud_draw(void)
 {
     uint8_t i, n;
     uint16_t w;
+    uint8_t tw = (uint8_t)(((uint16_t)temp * TBAR_W) / TEMP_MAX);
 
     if (lives == h_lives && stock == h_stock && dug_pct == h_pct && stage == h_stage) {
+        /* 体温だけが動いた時はゲージだけ描き直す (帯ごと塗り直すと重い) */
+        if (tw != h_temp) {
+            h_temp = tw;
+            draw_temp_bar(tw);
+        }
         return;
     }
     h_lives = lives;
@@ -59,6 +81,9 @@ void hud_draw(void)
         vdp_fill(BAR_X, BAR_Y, w, BAR_H, COL_WHITE);
     }
     vdp_fill(BAR_X + ((WIN_PCT * BAR_W) / 100u), BAR_Y - 3, 2, BAR_H + 6, COL_RED);
+
+    h_temp = tw;
+    draw_temp_bar(tw);
 
     /* ステージ: バーの下に小さな点を並べる */
     n = (stage > 12) ? 12 : stage;
