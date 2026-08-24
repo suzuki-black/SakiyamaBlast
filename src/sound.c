@@ -43,8 +43,18 @@ static uint8_t ch_left[3];
 static uint8_t ch_t[3];
 static uint8_t ch_note[3];
 static uint8_t ch_vol0[3];
+static uint8_t ch_dec[3];      /* 音量の減衰速度 (右シフト量。小さいほど速く減衰) */
 static uint8_t mode;
 static uint8_t mixer_base;
+static uint8_t drum_on;        /* 1 = チャンネルC をノイズのドラムとして使う */
+
+/* ノイズドラム。PSG のノイズ周期を変えて太鼓・スネア・ハイハットを作り分ける。 */
+#define DRUM_BD 1
+#define DRUM_SN 2
+#define DRUM_HH 3
+static const uint8_t drum_period[4] = { 0, 28, 12,  2 };   /* R6 (大きいほど低い) */
+static const uint8_t drum_vol[4]    = { 0, 14, 13,  9 };
+static const uint8_t drum_dec[4]    = { 0,  2,  2,  1 };
 
 void snd_init(void)
 {
@@ -53,6 +63,7 @@ void snd_init(void)
        勝手に変えると BIOS の入力が壊れるので、現在値を保って下位だけ触る。 */
     mixer_base = (uint8_t)(psg_read(7) & 0xC0);
     PSG_W(7, mixer_base | 0x38);      /* トーン3本を有効、ノイズは無効 */
+    drum_on = 0;
     for (i = 0; i < 3; i++) {
         PSG_W(8 + i, 0);
     }
@@ -73,8 +84,15 @@ static void snd_start(const uint8_t *a, const uint8_t *b, const uint8_t *c, uint
 void snd_play_bgm(void)
 {
     ch_vol0[0] = 13;      /* 主旋律 */
-    ch_vol0[1] = 9;       /* 和音 */
-    ch_vol0[2] = 10;      /* 低音 */
+    ch_vol0[1] = 11;      /* ベース */
+    ch_vol0[2] = 13;      /* ドラム (音ごとに上書きする) */
+    ch_dec[0] = 3;
+    ch_dec[1] = 3;
+    ch_dec[2] = 2;
+    drum_on = 1;
+    /* トーン A/B のみ、ノイズは C のみ */
+    PSG_W(7, mixer_base | 0x1C);
+    PSG_W(6, drum_period[DRUM_BD]);
     snd_start(bgm_a, bgm_b, bgm_c, SND_BGM);
 }
 
@@ -83,6 +101,9 @@ void snd_play_fanfare(void)
     ch_vol0[0] = 14;
     ch_vol0[1] = 11;
     ch_vol0[2] = 11;
+    ch_dec[0] = ch_dec[1] = ch_dec[2] = 3;
+    drum_on = 0;
+    PSG_W(7, mixer_base | 0x38);      /* ファンファーレはトーン3声 */
     snd_start(fan_a, fan_b, fan_c, SND_SFX);
 }
 
@@ -123,7 +144,13 @@ void snd_tick(void)
             ch_left[i] = *ch_p[i]++;
             ch_t[i] = 0;
             ch_note[i] = note;
-            if (note) {
+            if (drum_on && i == 2) {
+                if (note) {                       /* ドラムは音程でなく打種 */
+                    PSG_W(6, drum_period[note]);
+                    ch_vol0[2] = drum_vol[note];
+                    ch_dec[2] = drum_dec[note];
+                }
+            } else if (note) {
                 uint16_t per = note_period[note];
                 PSG_W(i << 1, (uint8_t)(per & 0xFF));
                 PSG_W((i << 1) + 1, (uint8_t)(per >> 8));
@@ -131,7 +158,7 @@ void snd_tick(void)
         }
         {
             uint8_t v = (uint8_t)(ch_note[i] ? ch_vol0[i] : 0);
-            uint8_t d = (uint8_t)(ch_t[i] >> 3);      /* ゆるやかに減衰させる */
+            uint8_t d = (uint8_t)(ch_t[i] >> ch_dec[i]);
             PSG_W(8 + i, (uint8_t)((d >= v) ? 0 : (v - d)));
         }
         if (ch_t[i] < 255) {
