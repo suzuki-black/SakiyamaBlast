@@ -99,21 +99,31 @@ static void set_stage_layout(void)
     start_r = 9;
     carve_rect(8, 1, 8, 9);            /* 縦の背骨 */
 
+    /* 岩は土の中 (真下も土) に置く。真下を掘り抜くと揺れて落ちてくる。 */
     if (sidx == 0) {
         vdp_set_palette(COL_DIRT, 4, 2, 1);      /* 炭層まじりの茶 */
         place_powder_line(2, 3, 6);
         place_powder_line(9, 7, 6);
+        rock_place(4, 5);
+        rock_place(12, 4);
     } else if (sidx == 1) {
         vdp_set_palette(COL_DIRT, 3, 3, 2);      /* 硬い岩盤の灰 */
         place_powder_line(1, 2, 7);
         place_powder_line(9, 5, 6);
         place_powder_line(2, 8, 6);
+        rock_place(4, 4);
+        rock_place(13, 2);
+        rock_place(11, 7);
     } else {
         vdp_set_palette(COL_DIRT, 2, 2, 4);      /* 湧水を含む青みの層 */
         place_powder_line(2, 2, 6);
         place_powder_line(9, 4, 6);
         place_powder_line(1, 6, 7);
         place_powder_line(9, 8, 6);
+        rock_place(4, 3);
+        rock_place(12, 2);
+        rock_place(4, 7);
+        rock_place(12, 6);
     }
 }
 
@@ -126,6 +136,7 @@ void build_stage(void)
         dug[i] = 0;
         powder[i] = 0;
     }
+    rock_clear();
     set_stage_layout();
 
     dug_n = 0;

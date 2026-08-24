@@ -49,6 +49,7 @@ static void blast_one(int8_t cx, int8_t cy)
         return;
     }
     dig_sweep((uint8_t)cx, (uint8_t)cy);
+    rock_destroy_at(cx, cy);        /* 爆風にかかった岩は吹き飛ぶ */
     vdp_fill((uint16_t)((uint8_t)cx << 4), (uint16_t)((uint8_t)cy << 4), 16, 16, COL_BLAST);
     if (player_cell_c() == (uint8_t)cx && player_cell_r() == (uint8_t)cy) {
         dead = 1;               /* 自爆も1ミス */

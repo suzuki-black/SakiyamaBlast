@@ -48,6 +48,26 @@ static const uint16_t pat_bomb[16] = {
     0x0000    /* ................ */
 };
 
+/* 仮スプライト: 落盤の岩 */
+static const uint16_t pat_rock[16] = {
+    0x0000,   /* ................ */
+    0x07E0,   /* .....######..... */
+    0x1FF8,   /* ...##########... */
+    0x3FFC,   /* ..############.. */
+    0x7FFE,   /* .##############. */
+    0x7FFE,   /* .##############. */
+    0xFFFF,   /* ################ */
+    0xFFFF,   /* ################ */
+    0xFFFF,   /* ################ */
+    0xFFFF,   /* ################ */
+    0x7FFE,   /* .##############. */
+    0x7FFE,   /* .##############. */
+    0x3FFC,   /* ..############.. */
+    0x1FF8,   /* ...##########... */
+    0x07E0,   /* .....######..... */
+    0x0000    /* ................ */
+};
+
 static uint8_t prev_trig;
 
 static void wait_vsync(void)
@@ -102,12 +122,20 @@ void main(void)
     vdp_set_palette(COL_RED,    6, 1, 1);
     vdp_set_palette(COL_FUSE,   7, 6, 2);
     vdp_set_palette(COL_WHITE,  7, 7, 7);
+    vdp_set_palette(COL_ROCK,   5, 5, 5);
 
     spr_init();
     spr_pattern_rows(SPR_PLAYER, pat_miner);
     spr_pattern_rows(SPR_BOMB, pat_bomb);
+    spr_pattern_rows(SPR_ROCK, pat_rock);
     spr_color(SPR_PLAYER, COL_WHITE);
     spr_color(SPR_BOMB, COL_RED);
+    {
+        uint8_t i;
+        for (i = 0; i < ROCK_MAX; i++) {
+            spr_color((uint8_t)(SPR_ROCK + i), COL_ROCK);
+        }
+    }
 
     new_game();
 
@@ -123,6 +151,7 @@ void main(void)
             fire_pressed();        /* 死亡中もエッジ検出の状態は進めておく */
         }
         bomb_update();
+        rock_update();
 
         if (dead) {
             /* 自爆の場合は爆風の閃光を見せ切ってからミス処理する。
@@ -145,6 +174,7 @@ void main(void)
         } else {
             spr_set(SPR_PLAYER, px, (uint8_t)(py - 1), SPR_PLAYER);
         }
+        rock_draw();
         oam_flush();
         hud_draw();
     }

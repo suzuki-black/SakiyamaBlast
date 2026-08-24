@@ -24,6 +24,12 @@
 #define SPD_TUNNEL  3
 #define SPD_DIG     2
 
+/* 岩 (Mr. Do! の apple 準拠)。支え判定は真下のセル(地形)だけを見る = 自機は支えにならない。
+   支えを失うと 60フレーム揺れてから落下する (APPLEJIG の "60-frame wobble")。 */
+#define ROCK_MAX      4
+#define ROCK_JIG_FRAMES 60    /* 揺れ (約1秒) */
+#define ROCK_FALL_SPD 2       /* 落下 px/frame (1セル=8フレーム) */
+
 #define FUSE_FRAMES   120     /* ダイナマイトの導火 = 約2秒 */
 #define FLASH_FRAMES  8       /* 爆風の閃光 */
 #define INVULN_FRAMES 90      /* ミス後の無敵 */
@@ -38,6 +44,7 @@
 #define COL_WHITE  15
 #define COL_RED    8
 #define COL_FUSE   10
+#define COL_ROCK   14
 
 /* --- 方向 --- */
 #define DIR_NONE  0
@@ -49,6 +56,7 @@
 /* --- スプライト面 --- */
 #define SPR_PLAYER 0
 #define SPR_BOMB   1
+#define SPR_ROCK   2          /* 面 2..2+ROCK_MAX-1 */
 
 /* --- field.c --- */
 extern uint8_t  dug[NCELL];      /* 掘り済みフラグ */
@@ -77,6 +85,23 @@ void player_respawn(void);
 void player_carve(void);
 uint8_t player_cell_c(void);
 uint8_t player_cell_r(void);
+
+/* --- rock.c --- */
+#define ROCK_NONE 0
+#define ROCK_WAIT 1
+#define ROCK_JIG  2
+#define ROCK_FALL 3
+
+extern uint8_t rock_state[ROCK_MAX];
+extern uint8_t rock_x[ROCK_MAX], rock_y[ROCK_MAX];
+
+void    rock_clear(void);
+void    rock_place(uint8_t c, uint8_t r);
+int8_t  rock_at(int8_t cx, int8_t cy);          /* そのセルの岩の番号 / 無ければ -1 */
+uint8_t rock_push(int8_t i, int8_t dx);         /* 1=押せた 0=押せない */
+void    rock_destroy_at(int8_t cx, int8_t cy);  /* 爆風で吹き飛ばす */
+void    rock_update(void);
+void    rock_draw(void);
 
 /* --- bomb.c --- */
 extern uint8_t stock;        /* ダイナマイトのストック (次ステージへ持ち越し) */
