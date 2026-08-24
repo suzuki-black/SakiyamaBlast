@@ -1,0 +1,10 @@
+build/
+*.rel
+*.ihx
+*.lst
+*.map
+*.sym
+*.noi
+*.lk
+*.rst
+.DS_Store

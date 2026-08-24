@@ -1,0 +1,1981 @@
+' ============================================================
+'  ORCHARD - 掘って・拾って・跳ねる / dig, collect, bounce  (v2)
+'  ORCHARD - an original dig-and-bounce arcade game (all-BASIC)
+'
+'  画面全体が土(地上なし)。土を掘って進み、チェリーを全部集めるか、中央の巣から湧く
+'  モンスターを全滅させたらクリア。武器は「跳ねる玉」。リンゴは押して動かせ、下を2マス
+'  掘ると落ちて割れ、敵や自分を潰す(下1マスなら割れない)。ステージごとに土の色・掘り形・
+'  チェリーの組数・リンゴ配置が変わる(面データ、ランダムではない)。
+'
+'  完全オリジナル(絵・名前・面構成すべて自作)。掘る迷路＋跳ねる玉＋収集＋押せる果実の骨格のみ。
+'  そうさ / CONTROLS: 方向=掘って移動(リンゴは横に押せる) / dig+move, スペース=玉 / throw
+'  対応機種 / MACHINE: SCREEN 2 が動けば可(MSX1 以降)。turbo R が快適。
+' ============================================================
+
+' ---- 盤面(地上なし=全面土) / field (no sky, all dirt) ----
+CONST COLS% = 16                  ' 升目列(各16px)
+CONST ROWS% = 11                  ' 升目行(y0..175)
+CONST FBOT% = 175                 ' 場の最下端px
+CONST YMAX% = 160                 ' 自機/敵/リンゴのY上限(=10行目)
+CONST HUDY% = 176                 ' 最下部HUD帯の上端
+CONST PW% = 15                    ' スプライト/掘削の幅-1
+CONST PSPD% = 2                   ' 自機速度(16の約数。Dig-Dug流の滑らかなスウィープ掘り)
+CONST ESPD% = 2                   ' 敵速度(16の約数)
+CONST APSPD% = 4                  ' リンゴ落下速度(16を割る)
+
+' ---- スプライト面(固定index) / fixed sprite planes ----
+CONST NEMAX% = 3                  ' 同時に出る敵の最大(速度優先で控えめ)
+CONST EB% = 1                     ' 敵先頭面(0=自機)
+CONST BALLIX% = 5                 ' 玉の面
+CONST APBASE% = 6                 ' リンゴ先頭面
+CONST NAPMAX% = 3                 ' リンゴの最大数(速度優先で控えめ)
+
+' ---- 玉 / ball ----
+CONST BSPD% = 8                  ' 玉速度(16の約数=分岐点判定を維持。旧4の2倍)
+CONST BLIFE0% = 200               ' 投げた玉が壊れずに飛ぶ寿命 / thrown ball lifetime
+CONST RGTMAX% = 24                ' 集結アニメの長さ(フレーム) / regather animation frames
+CONST RGBASE% = 10                ' 集結玉のスプライト面先頭 / regather-ball plane base
+CONST FUSE% = 120                 ' ダイナマイトの導火(TIMEティック=約2秒)
+CONST FLASHT% = 6                 ' 爆風の閃光フレーム
+CONST WOBT% = 45                  ' 岩が支えを失い自機が離れてから落下するまでの揺れ時間(TIMEティック=約0.75秒)
+' 玉の状態 / ball states
+CONST BS_HELD% = 0                ' 手持ち(投げられる) / held, ready to throw
+CONST BS_OUT% = 1                 ' 投擲中(跳ね回る) / thrown, bouncing
+CONST BS_GONE% = 2                ' 壊れて待機(5-10秒) / broken, waiting
+CONST BS_GATHER% = 3              ' 集結アニメ中 / regathering
+
+' ---- 状態 / states ----
+CONST ST_TITLE% = 0
+CONST ST_PLAY% = 1
+CONST ST_CLEAR% = 2
+CONST ST_OVER% = 3
+
+' --- 共有配列/変数 / shared arrays & vars ---
+GLOBAL SPX%
+GLOBAL SPY%
+GLOBAL SPP%
+GLOBAL SPC%
+GLOBAL SVX%                       ' スプライト面ごとの毎フレーム速度(融合ASM移動用) / per-plane velocity
+GLOBAL SVY%
+GLOBAL DUG%
+GLOBAL CHMAP%                     ' セルにチェリーが有るか / cherry present per cell
+' 自機
+GLOBAL PX%
+GLOBAL PY%
+GLOBAL CDIR%
+GLOBAL LDIR%
+GLOBAL QD%
+GLOBAL FIRED%
+GLOBAL PB%
+GLOBAL PINV%
+' 敵
+GLOBAL EDIR%
+GLOBAL EGH%
+GLOBAL EACT%
+GLOBAL ESPAWN%
+GLOBAL EQUOTA%
+GLOBAL EALIVE%
+GLOBAL SPTMR%
+' 玉
+GLOBAL BSTATE%                    ' 玉の状態(BS_*) / ball state
+GLOBAL BX%
+GLOBAL BY%
+GLOBAL BDIR%
+GLOBAL BLIFE%
+GLOBAL BCD%                       ' 破損後の再使用まで(TIMEティック=1/60秒) / ticks to wait
+GLOBAL BTGT                       ' 破損した時刻(TIME値・実時間計測用) / TIME when broken
+GLOBAL RGT%                       ' 集結アニメの残りフレーム / regather countdown
+GLOBAL RGX%                       ' 集結玉のX / regather ball X
+GLOBAL RGY%                       ' 集結玉のY / regather ball Y
+GLOBAL BHOP%                      ' 玉の跳ね(ホップ)位相 0..3 / bounce phase for the hop visual
+GLOBAL HOPT%                      ' ホップ量テーブル(進行方向に直交して跳ねる) / hop offset table
+' リンゴ
+GLOBAL AAX%
+GLOBAL AAY%
+GLOBAL AACT%
+GLOBAL AFALL%
+GLOBAL AWOB%                      ' ぐらつき中フラグ(1=下を掘られ落下待ち) / wobbling flag
+GLOBAL ATGT                       ' ぐらつき開始時刻(TIME値・実時間で2秒計測) / TIME when undermined
+GLOBAL AFY0%                      ' 落下開始時のセル行(落下距離で割れ判定) / cell row where the fall began
+GLOBAL NAP%
+' チェリー / 進行
+GLOBAL CHLEFT%
+GLOBAL CCOMBO%                    ' 連続収集の音階位置(0=ド..7=高いド) / cherry combo scale index
+GLOBAL CCALIVE%                   ' 連続とみなす残りフレーム / frames the combo stays alive
+GLOBAL STATE%
+GLOBAL LIVES%
+GLOBAL SCORE%
+GLOBAL STAGE%
+GLOBAL BOMBSTOCK%                 ' ダイナマイトのストック(弾薬。次ステージ持ち越し)
+GLOBAL BON%                       ' 0=無 1=導火中 2=爆風閃光中 / dynamite state
+GLOBAL BMC%                       ' 設置セル列 / bomb cell col
+GLOBAL BMR%                       ' 設置セル行 / bomb cell row
+GLOBAL BFUSE                      ' 設置時刻(TIME・導火計測)
+GLOBAL BFLASH%                    ' 閃光の残りフレーム
+GLOBAL DUGN%                      ' 掘ったセル数(採掘%・90%クリア用)
+GLOBAL DUGPCT%                    ' 直近の採掘%(HUD用)
+GLOBAL HSCR%                      ' HUDに最後に描いた値(変化検出でPRINTを間引く)。HSCRはストック流用
+GLOBAL HLIV%
+GLOBAL HSTG%
+GLOBAL HDUG%                      ' HUDに最後に描いた採掘%
+GLOBAL FC%                        ' fps計測: フレーム計数 / frame counter
+GLOBAL FPS%                       ' 直近の実測fps
+GLOBAL TBF                        ' fps計測の1秒基準TIME(実数=オーバーフロー回避)
+GLOBAL DEAD%
+GLOBAL DIRTC%                     ' 面ごとの土の色 / per-stage soil colour
+GLOBAL NCX%                       ' 巣のセル / nest cell
+GLOBAL NCY%
+
+DIM SPX%(31)
+DIM SPY%(31)
+DIM SPP%(31)
+DIM SPC%(31)
+DIM SVX%(31)
+DIM SVY%(31)
+DIM DUG%(175)
+DIM CHMAP%(175)
+DIM EDIR%(7)
+DIM EGH%(7)
+DIM EACT%(7)
+DIM AAX%(7)
+DIM AAY%(7)
+DIM AACT%(7)
+DIM AFALL%(7)
+DIM AWOB%(7)
+DIM ATGT(7)
+DIM AFY0%(7)
+DIM RGX%(3)
+DIM RGY%(3)
+DIM HOPT%(3)
+' 円形ブラシの半幅テーブル(半径8) / half-widths of a radius-8 disc, for rounded digging
+
+' ============================================================
+'  画面初期化(1回だけ) / one-time setup
+' ============================================================
+SCREEN 5, 2                        ' MSX2 256x212 16色/512パレット, 16x16スプライト
+COLOR 15, 1, 1
+CLS
+OPEN "GRP:" AS #1
+
+' 自機=モグラ
+SPRITE MOLE
+    "................"
+    "................"
+    "....########...."
+    "...##########..."
+    "..############.."
+    "..###.####.###.."
+    "..############.."
+    "..############.."
+    "..############.."
+    "..############.."
+    "..############.."
+    "..############.."
+    "...##########..."
+    "....########...."
+    "................"
+    "................"
+END SPRITE
+
+' 敵=虫
+SPRITE BUG
+    "................"
+    "................"
+    "....######......"
+    "...########....."
+    "..##########...."
+    "..##.####.##...."
+    "..#.######.#...."
+    "..##########...."
+    "..##########...."
+    "..##.####.##...."
+    "...##....##....."
+    "..##########...."
+    "...########....."
+    "....######......"
+    "................"
+    "................"
+END SPRITE
+
+' 玉=跳ねる弾
+SPRITE BALL
+    "................"
+    "................"
+    "................"
+    ".....######....."
+    "....########...."
+    "...##########..."
+    "...##########..."
+    "...##########..."
+    "...##########..."
+    "...##########..."
+    "....########...."
+    ".....######....."
+    "................"
+    "................"
+    "................"
+    "................"
+END SPRITE
+
+' リンゴ=押せる/落ちる果実
+SPRITE APPLE
+    "................"
+    "......##........"
+    ".......##......."
+    "....########...."
+    "..############.."
+    ".##############."
+    ".##############."
+    ".##############."
+    ".##############."
+    ".##############."
+    ".##############."
+    "..############.."
+    "..############.."
+    "...##....##....."
+    "................"
+    "................"
+END SPRITE
+
+' 全32スプライト面を起動時に1回だけ場外へ(未使用の面がゴミを出さないように)
+' SC5は212ライン。パークYは画面外の212(216=mode2終端マジックは避ける)。
+FOR I% = 0 TO 31
+    PUT SPRITE I%, (0, 212), 1, 0
+NEXT I%
+' SC5スプライトはmode2で色が色テーブルにある。FLUSH05はY/X/絵だけ更新する(色は無害な4バイト目)
+' ので、面0..4(自機＋敵)の色を色テーブルに焼く(起動時＋ゲーム再開時に呼ぶ)。
+COLORINIT()
+
+' HUDキャッシュを無効値で初期化(最初のDRAWHUDで必ず一度描く)
+HSCR% = 0 - 1
+HLIV% = 0 - 1
+HSTG% = 0 - 1
+' fps計測の初期化(体感速度の確認用)
+FC% = 0
+FPS% = 0
+TBF = TIME
+' 玉の跳ね(ホップ)量: 4位相で 0,-4,-6,-4 の弧を描く(進行方向に直交して跳ねる見た目)
+HOPT%(0) = 0
+HOPT%(1) = 0 - 4
+HOPT%(2) = 0 - 6
+HOPT%(3) = 0 - 4
+BHOP% = 0
+
+GOTITLE()
+
+' ============================================================
+'  メインループ / MAIN
+' ============================================================
+WHILE 1
+    WAITFRAME()
+    TPROF = TIME
+    READINPUT()
+    ST% = STATE%
+    IF ST% = ST_TITLE% THEN
+        IF FIRED% = 1 THEN
+            STARTGAME()
+        END IF
+    END IF
+    IF ST% = ST_PLAY% THEN
+        MOVEDIG()
+        SPX%(0) = PX%
+        SPY%(0) = PY%
+        UPDBOMB()
+        UPDAPPLES()
+        SPAWNTICK()
+        MOVEENEMIES()
+        CHECKDEATH()
+        IF STATE% = ST_PLAY% THEN
+            CHECKWIN()
+        END IF
+        DRAWALL()
+        ' HUDは値が変わった時だけ塗り直す
+        DRAWHUD()
+        ' 体感速度の確認用: 1秒(60ティック)ごとにfpsだけ軽量表示(FP演算なし)
+        FC% = FC% + 1
+        DTF = TIME - TBF
+        IF DTF < 0 THEN
+            DTF = DTF + 65536
+        END IF
+        IF DTF >= 60 THEN
+            FPS% = FC%
+            FC% = 0
+            TBF = TBF + 60
+            SHOWFPS()
+        END IF
+    END IF
+    IF ST% = ST_CLEAR% THEN
+        IF FIRED% = 1 THEN
+            NEXTSTAGE()
+        END IF
+    END IF
+    IF ST% = ST_OVER% THEN
+        IF FIRED% = 1 THEN
+            GOTITLE()
+        END IF
+    END IF
+WEND
+
+' ============================================================
+'  タイマ・入力
+' ============================================================
+' フレーム時間を固定化(=移動速度をfps非依存にする定石)。3ティック=20fps を上限に張る。
+' 20fps で PSPD=4 なら 80px/s、ESPD=2 なら 40px/s。Mr.Do! の実測(60fps x 約1px = 約60px/s)を
+' 16の約数(1/2/4/8)で近似した値。速い機(R800)でも上限20fpsで速度が暴れず一定になる。
+' これより重い機では単純に遅くなる(その場合の抜本策はホットループのASM化)。
+FUNCTION WAITFRAME()
+    FR = TIME
+    DO WHILE TIME - FR < 3
+    LOOP
+END FUNCTION
+
+FUNCTION READINPUT()
+    GLOBAL QD%
+    GLOBAL FIRED%
+    GLOBAL PB%
+    J% = STICK(0)
+    QD% = 0
+    IF J% = 2 OR J% = 3 OR J% = 4 THEN
+        QD% = 4
+    END IF
+    IF J% = 6 OR J% = 7 OR J% = 8 THEN
+        QD% = 3
+    END IF
+    IF J% = 4 OR J% = 5 OR J% = 6 THEN
+        QD% = 2
+    END IF
+    IF J% = 1 OR J% = 2 OR J% = 8 THEN
+        QD% = 1
+    END IF
+    BTN% = 0
+    IF STRIG(0) THEN
+        BTN% = 1
+    END IF
+    FIRED% = 0
+    IF BTN% = 1 THEN
+        IF PB% = 0 THEN
+            FIRED% = 1
+        END IF
+    END IF
+    PB% = BTN%
+END FUNCTION
+
+' ============================================================
+'  自機: 掘って移動＋玉
+' ============================================================
+FUNCTION MOVEDIG()
+    GLOBAL FIRED%
+    RESOLVEDIR()
+    ' 収集判定は「移動する前」に(スナップ直後・前フレーム到達の節点を確実に拾う)。
+    ' STEPPLAYER が同フレームで節点を離れてしまい取りこぼすのを防ぐ。
+    COLLECT()
+    STEPPLAYER()
+    IF FIRED% = 1 THEN
+        FIREBOMB()
+    END IF
+END FUNCTION
+
+' QD から CDIR。半歩中に直交を押したら、その軸を最寄り16px節点へ自動スナップして曲がる。
+FUNCTION RESOLVEDIR()
+    GLOBAL QD%
+    GLOBAL CDIR%
+    GLOBAL LDIR%
+    GLOBAL PX%
+    GLOBAL PY%
+    IF QD% = 0 THEN
+        CDIR% = 0
+        RETURN 0
+    END IF
+    IF QD% = 1 OR QD% = 2 THEN
+        IF (PX% AND 15) <> 0 THEN
+            PX% = ((PX% + 8) \ 16) * 16
+            IF PX% < 0 THEN
+                PX% = 0
+            END IF
+            IF PX% > 255 - PW% THEN
+                PX% = 255 - PW%
+            END IF
+            LINE (PX% + 2, PY% + 2)-(PX% + PW% - 2, PY% + PW% - 2), 1, BF
+            DIGCELL(PX%, PY%)
+        END IF
+        CDIR% = QD%
+    END IF
+    IF QD% = 3 OR QD% = 4 THEN
+        IF (PY% AND 15) <> 0 THEN
+            PY% = ((PY% + 8) \ 16) * 16
+            IF PY% < 0 THEN
+                PY% = 0
+            END IF
+            IF PY% > YMAX% THEN
+                PY% = YMAX%
+            END IF
+            LINE (PX% + 2, PY% + 2)-(PX% + PW% - 2, PY% + PW% - 2), 1, BF
+            DIGCELL(PX%, PY%)
+        END IF
+        CDIR% = QD%
+    END IF
+    IF CDIR% <> 0 THEN
+        LDIR% = CDIR%
+    END IF
+    RETURN 0
+END FUNCTION
+
+' CDIR方向へ進む。次セルにリンゴが有れば、横向きは押す(押せなければ停止)、縦向きは停止。
+FUNCTION STEPPLAYER()
+    GLOBAL CDIR%
+    GLOBAL PX%
+    GLOBAL PY%
+    GLOBAL DUG%
+    IF CDIR% = 0 THEN
+        RETURN 0
+    END IF
+    ' 節点なら、進む先セルのリンゴ判定
+    IF (PX% AND 15) = 0 THEN
+        IF (PY% AND 15) = 0 THEN
+            PCX% = PX% \ 16
+            PCY% = PY% \ 16
+            TCX% = PCX%
+            TCY% = PCY%
+            IF CDIR% = 1 THEN
+                TCY% = PCY% - 1
+            END IF
+            IF CDIR% = 2 THEN
+                TCY% = PCY% + 1
+            END IF
+            IF CDIR% = 3 THEN
+                TCX% = PCX% - 1
+            END IF
+            IF CDIR% = 4 THEN
+                TCX% = PCX% + 1
+            END IF
+            AI% = APPLEAT(TCX%, TCY%)
+            IF AI% >= 0 THEN
+                OK% = 0
+                IF CDIR% = 3 THEN
+                    OK% = PUSHAPPLE(AI%, 0 - 1)
+                END IF
+                IF CDIR% = 4 THEN
+                    OK% = PUSHAPPLE(AI%, 1)
+                END IF
+                IF OK% = 0 THEN
+                    RETURN 0
+                END IF
+            END IF
+        END IF
+    END IF
+    DX% = 0
+    DY% = 0
+    IF CDIR% = 1 THEN
+        DY% = 0 - PSPD%
+    END IF
+    IF CDIR% = 2 THEN
+        DY% = PSPD%
+    END IF
+    IF CDIR% = 3 THEN
+        DX% = 0 - PSPD%
+    END IF
+    IF CDIR% = 4 THEN
+        DX% = PSPD%
+    END IF
+    PX% = PX% + DX%
+    PY% = PY% + DY%
+    IF PX% < 0 THEN
+        PX% = 0
+    END IF
+    IF PX% > 255 - PW% THEN
+        PX% = 255 - PW%
+    END IF
+    IF PY% < 0 THEN
+        PY% = 0
+    END IF
+    IF PY% > YMAX% THEN
+        PY% = YMAX%
+    END IF
+    ' 既に掘れた通路内なら重い DIGROUND を省く。自機は常に場内なので DUG を直接参照(関数呼び回避)。
+    PCX% = PX% \ 16
+    PCY% = PY% \ 16
+    QCX% = (PX% + PW%) \ 16
+    QCY% = (PY% + PW%) \ 16
+    ' Dig-Dug流の掘り跡: 掘り抜きを自機幅より内側(2px)に狭める。これで隣接する平行トンネルの
+    ' 間に薄い土の膜が残る(セル幅いっぱいに掘ると融合して膜が消える=NG)。移動中は常に掘る。
+    ' DUG(通行判定)はセル単位のままなので動きは自由、膜は見た目だけ残る。
+    LINE (PX% + 2, PY% + 2)-(PX% + PW% - 2, PY% + PW% - 2), 1, BF
+    ' DUG記録(通行判定/採掘%/岩の支え喪失)は「そのセルに完全整列＝丸々掘り切った」時だけ。
+    ' 2px掠めただけで掘れた扱いにすると、岩の真下を少し削っただけで落下してしまう(=NG)。
+    IF (PX% AND 15) = 0 THEN
+        IF (PY% AND 15) = 0 THEN
+            DIGSWEEP(PX% \ 16, PY% \ 16)
+        END IF
+    END IF
+    RETURN 0
+END FUNCTION
+
+' ============================================================
+'  跳ねる玉
+' ============================================================
+' 手持ち状態のときだけ、自機の升目から LDIR 方向へ投げる。
+' ダイナマイト設置: ストック>0かつ現在設置中でない時、自機の中心セルに1個置く(1消費)。
+FUNCTION FIREBOMB()
+    GLOBAL BON%
+    GLOBAL BMC%
+    GLOBAL BMR%
+    GLOBAL BFUSE
+    GLOBAL BOMBSTOCK%
+    GLOBAL PX%
+    GLOBAL PY%
+    IF BON% <> 0 THEN
+        RETURN 0
+    END IF
+    IF BOMBSTOCK% <= 0 THEN
+        RETURN 0
+    END IF
+    BOMBSTOCK% = BOMBSTOCK% - 1
+    BMC% = (PX% + 8) \ 16
+    BMR% = (PY% + 8) \ 16
+    BON% = 1
+    BFUSE = TIME
+    DRAWHUD()
+END FUNCTION
+
+' 玉の状態機械: 投擲中は跳ね回る/待機は秒読み/集結はアニメ。
+' ダイナマイト更新: 導火(BON=1)が約2秒で爆発、爆風閃光(BON=2)が数フレームで消えトンネル化。
+FUNCTION UPDBOMB()
+    GLOBAL BON%
+    GLOBAL BFUSE
+    GLOBAL BFLASH%
+    IF BON% = 1 THEN
+        DT = TIME - BFUSE
+        IF DT < 0 THEN
+            DT = DT + 65536
+        END IF
+        IF DT >= FUSE% THEN
+            EXPLODE()
+        END IF
+    END IF
+    IF BON% = 2 THEN
+        BFLASH% = BFLASH% - 1
+        IF BFLASH% <= 0 THEN
+            BON% = 0
+            FINISHBLAST()
+        END IF
+    END IF
+END FUNCTION
+
+' 十字爆発: 中心＋上下左右1マス。各セルを掘り(DIGSWEEP)、敵/自機を潰す。閃光を出す。
+FUNCTION EXPLODE()
+    GLOBAL BON%
+    GLOBAL BFLASH%
+    GLOBAL BMC%
+    GLOBAL BMR%
+    BLASTONE(BMC%, BMR%)
+    BLASTONE(BMC%, BMR% - 1)
+    BLASTONE(BMC%, BMR% + 1)
+    BLASTONE(BMC% - 1, BMR%)
+    BLASTONE(BMC% + 1, BMR%)
+    BON% = 2
+    BFLASH% = FLASHT%
+END FUNCTION
+
+' 爆風1セル: 場内なら掘る(DIGSWEEP=DUG+採掘数+岩支え)、そのセルに居る敵/自機は死。閃光を黄で塗る。
+FUNCTION BLASTONE(CX%, CY%)
+    GLOBAL SPX%
+    GLOBAL SPY%
+    GLOBAL EACT%
+    GLOBAL PX%
+    GLOBAL PY%
+    GLOBAL DEAD%
+    IF CX% < 0 THEN
+        RETURN 0
+    END IF
+    IF CX% >= COLS% THEN
+        RETURN 0
+    END IF
+    IF CY% < 0 THEN
+        RETURN 0
+    END IF
+    IF CY% >= ROWS% THEN
+        RETURN 0
+    END IF
+    DIGSWEEP(CX%, CY%)
+    LINE (CX% * 16, CY% * 16)-(CX% * 16 + PW%, CY% * 16 + PW%), 11, BF
+    FOR K% = 0 TO NEMAX% - 1
+        IF EACT%(K%) = 1 THEN
+            IF (SPX%(EB% + K%) + 8) \ 16 = CX% THEN
+                IF (SPY%(EB% + K%) + 8) \ 16 = CY% THEN
+                    KILLENEMY(K%, 100)
+                END IF
+            END IF
+        END IF
+    NEXT K%
+    IF (PX% + 8) \ 16 = CX% THEN
+        IF (PY% + 8) \ 16 = CY% THEN
+            DEAD% = 1
+        END IF
+    END IF
+END FUNCTION
+
+' 閃光終了: 爆風の跡を正規のトンネル描画(膜つき)へ差し替える(中心5セル＋膜が変わる周囲)。
+FUNCTION FINISHBLAST()
+    GLOBAL BMC%
+    GLOBAL BMR%
+    DRAWDUGCELL(BMC%, BMR%)
+    DRAWDUGCELL(BMC%, BMR% - 1)
+    DRAWDUGCELL(BMC%, BMR% + 1)
+    DRAWDUGCELL(BMC% - 1, BMR%)
+    DRAWDUGCELL(BMC% + 1, BMR%)
+    DRAWDUGCELL(BMC% - 1, BMR% - 1)
+    DRAWDUGCELL(BMC% + 1, BMR% - 1)
+    DRAWDUGCELL(BMC% - 1, BMR% + 1)
+    DRAWDUGCELL(BMC% + 1, BMR% + 1)
+    DRAWDUGCELL(BMC%, BMR% - 2)
+    DRAWDUGCELL(BMC%, BMR% + 2)
+    DRAWDUGCELL(BMC% - 2, BMR%)
+    DRAWDUGCELL(BMC% + 2, BMR%)
+END FUNCTION
+
+' 投擲中の1フレーム: 節点で壁なら向きを変えて跳ね(多方向)、敵に当たれば倒して玉は壊れる。
+FUNCTION BALLMOVE()
+    GLOBAL BX%
+    GLOBAL BY%
+    GLOBAL BDIR%
+    GLOBAL BLIFE%
+    GLOBAL BSTATE%
+    GLOBAL BHOP%
+    ' 跳ね位相を進める(描画で進行方向に直交してホップ=一本道でも跳ねながら進む見た目)
+    BHOP% = (BHOP% + 1) AND 3
+    IF (BX% AND 15) = 0 THEN
+        IF (BY% AND 15) = 0 THEN
+            BALLTURN()
+        END IF
+    END IF
+    IF BDIR% = 1 THEN
+        BY% = BY% - BSPD%
+    END IF
+    IF BDIR% = 2 THEN
+        BY% = BY% + BSPD%
+    END IF
+    IF BDIR% = 3 THEN
+        BX% = BX% - BSPD%
+    END IF
+    IF BDIR% = 4 THEN
+        BX% = BX% + BSPD%
+    END IF
+    ' 場外安全ネット: 万一場外へ向かっても端で止めて反転(掘った範囲=x0..240,y0..160)。
+    IF BX% < 0 THEN
+        BX% = 0
+        BDIR% = 4
+    END IF
+    IF BX% > 240 THEN
+        BX% = 240
+        BDIR% = 3
+    END IF
+    IF BY% < 0 THEN
+        BY% = 0
+        BDIR% = 2
+    END IF
+    IF BY% > 160 THEN
+        BY% = 160
+        BDIR% = 1
+    END IF
+    BALLHIT()
+    IF BSTATE% <> BS_OUT% THEN
+        RETURN 0
+    END IF
+    ' 敵に当たらず寿命が尽きたら手元に戻る(すぐ再投擲可)。壊れるのは敵に当てた時だけ。
+    BLIFE% = BLIFE% - 1
+    IF BLIFE% <= 0 THEN
+        BSTATE% = BS_HELD%
+    END IF
+END FUNCTION
+
+' 節点での跳ね返り(本家Mr.Do!仕様): 節点で「来た方(反転)以外の通れる方向」を数え、
+' 複数あれば分岐点として乱数で1つ選ぶ(=予測不能に曲がる)。1つだけなら直進、0なら反転。
+FUNCTION BALLTURN()
+    GLOBAL BX%
+    GLOBAL BY%
+    GLOBAL BDIR%
+    GLOBAL DUG%
+    BCX% = BX% \ 16
+    BCY% = BY% \ 16
+    BASE% = BCY% * COLS% + BCX%
+    ' 来た方(反転): 1<->2 / 3<->4
+    IF BDIR% <= 2 THEN
+        REV% = 3 - BDIR%
+    ELSE
+        REV% = 7 - BDIR%
+    END IF
+    ' 4方向の開き(掘り済み=通れる)を DUG 直接参照でインライン判定(NBOPEN/CDUG の関数呼び出し
+    ' 16回/分岐を除去。1=上,2=下,3=左,4=右)。境界外は閉。反転方向は除外。
+    OUP% = 0
+    ODN% = 0
+    OLE% = 0
+    ORI% = 0
+    IF BCY% > 0 THEN
+        IF DUG%(BASE% - COLS%) = 1 THEN
+            OUP% = 1
+        END IF
+    END IF
+    IF BCY% < ROWS% - 1 THEN
+        IF DUG%(BASE% + COLS%) = 1 THEN
+            ODN% = 1
+        END IF
+    END IF
+    IF BCX% > 0 THEN
+        IF DUG%(BASE% - 1) = 1 THEN
+            OLE% = 1
+        END IF
+    END IF
+    IF BCX% < COLS% - 1 THEN
+        IF DUG%(BASE% + 1) = 1 THEN
+            ORI% = 1
+        END IF
+    END IF
+    IF REV% = 1 THEN
+        OUP% = 0
+    END IF
+    IF REV% = 2 THEN
+        ODN% = 0
+    END IF
+    IF REV% = 3 THEN
+        OLE% = 0
+    END IF
+    IF REV% = 4 THEN
+        ORI% = 0
+    END IF
+    NC% = OUP% + ODN% + OLE% + ORI%
+    IF NC% = 0 THEN
+        ' 行き止まり=反転
+        BDIR% = REV%
+        RETURN 0
+    END IF
+    ' 通れる候補のうち R 番目を選ぶ(分岐点なら乱数、直線なら1択)
+    R% = INT(RND(1) * NC%)
+    K% = 0
+    IF OUP% = 1 THEN
+        IF K% = R% THEN
+            BDIR% = 1
+        END IF
+        K% = K% + 1
+    END IF
+    IF ODN% = 1 THEN
+        IF K% = R% THEN
+            BDIR% = 2
+        END IF
+        K% = K% + 1
+    END IF
+    IF OLE% = 1 THEN
+        IF K% = R% THEN
+            BDIR% = 3
+        END IF
+        K% = K% + 1
+    END IF
+    IF ORI% = 1 THEN
+        IF K% = R% THEN
+            BDIR% = 4
+        END IF
+        K% = K% + 1
+    END IF
+END FUNCTION
+
+' セル(CX,CY)から DIR 方向の隣が掘り済み(通れる)なら1。
+FUNCTION NBOPEN(CX%, CY%, DIR%)
+    NX% = CX%
+    NY% = CY%
+    IF DIR% = 1 THEN
+        NY% = CY% - 1
+    END IF
+    IF DIR% = 2 THEN
+        NY% = CY% + 1
+    END IF
+    IF DIR% = 3 THEN
+        NX% = CX% - 1
+    END IF
+    IF DIR% = 4 THEN
+        NX% = CX% + 1
+    END IF
+    RETURN CDUG(NX%, NY%)
+END FUNCTION
+
+' 玉が敵に当たったら倒して玉は壊れる(1体で消費)。
+FUNCTION BALLHIT()
+    GLOBAL BX%
+    GLOBAL BY%
+    GLOBAL SPX%
+    GLOBAL SPY%
+    GLOBAL EACT%
+    GLOBAL BSTATE%
+    HIT% = 0
+    FOR K% = 0 TO NEMAX% - 1
+        IF HIT% = 0 THEN
+            IF EACT%(K%) = 1 THEN
+                IF ABS(BX% - SPX%(EB% + K%)) < 12 THEN
+                    IF ABS(BY% - SPY%(EB% + K%)) < 12 THEN
+                        KILLENEMY(K%, 100)
+                        PLAY "V13O4L32CO3L16G"
+                        HIT% = 1
+                    END IF
+                END IF
+            END IF
+        END IF
+    NEXT K%
+    IF HIT% = 1 THEN
+        BREAKBALL()
+    END IF
+END FUNCTION
+
+' 玉が壊れる: 5-10秒(150-300フレーム)ランダムで待機に入る。
+FUNCTION BREAKBALL()
+    GLOBAL BSTATE%
+    GLOBAL BCD%
+    GLOBAL BTGT
+    BSTATE% = BS_GONE%
+    BTGT = TIME
+    ' 待ち = 5-10秒(TIMEは60Hz)。300-600ティック。
+    BCD% = 300 + INT(RND(1) * 301)
+    PLAY "V12O3L16CO2L16C"
+END FUNCTION
+
+' 集結アニメ開始: 画面四隅から玉が集まってくる。
+FUNCTION STARTGATHER()
+    GLOBAL BSTATE%
+    GLOBAL RGT%
+    BSTATE% = BS_GATHER%
+    RGT% = RGTMAX%
+    PLAY "V12O4L32CEGO5C"
+END FUNCTION
+
+' 集結アニメ: 四隅→自機へ補間。終わったら手持ちへ。
+FUNCTION GATHERTICK()
+    GLOBAL BSTATE%
+    GLOBAL RGT%
+    GLOBAL RGX%
+    GLOBAL RGY%
+    GLOBAL PX%
+    GLOBAL PY%
+    RGT% = RGT% - 1
+    T% = RGTMAX% - RGT%
+    FOR I% = 0 TO 3
+        C1% = (I% AND 1) * 240
+        C2% = (I% \ 2) * 160
+        RGX%(I%) = C1% + (PX% - C1%) * T% \ RGTMAX%
+        RGY%(I%) = C2% + (PY% - C2%) * T% \ RGTMAX%
+    NEXT I%
+    IF RGT% <= 0 THEN
+        BSTATE% = BS_HELD%
+        ' 集結終了。集結玉を1回だけ場外へ(以後 DRAWALL は触らない)
+        FOR I% = 0 TO 3
+            PUT SPRITE RGBASE% + I%, (0, 212), 11, 2
+        NEXT I%
+    END IF
+END FUNCTION
+
+FUNCTION KILLENEMY(K%, PTS%)
+    GLOBAL EACT%
+    GLOBAL SPY%
+    GLOBAL SVX%
+    GLOBAL SVY%
+    GLOBAL EALIVE%
+    GLOBAL SCORE%
+    EACT%(K%) = 0
+    SPY%(EB% + K%) = 212
+    ' 融合ASM移動で残骸が動かないよう速度を0に
+    SVX%(EB% + K%) = 0
+    SVY%(EB% + K%) = 0
+    EALIVE% = EALIVE% - 1
+    SCORE% = SCORE% + PTS%
+    DRAWHUD()
+END FUNCTION
+
+' ============================================================
+'  リンゴ(押せる/落ちる/割れる)
+' ============================================================
+' セル(cx,cy)に居る生きたリンゴのindex、無ければ-1。
+FUNCTION APPLEAT(CX%, CY%)
+    GLOBAL AAX%
+    GLOBAL AAY%
+    GLOBAL AACT%
+    GLOBAL NAP%
+    R% = 0 - 1
+    FOR I% = 0 TO NAP% - 1
+        IF R% < 0 THEN
+            IF AACT%(I%) = 1 THEN
+                IF AAX%(I%) \ 16 = CX% THEN
+                    IF AAY%(I%) \ 16 = CY% THEN
+                        R% = I%
+                    END IF
+                END IF
+            END IF
+        END IF
+    NEXT I%
+    RETURN R%
+END FUNCTION
+
+' 本家Mr.Do!流: リンゴは「下に支える土がある限り横に動かせる」(掘りながら横へ押す)。土壁でも
+' 押せる。支えの無い所(縦穴の縁)へ押し出すと重力で落ちる(落下判定は UPDAPPLES 側)。
+FUNCTION PUSHAPPLE(AI%, DX%)
+    GLOBAL AAX%
+    GLOBAL AAY%
+    GLOBAL DUG%
+    GLOBAL AFALL%
+    GLOBAL AWOB%
+    GLOBAL AFY0%
+    ACX% = AAX%(AI%) \ 16
+    ACY% = AAY%(AI%) \ 16
+    NCX2% = ACX% + DX%
+    ' 場外へは押せない
+    IF NCX2% < 0 THEN
+        RETURN 0
+    END IF
+    IF NCX2% >= COLS% THEN
+        RETURN 0
+    END IF
+    ' 別のリンゴがあれば押せない
+    IF APPLEAT(NCX2%, ACY%) >= 0 THEN
+        RETURN 0
+    END IF
+    ' 押し先が土なら掘って(リンゴが土を押しのけて横へ動く)
+    IF CDUG(NCX2%, ACY%) = 0 THEN
+        DUG%(ACY% * COLS% + NCX2%) = 1
+        LINE (NCX2% * 16, ACY% * 16)-(NCX2% * 16 + PW%, ACY% * 16 + PW%), 1, BF
+    END IF
+    AAX%(AI%) = NCX2% * 16
+    ' 押し出した先の真下が空(掘り済)なら、縦穴の縁へ押し出した=即落下(本家の潰し挙動)。
+    IF ACY% + 1 < ROWS% THEN
+        IF CDUG(NCX2%, ACY% + 1) = 1 THEN
+            AFALL%(AI%) = 1
+            AWOB%(AI%) = 0
+            AFY0%(AI%) = ACY%
+        END IF
+    END IF
+    RETURN 1
+END FUNCTION
+
+' 全リンゴ(岩)更新。対象は最大 NAPMAX%(=3)個なので毎フレーム真下の支えを見ても軽い
+' (全グリッド重力スキャンとは別物)。Dig Dug / Mr.Do! 準拠の支えルール:
+'  - 真下セルが土 = 支えられている -> 揺れも落下もしない。
+'  - 真下セルが掘り済みでも「自機が真下セルにいる間は自機が支え」-> 揺れない(保持)。
+'  - 自機が真下から離れた瞬間から揺れ始め、WOBT% 経過で落下開始。
+' 出典: StrategyWiki Dig Dug/Gameplay「the rock ... will only start to happen once Dig Dug
+' himself moves out from under the rock」「hold a rock in place by staying directly under it」。
+FUNCTION UPDAPPLES()
+    GLOBAL NAP%
+    GLOBAL AACT%
+    GLOBAL AFALL%
+    GLOBAL AWOB%
+    GLOBAL ATGT
+    GLOBAL AAX%
+    GLOBAL AAY%
+    GLOBAL AFY0%
+    GLOBAL PX%
+    GLOBAL PY%
+    ' 自機の現在セル(真下の支え判定用・中心で判定)
+    PCC% = (PX% + 8) \ 16
+    PRR% = (PY% + 8) \ 16
+    FOR I% = 0 TO NAP% - 1
+        IF AACT%(I%) = 1 THEN
+            IF AFALL%(I%) = 1 THEN
+                APPLEFALL(I%)
+            ELSE
+                ACX% = AAX%(I%) \ 16
+                ACY% = AAY%(I%) \ 16
+                ' 真下セルが開いている(掘り済み)か = 支え喪失
+                OPEN% = 0
+                IF ACY% + 1 < ROWS% THEN
+                    IF CDUG(ACX%, ACY% + 1) = 1 THEN
+                        OPEN% = 1
+                    END IF
+                END IF
+                ' 自機が真下セルにいる = 自機が支えている
+                HELD% = 0
+                IF PCC% = ACX% THEN
+                    IF PRR% = ACY% + 1 THEN
+                        HELD% = 1
+                    END IF
+                END IF
+                IF OPEN% = 1 THEN
+                    IF HELD% = 1 THEN
+                        ' 自機が真下で支えている間は揺れない(揺れ途中なら中断して保持)
+                        AWOB%(I%) = 0
+                    ELSE
+                        IF AWOB%(I%) = 0 THEN
+                            ' 支え喪失&誰もいない -> 揺れ開始
+                            AWOB%(I%) = 1
+                            ATGT(I%) = TIME
+                        ELSE
+                            DT = TIME - ATGT(I%)
+                            IF DT < 0 THEN
+                                DT = DT + 65536
+                            END IF
+                            IF DT >= WOBT% THEN
+                                AFALL%(I%) = 1
+                                AWOB%(I%) = 0
+                                AFY0%(I%) = ACY%
+                            END IF
+                        END IF
+                    END IF
+                ELSE
+                    ' 真下が土 = 支えられている -> 揺れなし
+                    AWOB%(I%) = 0
+                END IF
+            END IF
+        END IF
+    NEXT I%
+END FUNCTION
+
+' イベント駆動の要: セル(cx,cy)に静止リンゴが在れば、その真下が今掘られた=支えが消えたので
+' ぐらつき開始(ATGT に開始時刻を記録、実時間で約2秒後に落下)。掘った瞬間だけ1回呼ぶので軽い。
+' 半分通り過ぎただけ(真下を掘り切っていない)では呼ばれない=落ちない。
+FUNCTION UNDERMINE(CX%, CY%)
+    GLOBAL AWOB%
+    GLOBAL AFALL%
+    GLOBAL ATGT
+    IF CY% < 0 THEN
+        RETURN 0
+    END IF
+    AI% = APPLEAT(CX%, CY%)
+    IF AI% < 0 THEN
+        RETURN 0
+    END IF
+    ' 既にぐらつき/落下中は無視
+    IF AWOB%(AI%) = 1 THEN
+        RETURN 0
+    END IF
+    IF AFALL%(AI%) = 1 THEN
+        RETURN 0
+    END IF
+    AWOB%(AI%) = 1
+    ATGT(AI%) = TIME
+END FUNCTION
+
+' 落下リンゴ: 下へ動かし、重なった敵/自機を潰す。土/床に着いたら割れて消える。
+FUNCTION APPLEFALL(I%)
+    GLOBAL AAX%
+    GLOBAL AAY%
+    GLOBAL AACT%
+    GLOBAL AFALL%
+    GLOBAL AWOB%
+    GLOBAL AFY0%
+    GLOBAL SPX%
+    GLOBAL SPY%
+    GLOBAL EACT%
+    GLOBAL DEAD%
+    AAY%(I%) = AAY%(I%) + APSPD%
+    IF AAY%(I%) > YMAX% THEN
+        AAY%(I%) = YMAX%
+    END IF
+    ' 潰し判定(自機)
+    IF ABS(AAX%(I%) - SPX%(0)) < 13 THEN
+        IF ABS(AAY%(I%) - SPY%(0)) < 13 THEN
+            DEAD% = 1
+        END IF
+    END IF
+    ' 潰し判定(敵)
+    FOR K% = 0 TO NEMAX% - 1
+        IF EACT%(K%) = 1 THEN
+            IF ABS(AAX%(I%) - SPX%(EB% + K%)) < 13 THEN
+                IF ABS(AAY%(I%) - SPY%(EB% + K%)) < 13 THEN
+                    KILLENEMY(K%, 200)
+                END IF
+            END IF
+        END IF
+    NEXT K%
+    ' 着地(節点で真下が土/床)なら割れて消える
+    IF (AAY%(I%) AND 15) = 0 THEN
+        ACX% = AAX%(I%) \ 16
+        ACY% = AAY%(I%) \ 16
+        LAND% = 0
+        IF ACY% + 1 >= ROWS% THEN
+            LAND% = 1
+        ELSE
+            IF CDUG(ACX%, ACY% + 1) = 0 THEN
+                LAND% = 1
+            END IF
+        END IF
+        IF LAND% = 1 THEN
+            ' 落下距離(セル数)で割れ判定: 1マスなら割れずその場に居座る、2マス以上で割れて消える。
+            FELL% = ACY% - AFY0%(I%)
+            IF FELL% >= 2 THEN
+                ' 割れる: 消えて場外へ
+                AACT%(I%) = 0
+                AFALL%(I%) = 0
+                AWOB%(I%) = 0
+                SPY%(APBASE% + I%) = 200
+                PLAY "V12O3L16CO2L8C"
+            ELSE
+                ' 割れない: 着地セルで静止リンゴに戻る(再び押せる/下を掘れば再落下)
+                AFALL%(I%) = 0
+                AWOB%(I%) = 0
+                PLAY "V10O4L32C"
+            END IF
+        END IF
+    END IF
+END FUNCTION
+
+' ============================================================
+'  敵の湧き / spawning
+' ============================================================
+FUNCTION SPAWNTICK()
+    GLOBAL SPTMR%
+    GLOBAL ESPAWN%
+    GLOBAL EQUOTA%
+    GLOBAL EACT%
+    GLOBAL EDIR%
+    GLOBAL EGH%
+    GLOBAL EALIVE%
+    GLOBAL SPX%
+    GLOBAL SPY%
+    GLOBAL SPP%
+    GLOBAL SPC%
+    GLOBAL NCX%
+    GLOBAL NCY%
+    GLOBAL STAGE%
+    IF ESPAWN% >= EQUOTA% THEN
+        RETURN 0
+    END IF
+    SPTMR% = SPTMR% - 1
+    IF SPTMR% > 0 THEN
+        RETURN 0
+    END IF
+    SLOT% = 0 - 1
+    FOR K% = 0 TO NEMAX% - 1
+        IF SLOT% < 0 THEN
+            IF EACT%(K%) = 0 THEN
+                SLOT% = K%
+            END IF
+        END IF
+    NEXT K%
+    IF SLOT% < 0 THEN
+        SPTMR% = 12
+        RETURN 0
+    END IF
+    SPX%(EB% + SLOT%) = NCX% * 16
+    SPY%(EB% + SLOT%) = NCY% * 16
+    SPP%(EB% + SLOT%) = 1
+    SPC%(EB% + SLOT%) = 10 + (SLOT% AND 3)
+    EDIR%(SLOT%) = 2
+    EGH%(SLOT%) = 0
+    EACT%(SLOT%) = 1
+    EALIVE% = EALIVE% + 1
+    ESPAWN% = ESPAWN% + 1
+    SPTMR% = 70 - STAGE% * 4
+    IF SPTMR% < 24 THEN
+        SPTMR% = 24
+    END IF
+END FUNCTION
+
+FUNCTION MOVEENEMIES()
+    GLOBAL EACT%
+    FOR K% = 0 TO NEMAX% - 1
+        IF EACT%(K%) = 1 THEN
+            ENEUPD(K%)
+        END IF
+    NEXT K%
+END FUNCTION
+
+' 敵は融合ASM移動へ移行: ここでは節点でAI判断し、速度SVX/SVYを設定するだけ(実際の位置更新は
+' FLUSH05が全面まとめてASMで行う)。AIは掘り済みセルしか選ばないので場外クランプは不要。
+FUNCTION ENEUPD(K%)
+    GLOBAL SPX%
+    GLOBAL SPY%
+    GLOBAL SVX%
+    GLOBAL SVY%
+    GLOBAL EDIR%
+    EI% = 1 + K%
+    IF (SPX%(EI%) AND 15) = 0 THEN
+        IF (SPY%(EI%) AND 15) = 0 THEN
+            ENEDECIDE(K%)
+        END IF
+    END IF
+    D% = EDIR%(K%)
+    SVX%(EI%) = 0
+    SVY%(EI%) = 0
+    IF D% = 1 THEN
+        SVY%(EI%) = 0 - ESPD%
+    END IF
+    IF D% = 2 THEN
+        SVY%(EI%) = ESPD%
+    END IF
+    IF D% = 3 THEN
+        SVX%(EI%) = 0 - ESPD%
+    END IF
+    IF D% = 4 THEN
+        SVX%(EI%) = ESPD%
+    END IF
+END FUNCTION
+
+FUNCTION ENEDECIDE(K%)
+    GLOBAL SPX%
+    GLOBAL SPY%
+    GLOBAL DUG%
+    GLOBAL EDIR%
+    GLOBAL EGH%
+    EI% = 1 + K%
+    ECX% = SPX%(EI%) \ 16
+    ECY% = SPY%(EI%) \ 16
+    IF EGH%(K%) = 1 THEN
+        IF DUG%(ECY% * COLS% + ECX%) = 1 THEN
+            EGH%(K%) = 0
+        END IF
+    END IF
+    WD% = CHASEDIR(ECX%, ECY%, SPX%(0) \ 16, SPY%(0) \ 16)
+    IF EGH%(K%) = 0 THEN
+        NX% = ECX%
+        NY% = ECY%
+        IF WD% = 1 THEN
+            NY% = ECY% - 1
+        END IF
+        IF WD% = 2 THEN
+            NY% = ECY% + 1
+        END IF
+        IF WD% = 3 THEN
+            NX% = ECX% - 1
+        END IF
+        IF WD% = 4 THEN
+            NX% = ECX% + 1
+        END IF
+        IF CDUG(NX%, NY%) = 0 THEN
+            EGH%(K%) = 1
+        END IF
+    END IF
+    EDIR%(K%) = WD%
+END FUNCTION
+
+FUNCTION CHASEDIR(EX%, EY%, TX%, TY%)
+    DCX% = TX% - EX%
+    DCY% = TY% - EY%
+    WD% = 0
+    IF ABS(DCX%) >= ABS(DCY%) THEN
+        IF DCX% > 0 THEN
+            WD% = 4
+        END IF
+        IF DCX% < 0 THEN
+            WD% = 3
+        END IF
+    END IF
+    IF WD% = 0 THEN
+        IF DCY% > 0 THEN
+            WD% = 2
+        END IF
+        IF DCY% < 0 THEN
+            WD% = 1
+        END IF
+    END IF
+    RETURN WD%
+END FUNCTION
+
+' ============================================================
+'  チェリー収集 / cherry collecting  (セルマップでO(1))
+' ============================================================
+' 火薬(弾薬)拾い: 自機がその升目に乗ったら、得点でなくダイナマイト・ストックを+1(持ち越し)。
+FUNCTION COLLECT()
+    GLOBAL CHMAP%
+    GLOBAL PX%
+    GLOBAL PY%
+    GLOBAL BOMBSTOCK%
+    IF (PX% AND 15) = 0 THEN
+        IF (PY% AND 15) = 0 THEN
+            CX% = PX% \ 16
+            CY% = PY% \ 16
+            IDX% = CY% * COLS% + CX%
+            IF CHMAP%(IDX%) = 1 THEN
+                CHMAP%(IDX%) = 0
+                ' 拾った火薬の絵を消す(通路のトンネル描画で上書き=膜を保つ)
+                DRAWDUGCELL(CX%, CY%)
+                BOMBSTOCK% = BOMBSTOCK% + 1
+                DRAWHUD()
+            END IF
+        END IF
+    END IF
+END FUNCTION
+
+' 音階1音を鳴らす: N%=0..7 -> ド レ ミ ファ ソ ラ シ ド(高)。
+FUNCTION PLAYNOTE(N%)
+    NL$ = MID$("CDEFGABC", N% + 1, 1)
+    IF N% < 7 THEN
+        PLAY "V12O5L16" + NL$
+    ELSE
+        PLAY "V12O6L16" + NL$
+    END IF
+END FUNCTION
+
+' ============================================================
+'  死亡・勝敗
+' ============================================================
+FUNCTION CHECKDEATH()
+    GLOBAL EACT%
+    GLOBAL SPX%
+    GLOBAL SPY%
+    GLOBAL DEAD%
+    GLOBAL PINV%
+    IF PINV% > 0 THEN
+        PINV% = PINV% - 1
+        DEAD% = 0
+        RETURN 0
+    END IF
+    FOR K% = 0 TO NEMAX% - 1
+        IF EACT%(K%) = 1 THEN
+            IF ABS(SPX%(EB% + K%) - SPX%(0)) < 13 THEN
+                IF ABS(SPY%(EB% + K%) - SPY%(0)) < 13 THEN
+                    DEAD% = 1
+                END IF
+            END IF
+        END IF
+    NEXT K%
+    IF DEAD% = 1 THEN
+        RESPAWN()
+    END IF
+END FUNCTION
+
+' クリア判定: 画面の90%を採掘したらクリア(掘ったセル数 DUGN / 全セル)。
+FUNCTION CHECKWIN()
+    GLOBAL DUGN%
+    GLOBAL DUGPCT%
+    GLOBAL STATE%
+    DUGPCT% = DUGN% * 100 \ (COLS% * ROWS%)
+    IF DUGPCT% >= 90 THEN
+        PARKACTORS()
+        CLS
+        PRESET (68, 70)
+        PRINT #1, "STAGE CLEAR!"
+        PRESET (36, 104)
+        PRINT #1, "PUSH SPACE FOR NEXT"
+        STATE% = ST_CLEAR%
+    END IF
+END FUNCTION
+
+FUNCTION RESPAWN()
+    GLOBAL DEAD%
+    GLOBAL LIVES%
+    GLOBAL PX%
+    GLOBAL PY%
+    GLOBAL CDIR%
+    GLOBAL BSTATE%
+    GLOBAL STATE%
+    GLOBAL PINV%
+    GLOBAL NCX%
+    GLOBAL NCY%
+    DEAD% = 0
+    LIVES% = LIVES% - 1
+    PLAY "V13O3L16CL8A-"
+    PINV% = 40
+    BSTATE% = BS_HELD%
+    PX% = NCX% * 16
+    PY% = 0
+    CDIR% = 0
+    DIGCELL(PX%, PY%)
+    LINE (PX%, PY%)-(PX% + PW%, PY% + PW%), 1, BF
+    DRAWHUD()
+    IF LIVES% <= 0 THEN
+        PARKACTORS()
+        CLS
+        PRESET (84, 70)
+        PRINT #1, "GAME OVER"
+        PRESET (36, 104)
+        PRINT #1, "PUSH SPACE TO RETRY"
+        STATE% = ST_OVER%
+    END IF
+END FUNCTION
+
+' ============================================================
+'  掘り地図
+' ============================================================
+FUNCTION DIGCELL(XP%, YP%)
+    ' 掘り+採掘数カウント+岩支え判定を DIGSWEEP に一元化。
+    DIGSWEEP(XP% \ 16, YP% \ 16)
+END FUNCTION
+
+' Dig-Dug流スウィープ掘り: セル(CX,CY)を場内・未掘のときだけトンネル化(DUG=1)し、真上の岩の
+' セル(cx,cy)を掘り済み(DUG=1)にして採掘数を数える。岩の支え喪失/落下は毎フレーム UPDAPPLES
+' 側で判定する(自機が真下にいる間は支えになるルールの都合上、掘った瞬間には落下開始させない)。
+FUNCTION DIGSWEEP(CX%, CY%)
+    GLOBAL DUG%
+    GLOBAL DUGN%
+    IF CX% < 0 THEN
+        RETURN 0
+    END IF
+    IF CX% >= COLS% THEN
+        RETURN 0
+    END IF
+    IF CY% < 0 THEN
+        RETURN 0
+    END IF
+    IF CY% >= ROWS% THEN
+        RETURN 0
+    END IF
+    IF DUG%(CY% * COLS% + CX%) = 1 THEN
+        RETURN 0
+    END IF
+    DUG%(CY% * COLS% + CX%) = 1
+    DUGN% = DUGN% + 1
+END FUNCTION
+
+' 事前掘りセルを Dig-Dug 流に描画: 隣が土(未掘)の辺だけ内側2px(=薄い膜を残す)、隣が掘り済みの
+' 辺は端まで塗る(=通路を連続させる)。プレイヤー掘りの見た目と揃う。掘り済みセルのみ描く。
+FUNCTION DRAWDUGCELL(CX%, CY%)
+    GLOBAL DUG%
+    IF DUG%(CY% * COLS% + CX%) = 0 THEN
+        RETURN 0
+    END IF
+    X1% = CX% * 16
+    X2% = CX% * 16 + PW%
+    Y1% = CY% * 16
+    Y2% = CY% * 16 + PW%
+    IF CDUG(CX% - 1, CY%) = 0 THEN
+        X1% = X1% + 2
+    END IF
+    IF CDUG(CX% + 1, CY%) = 0 THEN
+        X2% = X2% - 2
+    END IF
+    IF CDUG(CX%, CY% - 1) = 0 THEN
+        Y1% = Y1% + 2
+    END IF
+    IF CDUG(CX%, CY% + 1) = 0 THEN
+        Y2% = Y2% - 2
+    END IF
+    LINE (X1%, Y1%)-(X2%, Y2%), 1, BF
+END FUNCTION
+
+' 円形ブラシで地面を掘る(中心 CX,CY・半径8)。四角でなく丸く掘るので Mr.Do! 風のトンネルに。
+' 見た目だけの丸み。掘り地図(DUG)は升目単位のまま(判定は不変)。
+FUNCTION CDUG(CX%, CY%)
+    GLOBAL DUG%
+    R% = 0
+    IF CX% >= 0 THEN
+        IF CX% < COLS% THEN
+            IF CY% >= 0 THEN
+                IF CY% < ROWS% THEN
+                    IF DUG%(CY% * COLS% + CX%) = 1 THEN
+                        R% = 1
+                    END IF
+                END IF
+            END IF
+        END IF
+    END IF
+    RETURN R%
+END FUNCTION
+
+' ============================================================
+'  描画
+' ============================================================
+' 面0..4(自機＋敵)を OAM へ ASM で一括転送(PUT SPRITEx5 の置き換え)。
+' VARPTR は毎フレーム取り直す(=配列が動いても常に正しいアドレス。前回の陳腐化バグの対策)。
+' 費用は VARPTRx4(数文)だけで、遅い PUT SPRITEx5 を消せる。
+FUNCTION FLUSH05()
+    GLOBAL SPX%
+    GLOBAL SPY%
+    GLOBAL SPP%
+    GLOBAL SPC%
+    GLOBAL SVX%
+    GLOBAL SVY%
+    GLOBAL WFX%
+    GLOBAL WFY%
+    GLOBAL WFP%
+    GLOBAL WFC%
+    GLOBAL WVX%
+    GLOBAL WVY%
+    WFX% = VARPTR(SPX%(0))
+    WFY% = VARPTR(SPY%(0))
+    WFP% = VARPTR(SPP%(0))
+    WFC% = VARPTR(SPC%(0))
+    WVX% = VARPTR(SVX%(0))
+    WVY% = VARPTR(SVY%(0))
+    ASM
+      DI
+      LD   A,1               ' SC5 OAM &H7600: R#14=1 (上位アドレス A14..A16)
+      OUT  (&H99),A
+      LD   A,&H8E            ' レジスタ14へ (14 OR &H80)
+      OUT  (&H99),A
+      XOR  A                 ' 下位バイト=0
+      OUT  (&H99),A
+      LD   A,&H76            ' 上位6bit+書込フラグ ((&H76 AND &H3F) OR &H40)
+      OUT  (&H99),A
+      LD   B,14              ' 面0..13(自機/敵/玉/リンゴ/集結玉を一括)
+FL05LP:
+      LD   HL,(WVY%)         ' SVY を C へ＋ポインタ+2
+      LD   C,(HL)
+      INC  HL
+      INC  HL
+      LD   (WVY%),HL
+      LD   HL,(WFY%)         ' Y = SPY + SVY (書き戻し・高位0)
+      LD   A,(HL)
+      ADD  A,C
+      LD   (HL),A
+      OUT  (&H98),A
+      INC  HL
+      LD   (HL),0
+      INC  HL
+      LD   (WFY%),HL
+      LD   HL,(WVX%)         ' SVX を C へ＋ポインタ+2
+      LD   C,(HL)
+      INC  HL
+      INC  HL
+      LD   (WVX%),HL
+      LD   HL,(WFX%)         ' X = SPX + SVX (書き戻し・高位0)
+      LD   A,(HL)
+      ADD  A,C
+      LD   (HL),A
+      OUT  (&H98),A
+      INC  HL
+      LD   (HL),0
+      INC  HL
+      LD   (WFX%),HL
+      LD   HL,(WFP%)         ' 絵番号 x4
+      LD   A,(HL)
+      ADD  A,A
+      ADD  A,A
+      OUT  (&H98),A
+      INC  HL
+      INC  HL
+      LD   (WFP%),HL
+      LD   HL,(WFC%)         ' 4バイト目(色は色テーブル)
+      LD   A,(HL)
+      OUT  (&H98),A
+      INC  HL
+      INC  HL
+      LD   (WFC%),HL
+      DEC  B
+      JP   NZ,FL05LP
+      LD   A,0               ' R#14 を 0 に戻す(後続BASICのVRAMアクセス保護)
+      OUT  (&H99),A
+      LD   A,&H8E
+      OUT  (&H99),A
+      EI
+    END ASM
+END FUNCTION
+
+FUNCTION DRAWALL()
+    GLOBAL SPX%
+    GLOBAL SPY%
+    GLOBAL SPC%
+    GLOBAL SPP%
+    GLOBAL AAX%
+    GLOBAL AAY%
+    GLOBAL AACT%
+    GLOBAL AWOB%
+    GLOBAL NAP%
+    GLOBAL BON%
+    GLOBAL BMC%
+    GLOBAL BMR%
+    GLOBAL PX%
+    GLOBAL PY%
+    ' 全スプライトを SPX/SPY 配列へ充填し、最後に FLUSH05(14面)で1回だけ OAM 一括転送。
+    ' PUT SPRITE を毎フレーム多数呼ぶより、配列代入＋ASM1回の方が速い(描画コスト削減)。
+    ' 自機(0)/敵(1-3)の SPX/SPY は移動側で設定済み。予備面(4,9)は場外へ。
+    SPY%(4) = 212
+    SPY%(9) = 212
+    ' リンゴ(6-8): 生存は座標(ぐらつき中は左右に揺らす)、非生存は場外
+    FOR I% = 0 TO NAPMAX% - 1
+        IF I% < NAP% THEN
+            IF AACT%(I%) = 1 THEN
+                XOFF% = 0
+                IF AWOB%(I%) = 1 THEN
+                    XOFF% = (TIME AND 2) - 1
+                END IF
+                SPX%(APBASE% + I%) = AAX%(I%) + XOFF%
+                SPY%(APBASE% + I%) = AAY%(I%)
+            ELSE
+                SPY%(APBASE% + I%) = 212
+            END IF
+        ELSE
+            SPY%(APBASE% + I%) = 212
+        END IF
+    NEXT I%
+    ' ダイナマイト(面5): 導火中(BON=1)は設置セルに表示、それ以外は場外。
+    IF BON% = 1 THEN
+        SPX%(BALLIX%) = BMC% * 16
+        SPY%(BALLIX%) = BMR% * 16
+    ELSE
+        SPY%(BALLIX%) = 212
+    END IF
+    ' 未使用スプライト面(10-13)は場外へ
+    SPY%(RGBASE%) = 212
+    SPY%(RGBASE% + 1) = 212
+    SPY%(RGBASE% + 2) = 212
+    SPY%(RGBASE% + 3) = 212
+    ' 全14面を1回のASMでOAMへ
+    FLUSH05()
+END FUNCTION
+
+' HUD(最下部帯)
+' 値が前回と同じなら即帰る(=毎フレームの重い GRP: PRINT を完全に回避)。変化時だけ帯を塗り直す。
+FUNCTION DRAWHUD()
+    GLOBAL STAGE%
+    GLOBAL LIVES%
+    GLOBAL BOMBSTOCK%
+    GLOBAL DUGPCT%
+    GLOBAL HSCR%
+    GLOBAL HLIV%
+    GLOBAL HSTG%
+    GLOBAL HDUG%
+    ' 変化検出: ストック(HSCR流用)/残機/ステージ/採掘% のどれかが変わった時だけ描き直す。
+    IF BOMBSTOCK% = HSCR% THEN
+        IF LIVES% = HLIV% THEN
+            IF STAGE% = HSTG% THEN
+                IF DUGPCT% = HDUG% THEN
+                    RETURN 0
+                END IF
+            END IF
+        END IF
+    END IF
+    HSCR% = BOMBSTOCK%
+    HLIV% = LIVES%
+    HSTG% = STAGE%
+    HDUG% = DUGPCT%
+    LINE (0, HUDY%)-(255, 191), 1, BF
+    PRESET (2, HUDY% + 4)
+    PRINT #1, "ST"; STAGE%
+    PRESET (56, HUDY% + 4)
+    PRINT #1, "DYNAMITE"; BOMBSTOCK%
+    PRESET (150, HUDY% + 4)
+    PRINT #1, "DIG"; DUGPCT%; "%"
+    PRESET (216, HUDY% + 4)
+    PRINT #1, "LV"; LIVES%
+END FUNCTION
+
+' 体感速度の確認用fps表示(SC5余白 y192-211、1秒に1回だけ・FP演算なし)
+FUNCTION SHOWFPS()
+    GLOBAL FPS%
+    LINE (0, 192)-(96, 211), 1, BF
+    PRESET (2, 196)
+    PRINT #1, "FPS"; FPS%
+END FUNCTION
+
+' 敵が湧く巣に「1ブロックの家」を描く(屋根=赤の三角・壁=黄・戸口=黒)。ステージ構築時に1回だけ描く
+' (巣の通路は掘り直しを省くので消えない)。敵はこの戸口から湧いて出てくるように見える。
+FUNCTION DRAWHOUSE(CX%, CY%)
+    X% = CX% * 16
+    Y% = CY% * 16
+    ' 壁(黄)
+    LINE (X% + 2, Y% + 7)-(X% + 13, Y% + 15), 11, BF
+    ' 屋根(赤の三角: 上から横線を積む)
+    FOR RY% = 0 TO 6
+        LINE (X% + 7 - RY%, Y% + RY%)-(X% + 8 + RY%, Y% + RY%), 8
+    NEXT RY%
+    ' 戸口(黒)
+    LINE (X% + 6, Y% + 10)-(X% + 9, Y% + 15), 1, BF
+END FUNCTION
+
+' チェリーの絵を1セルへ / draw a cherry glyph
+FUNCTION DRAWCHERRY(CX%, CY%)
+    X% = CX% * 16
+    Y% = CY% * 16
+    LINE (X% + 5, Y% + 3)-(X% + 4, Y% + 9), 3
+    LINE (X% + 10, Y% + 3)-(X% + 11, Y% + 9), 3
+    LINE (X% + 2, Y% + 9)-(X% + 6, Y% + 13), 8, BF
+    LINE (X% + 9, Y% + 9)-(X% + 13, Y% + 13), 8, BF
+END FUNCTION
+
+' ============================================================
+'  画面遷移
+' ============================================================
+' 面0..4(自機＋敵)の色をmode2の色テーブルへ焼く。FLUSH05は色を書かないので、起動時と
+' ゲーム再開時(GOTITLEで色1にパークされ色テーブルが潰れるため)に必ず呼び直す。
+FUNCTION COLORINIT()
+    GLOBAL SPP%
+    ' mode2の色テーブルを全描画面(0..13)に焼く(FLUSH05は色を書かないため)
+    PUT SPRITE 0, (0, 212), 15, 0     ' 自機=白
+    PUT SPRITE 1, (0, 212), 10, 1     ' 敵slot0
+    PUT SPRITE 2, (0, 212), 11, 1     ' 敵slot1
+    PUT SPRITE 3, (0, 212), 12, 1     ' 敵slot2
+    PUT SPRITE 4, (0, 212), 15, 1     ' 予備
+    PUT SPRITE 5, (0, 212), 11, 2     ' 玉
+    PUT SPRITE 6, (0, 212), 9, 3      ' リンゴ
+    PUT SPRITE 7, (0, 212), 9, 3
+    PUT SPRITE 8, (0, 212), 9, 3
+    PUT SPRITE 10, (0, 212), 11, 2    ' 集結玉
+    PUT SPRITE 11, (0, 212), 11, 2
+    PUT SPRITE 12, (0, 212), 11, 2
+    PUT SPRITE 13, (0, 212), 11, 2
+    ' FLUSH05(14面)が読む絵番号を固定設定(0=自機,1=敵,2=玉,3=リンゴ)
+    SPP%(0) = 0
+    SPP%(1) = 1
+    SPP%(2) = 1
+    SPP%(3) = 1
+    SPP%(4) = 1
+    SPP%(5) = 2
+    SPP%(6) = 3
+    SPP%(7) = 3
+    SPP%(8) = 3
+    SPP%(9) = 0
+    SPP%(10) = 2
+    SPP%(11) = 2
+    SPP%(12) = 2
+    SPP%(13) = 2
+END FUNCTION
+
+FUNCTION GOTITLE()
+    GLOBAL STATE%
+    COLOR 15, 1, 1
+    CLS
+    ' 前ゲームのスプライトを全消し(SC5はタイトル中FLUSH05が走らずOAMに残るため)
+    FOR PI% = 0 TO 31
+        PUT SPRITE PI%, (0, 212), 1, 0
+    NEXT PI%
+    PRESET (92, 40)
+    PRINT #1, "ORCHARD"
+    PRESET (44, 74)
+    PRINT #1, "DIG - COLLECT - BOUNCE"
+    PRESET (16, 100)
+    PRINT #1, "ARROWS: DIG & MOVE"
+    PRESET (16, 116)
+    PRINT #1, "  (PUSH APPLES SIDEWAYS)"
+    PRESET (16, 132)
+    PRINT #1, "SPACE : THROW THE BALL"
+    PRESET (28, 160)
+    PRINT #1, "PUSH SPACE TO START"
+    STATE% = ST_TITLE%
+END FUNCTION
+
+FUNCTION STARTGAME()
+    GLOBAL STATE%
+    GLOBAL SCORE%
+    GLOBAL LIVES%
+    GLOBAL STAGE%
+    GLOBAL BOMBSTOCK%
+    GLOBAL BON%
+    SCORE% = 0
+    LIVES% = 3
+    STAGE% = 1
+    BOMBSTOCK% = 0
+    BON% = 0
+    ' GOTITLEで色1にパークされ色テーブルが潰れているので、面0..4の色を焼き直す。
+    COLORINIT()
+    ' 開始押下のタイミングで乱数を種蒔き(起動ごとに玉の待ち時間・跳ねが変わる)。
+    RSEED = RND(0 - TIME)
+    BUILDSTAGE()
+    STATE% = ST_PLAY%
+END FUNCTION
+
+FUNCTION NEXTSTAGE()
+    GLOBAL STATE%
+    GLOBAL STAGE%
+    STAGE% = STAGE% + 1
+    BUILDSTAGE()
+    STATE% = ST_PLAY%
+END FUNCTION
+
+' 面を組み立てる: 全面土→面データ(SETSTAGE)で掘り形・巣・チェリー組・リンゴ・色を配置。
+FUNCTION BUILDSTAGE()
+    GLOBAL DUG%
+    GLOBAL DUGN%
+    GLOBAL BON%
+    GLOBAL CHMAP%
+    GLOBAL SPX%
+    GLOBAL SPY%
+    GLOBAL SPP%
+    GLOBAL SPC%
+    GLOBAL SVX%
+    GLOBAL SVY%
+    GLOBAL EACT%
+    GLOBAL EDIR%
+    GLOBAL EGH%
+    GLOBAL ESPAWN%
+    GLOBAL EQUOTA%
+    GLOBAL EALIVE%
+    GLOBAL SPTMR%
+    GLOBAL BSTATE%
+    GLOBAL BCD%
+    GLOBAL RGT%
+    GLOBAL AACT%
+    GLOBAL AFALL%
+    GLOBAL NAP%
+    GLOBAL CHLEFT%
+    GLOBAL CCOMBO%
+    GLOBAL CCALIVE%
+    GLOBAL PX%
+    GLOBAL PY%
+    GLOBAL CDIR%
+    GLOBAL LDIR%
+    GLOBAL PINV%
+    GLOBAL DIRTC%
+    GLOBAL STAGE%
+    GLOBAL NCX%
+    GLOBAL NCY%
+    COLOR 15, 1, 1
+    CLS
+    CCOMBO% = 0
+    CCALIVE% = 0
+    ' 掘り地図/チェリーマップを初期化
+    FOR C% = 0 TO ROWS% * COLS% - 1
+        DUG%(C%) = 0
+        CHMAP%(C%) = 0
+    NEXT C%
+    CHLEFT% = 0
+    NAP% = 0
+    ' 面データ(色・掘り形・巣・チェリー・リンゴ)を流し込む
+    SETSTAGE()
+    ' 採掘数を事前掘りぶんで初期化(90%クリア判定用)。ダイナマイト状態もリセット。
+    DUGN% = 0
+    FOR DC% = 0 TO ROWS% * COLS% - 1
+        IF DUG%(DC%) = 1 THEN
+            DUGN% = DUGN% + 1
+        END IF
+    NEXT DC%
+    BON% = 0
+    ' 全面を土で塗ってから、掘り済みセルを黒の四角で抜く(高速)。最後にチェリー。
+    LINE (0, 0)-(255, FBOT%), DIRTC%, BF
+    FOR R% = 0 TO ROWS% - 1
+        FOR C% = 0 TO COLS% - 1
+            DRAWDUGCELL(C%, R%)
+            IF CHMAP%(R% * COLS% + C%) = 1 THEN
+                DRAWCHERRY(C%, R%)
+            END IF
+        NEXT C%
+    NEXT R%
+    ' 巣の家は1回だけ描く(掘り直し省略のおかげで、巣の通路を通っても消えない)
+    DRAWHOUSE(NCX%, NCY%)
+    ' 敵ノルマ・玉・自機・無敵をリセット
+    FOR K% = 0 TO NEMAX% - 1
+        EACT%(K%) = 0
+        EDIR%(K%) = 0
+        EGH%(K%) = 0
+        SPY%(EB% + K%) = 212
+        SPP%(EB% + K%) = 1
+        SPC%(EB% + K%) = 10
+        SVX%(EB% + K%) = 0
+        SVY%(EB% + K%) = 0
+    NEXT K%
+    ESPAWN% = 0
+    EALIVE% = 0
+    EQUOTA% = 5 + STAGE%
+    SPTMR% = 40
+    BSTATE% = BS_HELD%
+    BCD% = 0
+    RGT% = 0
+    ' 集結玉を場外へ1回(以後は集結中だけ描画)
+    FOR K% = 0 TO 3
+        PUT SPRITE RGBASE% + K%, (0, 212), 11, 2
+    NEXT K%
+    PINV% = 30
+    SPP%(BALLIX%) = 2
+    SPP%(0) = 0
+    SPC%(0) = 15
+    SPX%(0) = PX%
+    SPY%(0) = PY%
+    CDIR% = 0
+    LDIR% = 2
+    DIGCELL(PX%, PY%)
+    LINE (PX%, PY%)-(PX% + PW%, PY% + PW%), 1, BF
+    DRAWHUD()
+END FUNCTION
+
+' ============================================================
+'  面データ / STAGE DATA  (ランダムではない・面ごとに配置)
+'  3面を用意して循環(STAGE が進むほど敵ノルマ・湧きは速くなる)。
+' ============================================================
+FUNCTION SETSTAGE()
+    GLOBAL DIRTC%
+    GLOBAL NCX%
+    GLOBAL NCY%
+    GLOBAL PX%
+    GLOBAL PY%
+    GLOBAL STAGE%
+    SIDX% = (STAGE% - 1) MOD 3
+    ' 各面: 縦の背骨(巣→自機)＋チェリーの房(列)を通路として敷く。リンゴは土の中(下は土)。
+    IF SIDX% = 0 THEN
+        ' 面1: 土=茶 / チェリー2房(16) / リンゴ2
+        DIRTC% = 6
+        NCX% = 8
+        NCY% = 1
+        PX% = 8 * 16
+        PY% = 9 * 16
+        CARVE(8, 1, 8, 9)
+        PLACELINE(2, 3, 1, 0, 8)
+        PLACELINE(6, 7, 1, 0, 8)
+        PLACEAPPLE(4, 5)
+        PLACEAPPLE(12, 5)
+    END IF
+    IF SIDX% = 1 THEN
+        ' 面2: 土=緑 / チェリー3房(24) / リンゴ3
+        DIRTC% = 2
+        NCX% = 8
+        NCY% = 1
+        PX% = 8 * 16
+        PY% = 9 * 16
+        CARVE(8, 1, 8, 9)
+        PLACELINE(1, 2, 1, 0, 8)
+        PLACELINE(7, 5, 1, 0, 8)
+        PLACELINE(2, 8, 1, 0, 8)
+        PLACEAPPLE(4, 4)
+        PLACEAPPLE(11, 3)
+        PLACEAPPLE(12, 7)
+    END IF
+    IF SIDX% = 2 THEN
+        ' 面3: 土=青 / チェリー4房(32) / リンゴ4
+        DIRTC% = 4
+        NCX% = 8
+        NCY% = 1
+        PX% = 8 * 16
+        PY% = 9 * 16
+        CARVE(8, 1, 8, 9)
+        PLACELINE(2, 2, 1, 0, 8)
+        PLACELINE(6, 4, 1, 0, 8)
+        PLACELINE(1, 6, 1, 0, 8)
+        PLACELINE(6, 8, 1, 0, 8)
+        PLACEAPPLE(4, 3)
+        PLACEAPPLE(12, 2)
+        PLACEAPPLE(4, 7)
+        PLACEAPPLE(12, 5)
+    END IF
+END FUNCTION
+
+' トンネルを矩形で掘る(掘り地図に記録・描画はBUILDSTAGE)。
+FUNCTION CARVE(C1%, R1%, C2%, R2%)
+    GLOBAL DUG%
+    FOR RR% = R1% TO R2%
+        FOR CC% = C1% TO C2%
+            DUG%(RR% * COLS% + CC%) = 1
+        NEXT CC%
+    NEXT RR%
+END FUNCTION
+
+' チェリー1組=4列x2行の8個を(左上 c,r)へ(ドレミファソラシドの8音に対応)。土の中に置く。
+' チェリーの房=1列 N 個(本家Mr.Do!風に「あらかじめ掘られた通路」に並べる)。通路として掘りつつ
+' チェリーを置く。DX/DY で向き(横=1,0 / 縦=0,1)。連続で食べると音階が上がる(ドレミ…)。
+FUNCTION PLACELINE(C%, R%, DX%, DY%, N%)
+    GLOBAL DUG%
+    GLOBAL CHMAP%
+    GLOBAL CHLEFT%
+    FOR I% = 0 TO N% - 1
+        CC% = C% + DX% * I%
+        RR% = R% + DY% * I%
+        IDX% = RR% * COLS% + CC%
+        DUG%(IDX%) = 1
+        CHMAP%(IDX%) = 1
+        CHLEFT% = CHLEFT% + 1
+    NEXT I%
+END FUNCTION
+
+' リンゴを(セル c,r)へ(土の上に静止)。
+FUNCTION PLACEAPPLE(C%, R%)
+    GLOBAL AAX%
+    GLOBAL AAY%
+    GLOBAL AACT%
+    GLOBAL AFALL%
+    GLOBAL AWOB%
+    GLOBAL NAP%
+    IF NAP% >= NAPMAX% THEN
+        RETURN 0
+    END IF
+    AAX%(NAP%) = C% * 16
+    AAY%(NAP%) = R% * 16
+    AACT%(NAP%) = 1
+    AFALL%(NAP%) = 0
+    AWOB%(NAP%) = 0
+    NAP% = NAP% + 1
+    RETURN 0
+END FUNCTION
+
+' 全アクターを場外へ / park all sprites
+FUNCTION PARKACTORS()
+    FOR SI% = 0 TO NEMAX%
+        PUT SPRITE SI%, (0, 212), 1, 0
+    NEXT SI%
+    FOR I% = 0 TO NAPMAX% - 1
+        PUT SPRITE APBASE% + I%, (0, 212), 9, 3
+    NEXT I%
+    PUT SPRITE BALLIX%, (0, 212), 11, 2
+    FOR I% = 0 TO 3
+        PUT SPRITE RGBASE% + I%, (0, 212), 11, 2
+    NEXT I%
+END FUNCTION
