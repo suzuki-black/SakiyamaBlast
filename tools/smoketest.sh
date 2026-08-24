@@ -25,6 +25,8 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
             puts \$f \"TUNNEL [debug read VRAM 19266]\"; \
             puts \$f \"OAMY [debug read VRAM 30208]\"; \
             puts \$f \"OAMX [debug read VRAM 30209]\"; \
+            puts \$f \"SPINE [debug read VRAM 10562]\"; \
+            puts \$f \"POWDER [debug read VRAM 7059]\"; \
             close \$f; exit }" >/dev/null 2>&1
 
 fail=0
@@ -45,6 +47,8 @@ check DIRT   102 "盤面が土で塗られている (0x66)"
 check TUNNEL 17  "自機の足元が掘られている (0x11)"
 check OAMY   143 "自機スプライトの Y (py-1 = 143)"
 check OAMX   128 "自機スプライトの X (px = 128)"
+check SPINE  17  "面データの縦坑が掘られている (0x11)"
+check POWDER 136 "火薬が置かれ描かれている (0x88)"
 
 [ $fail -eq 0 ] && echo "smoketest: PASS" || echo "smoketest: FAIL"
 exit $fail

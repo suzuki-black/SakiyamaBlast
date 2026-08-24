@@ -27,6 +27,6 @@ void vdp_set_palette(uint8_t idx, uint8_t r, uint8_t g, uint8_t b);
 void vdp_upload(uint16_t addr, const uint8_t *src, uint16_t len);
 void vdp_memset(uint16_t addr, uint8_t val, uint16_t len);
 /* 矩形塗り (LMMV)。座標はピクセル単位なので2px単位の掘りにも使える。 */
-void vdp_fill(uint16_t x, uint8_t y, uint16_t w, uint8_t h, uint8_t color);
+void vdp_fill(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t color);
 
 #endif

@@ -46,6 +46,7 @@ _vdp_wreg::
 ;-------------------------------------------------------------------
 _vdp_setwrite::
 	di
+	call	wait_ce			; 実行中のコマンドと CPU の VRAM アクセスを混ぜない
 	ld	a, h
 	rlca				; bit7,bit6 (=A15,A14) を bit1,bit0 へ
 	rlca
@@ -72,39 +73,64 @@ _vdp_wdata::
 
 ;-------------------------------------------------------------------
 ; void vdp_cmd(const uint8_t *p) __z88dk_fastcall;
-;   R#36..R#46 の11バイト (DX,DY,NX,NY,CLR,ARG,CMD) を間接書き込みで一気に送る。
+;   R#36..R#46 (DX,DY,NX,NY,CLR,ARG,CMD) の11バイトを送る。
 ;   呼ぶ前に vdp_wait_cmd() でコマンド終了を待つこと。
+;
+;   注意: R#17 の間接ポート(0x9B)へ OTIR で流すと VDP が取りこぼす。実際に
+;   NY が化けて画面全体を塗る暴走コマンドになり、CE が下りずハングした。
+;   通常のレジスタ書き込み(値→レジスタ番号)なら間隔が十分に空くので確実。
 ;-------------------------------------------------------------------
 _vdp_cmd::
 	di
-	ld	a, #36			; bit7=0 -> 書き込み後オートインクリメント
-	out	(VDP_ADDR), a
-	ld	a, #0x91		; R#17
-	out	(VDP_ADDR), a
-	ld	b, #11
-	ld	c, #VDP_INDR
-	otir
+	ld	c, #VDP_ADDR
+	ld	b, #36			; 送り先レジスタ番号
+vdp_cmd_lp:
+	ld	a, (hl)			; 値
+	out	(c), a
+	inc	hl
+	ld	a, b			; レジスタ番号
+	or	a, #0x80
+	out	(c), a
+	inc	b
+	ld	a, b
+	cp	a, #47			; R#46 まで
+	jr	NZ, vdp_cmd_lp
+	; R#46 を書いた瞬間にコマンドが走り出すが、S#2 の CE が立つまでには
+	; わずかに遅れがある。ここで待たずに次の vdp_wait_cmd を呼ぶと CE=0 を
+	; 見て「終わった」と誤判定し、実行中のコマンドの上から DY/NX/NY を
+	; 書き換えてしまう (エンジンがこの3つを作業用に更新するため暴走する)。
+	ld	b, #16
+vdp_cmd_dly:
+	djnz	vdp_cmd_dly
 	ei
 	ret
 
 ;-------------------------------------------------------------------
-; void vdp_wait_cmd(void);   コマンド実行中 (S#2 の CE) が下りるまで待つ。
+; 内部: コマンド実行中 (S#2 の CE) が下りるまで待つ。呼び出し側は DI 済みであること。
 ;   R#15=2 のまま割り込みが入ると BIOS が S#0 を読めず暴走するので DI のまま待つ。
+;   壊すのは A/F のみ (HL は温存する = fastcall の引数を跨げる)。
 ;-------------------------------------------------------------------
-_vdp_wait_cmd::
-	di
+wait_ce:
 	ld	a, #2
 	out	(VDP_ADDR), a
 	ld	a, #0x8F		; R#15 = 2
 	out	(VDP_ADDR), a
-wait_ce:
+wait_ce_lp:
 	in	a, (VDP_ADDR)
 	and	a, #0x01		; CE
-	jr	NZ, wait_ce
+	jr	NZ, wait_ce_lp
 	xor	a
 	out	(VDP_ADDR), a
 	ld	a, #0x8F		; R#15 = 0 に戻す
 	out	(VDP_ADDR), a
+	ret
+
+;-------------------------------------------------------------------
+; void vdp_wait_cmd(void);
+;-------------------------------------------------------------------
+_vdp_wait_cmd::
+	di
+	call	wait_ce
 	ei
 	ret
 
@@ -115,6 +141,7 @@ wait_ce:
 ;-------------------------------------------------------------------
 _oam_flush::
 	di
+	call	wait_ce			; 実行中のコマンドと CPU の VRAM アクセスを混ぜない
 	ld	a, #1			; R#14 = 1 (A16..A14) -> 0x4000 基点
 	out	(VDP_ADDR), a
 	ld	a, #0x8E

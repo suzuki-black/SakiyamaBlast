@@ -78,10 +78,11 @@
 
 1. **掘り跡に薄い土の膜が残る**（セル幅いっぱいに塗ると膜が消える＝大NG）。掘り抜きは自機幅より内側で。
 2. **DUG は丸々掘り切った時だけ立てる**（少し掠めただけでは掘れた扱いにしない）。
-3. **岩の支えルール（Dig Dug/Mr.Do 準拠）**：真下を掘り抜いても**自機が真下セルにいる間は落ちない（自機が支え）**。
-   自機が真下から離れた瞬間に揺れ→約0.75秒(`WOBT%=45`ティック)で落下。
-   出典: StrategyWiki *Dig Dug/Gameplay*「will only start to happen once Dig Dug himself moves out from under the rock」
-   「hold a rock in place by staying directly under it」。
+3. **岩の支えルール（Mr.Do! 準拠。2026-08-24 の再調査で変更）**：支え判定は**真下のセル（地形）だけ**を見る。
+   **自機は支えにならない**。真下が開いた時点で揺れ始め、**60フレーム（約1秒）**で落下する。
+   出典: Mr. Do! の `APPLEWAIT`（"support test on tiles below"）/ `APPLEJIG`（"60-frame wobble"）
+   （[Retro Reversing](https://www.retroreversing.com/mrdo)）。
+   → プロトの Dig Dug 式（自機が支え・`WOBT%=45`）は**移植しない**。経緯は `docs/MRDO_RESEARCH.md`。
 4. **岩の割れ判定**：1マス落下で撃破無しなら割れず存続、自身の高さ超(>1セル)落下 or 敵/自機を潰すと割れて消える。
 5. **ダイナマイト**：静止・重量無し・約2秒で十字（中心＋上下左右1マス）爆発。未掘の土を掘る／爆風は**敵も自機も殺す**（自爆1ミス）。v1は同時1個・連鎖なし。
 6. **弾薬（火薬）**：開始ストック0、拾うと得点でなくストック+1、**次ステージへ持ち越し**。

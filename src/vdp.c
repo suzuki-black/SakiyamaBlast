@@ -48,16 +48,16 @@ void vdp_memset(uint16_t addr, uint8_t val, uint16_t len)
 /* R#36..R#46: DX, DY, NX, NY, CLR, ARG, CMD */
 static uint8_t cmdbuf[11];
 
-void vdp_fill(uint16_t x, uint8_t y, uint16_t w, uint8_t h, uint8_t color)
+void vdp_fill(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t color)
 {
     cmdbuf[0] = (uint8_t)(x & 0xFF);
     cmdbuf[1] = (uint8_t)(x >> 8);
-    cmdbuf[2] = y;
-    cmdbuf[3] = 0;
+    cmdbuf[2] = (uint8_t)(y & 0xFF);
+    cmdbuf[3] = (uint8_t)(y >> 8);
     cmdbuf[4] = (uint8_t)(w & 0xFF);
     cmdbuf[5] = (uint8_t)(w >> 8);
-    cmdbuf[6] = h;
-    cmdbuf[7] = 0;
+    cmdbuf[6] = (uint8_t)(h & 0xFF);
+    cmdbuf[7] = (uint8_t)(h >> 8);
     cmdbuf[8] = color;
     cmdbuf[9] = 0x00;            /* ARG: X,Y とも増加方向・ページ0 */
     cmdbuf[10] = 0x80;           /* LMMV (論理演算 IMP)。0xC0 は HMMV=バイト塗りなので誤り */
