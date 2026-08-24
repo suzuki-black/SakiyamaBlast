@@ -50,6 +50,7 @@ static void blast_one(int8_t cx, int8_t cy)
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
         return;
     }
+    diamond_blast(cx, cy);          /* ダイヤはダイナマイトだけが壊せる */
     dig_sweep((uint8_t)cx, (uint8_t)cy);
     rock_destroy_at(cx, cy);        /* 爆風にかかった岩は吹き飛ぶ */
     enemy_kill_at(cx, cy);          /* 爆風は敵も倒す */

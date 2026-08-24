@@ -104,9 +104,9 @@ static void update_chewing(void)
     chewing = cell_dug(cx, cy) ? 0 : 1;
 }
 
-/* 進行先セルに岩があるか。横向きなら押しを試み、押せなければ止まる。
-   縦向きには押せない (Mr. Do! 準拠)。 */
-static uint8_t rock_blocks(void)
+/* 進行先セルが通れないか。ダイヤモンドブロックは掘れも通れもしない。
+   岩は横向きなら押しを試み、押せなければ止まる。縦向きには押せない (Mr. Do! 準拠)。 */
+static uint8_t blocked_ahead(void)
 {
     int8_t cx = (int8_t)(px >> 4);
     int8_t cy = (int8_t)(py >> 4);
@@ -116,6 +116,9 @@ static uint8_t rock_blocks(void)
     case DIR_DOWN:  cy++; break;
     case DIR_LEFT:  cx--; break;
     default:        cx++; break;
+    }
+    if (cell_diamond(cx, cy)) {
+        return 1;
     }
     i = rock_at(cx, cy);
     if (i < 0) {
@@ -183,7 +186,7 @@ void player_update(void)
 
     at_node = (uint8_t)(((px & 15) == 0) && ((py & 15) == 0));
     if (at_node) {
-        if (rock_blocks()) {
+        if (blocked_ahead()) {
             return;
         }
         update_chewing();

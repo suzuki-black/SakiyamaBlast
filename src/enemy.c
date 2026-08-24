@@ -180,6 +180,9 @@ static uint8_t can_go(uint8_t i, uint8_t d)
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
         return 0;
     }
+    if (cell_diamond(cx, cy)) {
+        return 0;                        /* ダイヤは掘り屋でも抜けられない */
+    }
     ri = rock_at(cx, cy);
     if (ri >= 0) {
         if (d == DIR_LEFT)  { return rock_can_push(ri, -1); }

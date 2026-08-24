@@ -4,6 +4,7 @@
 
 uint8_t  dug[NCELL];
 uint8_t  powder[NCELL];
+uint8_t  diamond[NCELL];
 uint16_t dug_n;
 uint8_t  dug_pct;
 uint8_t  stage;
@@ -20,6 +21,23 @@ uint8_t cell_dug(int8_t cx, int8_t cy)
     return dug[(uint8_t)cy * COLS + (uint8_t)cx];
 }
 
+uint8_t cell_diamond(int8_t cx, int8_t cy)
+{
+    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
+        return 0;
+    }
+    return diamond[(uint8_t)cy * COLS + (uint8_t)cx];
+}
+
+/* ダイヤは自機の掘りでは壊れない。ダイナマイトの爆風だけが壊し、壊した分は採掘%に入る。 */
+void diamond_blast(int8_t cx, int8_t cy)
+{
+    if (!cell_diamond(cx, cy)) {
+        return;
+    }
+    diamond[(uint8_t)cy * COLS + (uint8_t)cx] = 0;
+}
+
 void dig_sweep(uint8_t cx, uint8_t cy)
 {
     uint16_t i;
@@ -27,8 +45,8 @@ void dig_sweep(uint8_t cx, uint8_t cy)
         return;
     }
     i = (uint16_t)cy * COLS + cx;
-    if (dug[i]) {
-        return;
+    if (dug[i] || diamond[i]) {
+        return;                     /* ダイヤは掘れない (爆風は先に diamond_blast で消す) */
     }
     dug[i] = 1;
     dug_n++;
@@ -72,6 +90,18 @@ void draw_powder(uint8_t cx, uint8_t cy)
     vdp_fill(x + 9, y + 2, 2, 4, COL_FUSE);     /* 導火線 */
 }
 
+/* ダイヤモンドブロック。硬い鉱脈。ダイナマイトでしか砕けない。 */
+void draw_diamond(uint8_t cx, uint8_t cy)
+{
+    uint16_t x = (uint16_t)cx << 4;
+    uint16_t y = (uint16_t)cy << 4;
+    vdp_fill(x,      y,      16, 16, COL_TUNNEL);
+    vdp_fill(x + 1,  y + 1,  14, 14, COL_DIA);
+    vdp_fill(x + 3,  y + 3,   4,  4, COL_WHITE);   /* 光の当たる面 */
+    vdp_fill(x + 8,  y + 8,   5,  5, COL_TUNNEL);  /* 面の切れ目 */
+    vdp_fill(x + 9,  y + 9,   3,  3, COL_DIA);
+}
+
 /* 風呂 (温泉)。触れると体温が一気に下がる。 */
 void draw_bath(uint8_t cx, uint8_t cy)
 {
@@ -103,6 +133,10 @@ void field_redraw_cell(int8_t cx, int8_t cy)
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
         return;
     }
+    if (diamond[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
+        draw_diamond((uint8_t)cx, (uint8_t)cy);
+        return;
+    }
     draw_cell_dirt(cx, cy);
     draw_dug_cell(cx, cy);
     if (powder[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
@@ -132,6 +166,44 @@ static void place_powder_line(uint8_t c, uint8_t r, uint8_t n)
         idx = (uint16_t)r * COLS + (uint8_t)(c + i);
         dug[idx] = 1;
         powder[idx] = 1;
+    }
+}
+
+/* ダイヤモンドブロックを土の中へばら撒く。面が進むほど増える。
+   自機の出現位置と巣のまわりは避ける (開始直後に閉じ込められないように)。 */
+static void place_diamonds(void)
+{
+    uint8_t n, placed = 0, tries = 0, c, r;
+    int8_t dc, dr;
+    uint16_t i;
+
+    n = (uint8_t)(2 + (stage - 1) * 2);
+    if (n > 12) {
+        n = 12;
+    }
+    while (placed < n && tries < 250) {
+        tries++;
+        c = (uint8_t)(rnd8() & 15);
+        r = (uint8_t)(rnd8() % ROWS);
+        i = (uint16_t)r * COLS + c;
+        if (dug[i] || diamond[i]) {
+            continue;                       /* 土の中にだけ置く */
+        }
+        if (rock_at((int8_t)c, (int8_t)r) >= 0) {
+            continue;
+        }
+        dc = (int8_t)(c - start_c); if (dc < 0) { dc = (int8_t)-dc; }
+        dr = (int8_t)(r - start_r); if (dr < 0) { dr = (int8_t)-dr; }
+        if (dc + dr < 3) {
+            continue;
+        }
+        dc = (int8_t)(c - nest_c); if (dc < 0) { dc = (int8_t)-dc; }
+        dr = (int8_t)(r - nest_r); if (dr < 0) { dr = (int8_t)-dr; }
+        if (dc + dr < 2) {
+            continue;
+        }
+        diamond[i] = 1;
+        placed++;
     }
 }
 
@@ -186,9 +258,12 @@ void build_stage(void)
     for (i = 0; i < NCELL; i++) {
         dug[i] = 0;
         powder[i] = 0;
+        diamond[i] = 0;
     }
     rock_clear();
     set_stage_layout();
+
+    place_diamonds();
 
     dug_n = 0;
     for (i = 0; i < NCELL; i++) {
@@ -202,6 +277,10 @@ void build_stage(void)
     vdp_fill(0, 0, 256, FIELD_H, COL_DIRT);
     for (r = 0; r < ROWS; r++) {
         for (c = 0; c < COLS; c++) {
+            if (diamond[(uint16_t)r * COLS + c]) {
+                draw_diamond(c, r);
+                continue;
+            }
             draw_dug_cell((int8_t)c, (int8_t)r);
             if (powder[(uint16_t)r * COLS + c]) {
                 draw_powder(c, r);

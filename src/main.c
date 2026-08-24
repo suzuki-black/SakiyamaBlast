@@ -155,6 +155,7 @@ static void set_game_palette(void)
     vdp_set_palette(COL_RAT,    7, 3, 2);
     vdp_set_palette(COL_BAT,    7, 2, 7);
     vdp_set_palette(COL_BATH,   2, 5, 7);
+    vdp_set_palette(COL_DIA,    3, 6, 7);
 }
 
 /* "STAGE n START" を面の上に出す。フォントは本体 BIOS のものを使う。 */

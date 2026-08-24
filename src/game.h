@@ -75,6 +75,7 @@
 #define COL_RAT    9
 #define COL_BAT    13
 #define COL_BATH   5
+#define COL_DIA    12
 
 /* --- 方向 --- */
 #define DIR_NONE  0
@@ -99,6 +100,8 @@
 /* --- field.c --- */
 extern uint8_t  dug[NCELL];      /* 掘り済みフラグ */
 extern uint8_t  powder[NCELL];   /* 火薬 (ダイナマイトの弾薬) */
+extern uint8_t  diamond[NCELL];  /* ダイヤモンドブロック。自機は掘れず通れず、
+                                    ダイナマイトだけが壊せる。壊すと採掘%に入る。 */
 extern uint16_t dug_n;           /* 掘ったセル数 */
 extern uint8_t  dug_pct;         /* 採掘率 % */
 extern uint8_t  stage;
@@ -113,6 +116,9 @@ void    draw_dug_cell(int8_t cx, int8_t cy);
 void    draw_cell_dirt(int8_t cx, int8_t cy);
 void    draw_powder(uint8_t cx, uint8_t cy);
 void    draw_bath(uint8_t cx, uint8_t cy);
+void    draw_diamond(uint8_t cx, uint8_t cy);
+uint8_t cell_diamond(int8_t cx, int8_t cy);
+void    diamond_blast(int8_t cx, int8_t cy);     /* 爆風で壊す。採掘%に加算される */
 void    bath_destroy_at(int8_t cx, int8_t cy);   /* 岩・爆風で壊れる (敵では壊れない) */
 void    field_redraw_cell(int8_t cx, int8_t cy);
 void    build_stage(void);
