@@ -108,6 +108,10 @@ static const uint16_t pat_bat[16] = {
     0x0000    /* ................ */
 };
 
+#define ST_TITLE 0
+#define ST_PLAY  1
+
+static uint8_t state;
 static uint8_t prev_trig;
 
 static void wait_vsync(void)
@@ -127,8 +131,25 @@ static uint8_t fire_pressed(void)
     return edge;
 }
 
+/* 坑内の色。タイトルの1枚絵がパレットを上書きするので、面を組む前に必ず焼き直す。 */
+static void set_game_palette(void)
+{
+    vdp_set_palette(COL_TUNNEL, 0, 0, 0);
+    vdp_set_palette(COL_DIRT,   4, 2, 1);
+    vdp_set_palette(COL_HUD,    1, 1, 2);
+    vdp_set_palette(COL_BLAST,  7, 6, 1);
+    vdp_set_palette(COL_RED,    6, 1, 1);
+    vdp_set_palette(COL_FUSE,   7, 6, 2);
+    vdp_set_palette(COL_WHITE,  7, 7, 7);
+    vdp_set_palette(COL_ROCK,   5, 5, 5);
+    vdp_set_palette(COL_RAT,    7, 3, 2);
+    vdp_set_palette(COL_BAT,    7, 2, 7);
+    vdp_set_palette(COL_BATH,   2, 5, 7);
+}
+
 static void start_stage(void)
 {
+    set_game_palette();
     build_stage();
     bomb_clear();
     player_start();
@@ -152,22 +173,18 @@ static void next_stage(void)
     start_stage();
 }
 
+static void goto_title(void)
+{
+    spr_park_all();         /* 1枚絵の上にスプライトが残らないように */
+    oam_flush();
+    title_draw();
+    state = ST_TITLE;
+}
+
 void main(void)
 {
     vdp_screen5();
-
-    /* 坑内の色 */
-    vdp_set_palette(COL_TUNNEL, 0, 0, 0);
-    vdp_set_palette(COL_DIRT,   4, 2, 1);
-    vdp_set_palette(COL_HUD,    1, 1, 2);
-    vdp_set_palette(COL_BLAST,  7, 6, 1);
-    vdp_set_palette(COL_RED,    6, 1, 1);
-    vdp_set_palette(COL_FUSE,   7, 6, 2);
-    vdp_set_palette(COL_WHITE,  7, 7, 7);
-    vdp_set_palette(COL_ROCK,   5, 5, 5);
-    vdp_set_palette(COL_RAT,    7, 3, 2);
-    vdp_set_palette(COL_BAT,    7, 2, 7);
-    vdp_set_palette(COL_BATH,   2, 5, 7);
+    set_game_palette();
 
     spr_init();
     spr_pattern_rows(PAT_MINER, pat_miner);
@@ -184,10 +201,18 @@ void main(void)
         }
     }
 
-    new_game();
+    goto_title();
 
     for (;;) {
         wait_vsync();
+
+        if (state == ST_TITLE) {
+            if (fire_pressed()) {
+                new_game();
+                state = ST_PLAY;
+            }
+            continue;
+        }
 
         if (!dead) {
             player_update();
@@ -207,7 +232,8 @@ void main(void)
             if (bomb_state != 2) {
                 if (lives <= 1) {
                     lives = 0;
-                    new_game();
+                    goto_title();       /* 残機が尽きたらタイトルへ戻る */
+                    continue;
                 } else {
                     player_respawn();
                 }

@@ -16,6 +16,8 @@
 	.globl	_vdp_wait_cmd
 	.globl	_oam_flush
 	.globl	_bank_select
+	.globl	_vdp_wblock
+	.globl	_vdp_blklen		; 実体は vdp.c 側 (C の変数として置く)
 	.globl	_oam
 
 VDP_DATA	= 0x98			; VRAM データ
@@ -158,6 +160,34 @@ _oam_flush::
 	out	(VDP_ADDR), a
 	ld	a, #0x8E
 	out	(VDP_ADDR), a
+	ei
+	ret
+
+;-------------------------------------------------------------------
+; void vdp_wblock(const uint8_t *src) __z88dk_fastcall;
+;   _vdp_blklen バイトを VRAM へ連続転送する。書き込みアドレスは呼ぶ前に
+;   vdp_setwrite() で設定しておくこと。1バイトずつ関数呼び出しするより桁違いに速い。
+;-------------------------------------------------------------------
+_vdp_wblock::
+	di
+	call	wait_ce
+	ld	de, (_vdp_blklen)	; D=256バイト単位の回数 / E=端数
+	ld	c, #VDP_DATA
+	ld	a, d
+	or	a, a
+	jr	Z, wblk_tail
+wblk_pages:
+	ld	b, #0			; B=0 は otir では 256 回
+	otir
+	dec	d
+	jr	NZ, wblk_pages
+wblk_tail:
+	ld	a, e
+	or	a, a
+	jr	Z, wblk_done
+	ld	b, e
+	otir
+wblk_done:
 	ei
 	ret
 

@@ -18,6 +18,8 @@ void vdp_wpal(uint8_t v) __z88dk_fastcall;
 void vdp_cmd(const uint8_t *p) __z88dk_fastcall;  /* R#36..46 の11バイト */
 void vdp_wait_cmd(void);
 void oam_flush(void);
+extern uint16_t vdp_blklen;                       /* vdp_wblock() の転送バイト数 */
+void vdp_wblock(const uint8_t *src) __z88dk_fastcall;
 
 #define VDP_REG(r, v)  vdp_wreg((uint16_t)(((uint16_t)(uint8_t)(v) << 8) | (uint8_t)(r)))
 

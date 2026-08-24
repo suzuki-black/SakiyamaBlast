@@ -18,5 +18,6 @@ void spr_pattern_rows(uint8_t pat, const uint16_t *rows);
 void spr_color(uint8_t plane, uint8_t color);         /* mode 2 は行ごとに色を持つ */
 void spr_set(uint8_t plane, uint8_t x, uint8_t y, uint8_t pat);
 void spr_park(uint8_t plane);
+void spr_park_all(void);
 
 #endif

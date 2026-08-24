@@ -45,6 +45,8 @@ void vdp_memset(uint16_t addr, uint8_t val, uint16_t len)
     }
 }
 
+uint16_t vdp_blklen;   /* vdp_wblock() が読む転送バイト数 (lowlevel.s から参照) */
+
 /* R#36..R#46: DX, DY, NX, NY, CLR, ARG, CMD */
 static uint8_t cmdbuf[11];
 

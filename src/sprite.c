@@ -56,3 +56,11 @@ void spr_park(uint8_t plane)
 {
     oam[plane * 4] = SPR_PARK_Y;
 }
+
+void spr_park_all(void)
+{
+    uint8_t i;
+    for (i = 0; i < SPR_PLANES; i++) {
+        oam[i * 4] = SPR_PARK_Y;
+    }
+}

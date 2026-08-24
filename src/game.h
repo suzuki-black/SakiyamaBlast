@@ -170,6 +170,9 @@ void bomb_clear(void);
 void bomb_fire(void);
 void bomb_update(void);
 
+/* --- title.c --- */
+void title_draw(void);
+
 /* --- hud.c --- */
 void hud_reset(void);
 void hud_draw(void);

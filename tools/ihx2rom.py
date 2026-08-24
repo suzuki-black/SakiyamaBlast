@@ -43,10 +43,12 @@ def parse_ihx(path):
 
 def main(argv):
     if len(argv) < 3:
-        print("usage: ihx2rom.py <in.ihx> <out.rom> [size_kb]", file=sys.stderr)
+        print("usage: ihx2rom.py <in.ihx> <out.rom> [size_kb] [seg:file ...]",
+              file=sys.stderr)
         return 2
     ihx, out = argv[1], argv[2]
-    size_kb = int(argv[3]) if len(argv) > 3 else 64
+    size_kb = int(argv[3]) if len(argv) > 3 and ":" not in argv[3] else 64
+    blobs = [a for a in argv[3:] if ":" in a]
 
     mem = parse_ihx(ihx)
     if not mem:
@@ -73,6 +75,24 @@ def main(argv):
     rom = bytearray(b"\xFF" * total)
     for addr, val in mem.items():
         rom[addr - ROM_BASE] = val
+
+    # 可変バンク側へ載せるデータ (タイトル画像など)。seg:file の形で指定する。
+    for spec in blobs:
+        seg, path = spec.split(":", 1)
+        seg = int(seg)
+        with open(path, "rb") as f:
+            data = f.read()
+        off = seg * SEG_SIZE
+        if off + len(data) > total:
+            print("error: %s (%d バイト) がセグメント %d から ROM に収まりません"
+                  % (path, len(data), seg), file=sys.stderr)
+            return 1
+        if seg < 4:
+            print("error: セグメント %d は固定コード領域です" % seg, file=sys.stderr)
+            return 1
+        rom[off:off + len(data)] = data
+        print("  seg%d..%d: %s (%d バイト)"
+              % (seg, seg + (len(data) - 1) // SEG_SIZE, path, len(data)))
 
     with open(out, "wb") as f:
         f.write(rom)
