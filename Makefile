@@ -42,7 +42,7 @@ ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT
 MACHINE   ?= C-BIOS_MSX2+_JP
 
-.PHONY: all run check clean
+.PHONY: all run check gamedata clean
 
 all: $(ROM)
 
@@ -73,6 +73,10 @@ $(ROM): $(IHX) $(TITLE_BIN) tools/ihx2rom.py
 
 run: $(ROM)
 	openmsx -machine $(MACHINE) -carta $(ROM) -romtype ASCII8
+
+# パターンエディタ等へ渡す、ゲーム1本ぶんのグラフィックデータ (仕様は docs/GAMEDATA_FORMAT.md)
+gamedata: $(ART_SPR_SRC) $(ART_TILE_SRC) tools/export_gamedata.py tools/palette.py
+	python3 tools/export_gamedata.py gamedata.json
 
 clean:
 	rm -rf $(BUILDDIR)

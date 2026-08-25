@@ -1,0 +1,1677 @@
+{
+  "format": "msx-gamedata",
+  "formatVersion": 1,
+  "generator": {
+    "tool": "tools/export_gamedata.py",
+    "sourceOfTruth": "assets/*.png"
+  },
+  "game": {
+    "id": "sakiyama-blast",
+    "title": {
+      "ja": "クロダイヤ 〜先山丹野3時〜",
+      "en": "Kuro Daiya"
+    },
+    "workspace": "SakiyamaBlast",
+    "target": {
+      "machine": "MSX turbo R",
+      "minimum": "MSX2",
+      "cpu": "z80 code"
+    },
+    "description": "昭和初期・常磐炭鉱の坑内を舞台にした1画面固定の掘り＋発破アクション。"
+  },
+  "screen": {
+    "mode": "SCREEN5",
+    "vdpMode": "GRAPHIC 4",
+    "resolution": [
+      256,
+      212
+    ],
+    "bitsPerPixel": 4,
+    "colorsOnScreen": 16,
+    "colorSpace": {
+      "channels": 3,
+      "bitsPerChannel": 3,
+      "totalColors": 512
+    },
+    "bytesPerLine": 128,
+    "playfield": {
+      "rect": [
+        0,
+        0,
+        256,
+        176
+      ],
+      "grid": [
+        16,
+        11
+      ],
+      "cellSize": [
+        16,
+        16
+      ]
+    },
+    "hud": {
+      "rect": [
+        0,
+        176,
+        256,
+        36
+      ]
+    },
+    "vram": {
+      "bitmapPage0": "0x0000",
+      "spriteColorTable": "0x7400",
+      "spriteAttributeTable": "0x7600",
+      "spritePatternTable": "0x7800"
+    },
+    "sprite": {
+      "mode": 2,
+      "size": [
+        16,
+        16
+      ],
+      "planes": 32,
+      "activePlanes": 10,
+      "colorsPerLine": 1,
+      "parkY": 212,
+      "note": "mode 2 は1行に1色。Y=216 は行終端マーカーなので使わない。"
+    }
+  },
+  "palette": {
+    "note": "src/main.c の set_game_palette() と tools/palette.py に対応。rgb3 が正（各0-7）。rgb8 は表示用の目安。",
+    "entries": [
+      {
+        "index": 0,
+        "rgb3": [
+          0,
+          0,
+          0
+        ],
+        "rgb8": [
+          0,
+          0,
+          0
+        ],
+        "name": {
+          "ja": "背景色（透明）",
+          "en": "Backdrop / transparent"
+        },
+        "symbol": null,
+        "note": "SCREEN 5 では 0番は背景色レジスタ R#7 の色で出る。本作は R#7=0（黒）。スプライトでは透明。"
+      },
+      {
+        "index": 1,
+        "rgb3": [
+          0,
+          0,
+          0
+        ],
+        "rgb8": [
+          0,
+          0,
+          0
+        ],
+        "name": {
+          "ja": "坑道",
+          "en": "Tunnel"
+        },
+        "symbol": "COL_TUNNEL",
+        "note": null
+      },
+      {
+        "index": 2,
+        "rgb3": [
+          7,
+          4,
+          3
+        ],
+        "rgb8": [
+          255,
+          146,
+          109
+        ],
+        "name": {
+          "ja": "肌",
+          "en": "Skin"
+        },
+        "symbol": "COL_SKIN",
+        "note": null
+      },
+      {
+        "index": 3,
+        "rgb3": [
+          2,
+          1,
+          1
+        ],
+        "rgb8": [
+          73,
+          36,
+          36
+        ],
+        "name": {
+          "ja": "影・長靴",
+          "en": "Dark"
+        },
+        "symbol": "COL_DARK",
+        "note": null
+      },
+      {
+        "index": 4,
+        "rgb3": [
+          1,
+          1,
+          2
+        ],
+        "rgb8": [
+          36,
+          36,
+          73
+        ],
+        "name": {
+          "ja": "HUDの帯",
+          "en": "Hud"
+        },
+        "symbol": "COL_HUD",
+        "note": null
+      },
+      {
+        "index": 5,
+        "rgb3": [
+          2,
+          5,
+          7
+        ],
+        "rgb8": [
+          73,
+          182,
+          255
+        ],
+        "name": {
+          "ja": "湯",
+          "en": "Bath"
+        },
+        "symbol": "COL_BATH",
+        "note": null
+      },
+      {
+        "index": 6,
+        "rgb3": [
+          4,
+          2,
+          1
+        ],
+        "rgb8": [
+          146,
+          73,
+          36
+        ],
+        "name": {
+          "ja": "土",
+          "en": "Dirt"
+        },
+        "symbol": "COL_DIRT",
+        "note": null
+      },
+      {
+        "index": 7,
+        "rgb3": [
+          2,
+          3,
+          6
+        ],
+        "rgb8": [
+          73,
+          109,
+          219
+        ],
+        "name": {
+          "ja": "作業着",
+          "en": "Body"
+        },
+        "symbol": "COL_BODY",
+        "note": null
+      },
+      {
+        "index": 8,
+        "rgb3": [
+          6,
+          1,
+          1
+        ],
+        "rgb8": [
+          219,
+          36,
+          36
+        ],
+        "name": {
+          "ja": "ダイナマイト",
+          "en": "Red"
+        },
+        "symbol": "COL_RED",
+        "note": null
+      },
+      {
+        "index": 9,
+        "rgb3": [
+          7,
+          3,
+          2
+        ],
+        "rgb8": [
+          255,
+          109,
+          73
+        ],
+        "name": {
+          "ja": "ネズミ",
+          "en": "Rat"
+        },
+        "symbol": "COL_RAT",
+        "note": null
+      },
+      {
+        "index": 10,
+        "rgb3": [
+          7,
+          6,
+          2
+        ],
+        "rgb8": [
+          255,
+          219,
+          73
+        ],
+        "name": {
+          "ja": "導火線・たが",
+          "en": "Fuse"
+        },
+        "symbol": "COL_FUSE",
+        "note": null
+      },
+      {
+        "index": 11,
+        "rgb3": [
+          7,
+          6,
+          1
+        ],
+        "rgb8": [
+          255,
+          219,
+          36
+        ],
+        "name": {
+          "ja": "爆風",
+          "en": "Blast"
+        },
+        "symbol": "COL_BLAST",
+        "note": null
+      },
+      {
+        "index": 12,
+        "rgb3": [
+          3,
+          6,
+          7
+        ],
+        "rgb8": [
+          109,
+          219,
+          255
+        ],
+        "name": {
+          "ja": "ダイヤ",
+          "en": "Dia"
+        },
+        "symbol": "COL_DIA",
+        "note": null
+      },
+      {
+        "index": 13,
+        "rgb3": [
+          7,
+          2,
+          7
+        ],
+        "rgb8": [
+          255,
+          73,
+          255
+        ],
+        "name": {
+          "ja": "コウモリ",
+          "en": "Bat"
+        },
+        "symbol": "COL_BAT",
+        "note": null
+      },
+      {
+        "index": 14,
+        "rgb3": [
+          5,
+          5,
+          5
+        ],
+        "rgb8": [
+          182,
+          182,
+          182
+        ],
+        "name": {
+          "ja": "岩",
+          "en": "Rock"
+        },
+        "symbol": "COL_ROCK",
+        "note": null
+      },
+      {
+        "index": 15,
+        "rgb3": [
+          7,
+          7,
+          7
+        ],
+        "rgb8": [
+          255,
+          255,
+          255
+        ],
+        "name": {
+          "ja": "白",
+          "en": "White"
+        },
+        "symbol": "COL_WHITE",
+        "note": null
+      }
+    ]
+  },
+  "paletteVariants": [],
+  "spriteFormat": {
+    "pixels": "16行 x 16文字。'.' は透明、それ以外はパレット番号の16進1桁。",
+    "constraint": "MSX の mode-2 スプライトは1行につき1色しか持てない。1行に2色以上を置いてはならない。",
+    "lineColors": "各行の色（派生データ。pixels から求められる）。"
+  },
+  "spritePatterns": [
+    {
+      "id": "miner_00",
+      "patternNumber": 0,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        ".....FFFFFF.....",
+        "....FFFFFFFF....",
+        "...FFFFFFFFFF...",
+        "..AAAAAAAAAAAA..",
+        "....22222222....",
+        "....22.22.22....",
+        ".....222222.....",
+        "...7777777777...",
+        "..777777777777..",
+        "..777777777777..",
+        "..777777777777..",
+        "...7777777777...",
+        "...777....777...",
+        "..333......333..",
+        "..33........33.."
+      ],
+      "lineColors": [
+        0,
+        15,
+        15,
+        15,
+        10,
+        2,
+        2,
+        2,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        3,
+        3
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 0
+      }
+    },
+    {
+      "id": "bomb_00",
+      "patternNumber": 1,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "........A.......",
+        ".......A.A......",
+        "........A.......",
+        ".......AAA......",
+        ".....888888.....",
+        ".....888888.....",
+        ".....888888.....",
+        ".....AAAAAA.....",
+        ".....888888.....",
+        ".....888888.....",
+        ".....888888.....",
+        ".....888888.....",
+        ".....888888.....",
+        "................",
+        "................"
+      ],
+      "lineColors": [
+        0,
+        10,
+        10,
+        10,
+        10,
+        8,
+        8,
+        8,
+        10,
+        8,
+        8,
+        8,
+        8,
+        8,
+        0,
+        0
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 1
+      }
+    },
+    {
+      "id": "rock_00",
+      "patternNumber": 2,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        ".....FFFFFF.....",
+        "...EEEEEEEEEE...",
+        "..EEEEEEEEEEEE..",
+        ".EEEEEEEEEEEEEE.",
+        ".EEEEEEEEEEEEEE.",
+        "EEEEEEEEEEEEEEEE",
+        "EEEEEEEEEEEEEEEE",
+        "EEEEEEEEEEEEEEEE",
+        "EEEEEEEEEEEEEEEE",
+        ".EEEEEEEEEEEEEE.",
+        ".EEEEEEEEEEEEEE.",
+        "..333333333333..",
+        "...3333333333...",
+        ".....333333.....",
+        "................"
+      ],
+      "lineColors": [
+        0,
+        15,
+        14,
+        14,
+        14,
+        14,
+        14,
+        14,
+        14,
+        14,
+        14,
+        14,
+        3,
+        3,
+        3,
+        0
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 2
+      }
+    },
+    {
+      "id": "rat_00",
+      "patternNumber": 3,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        "..99........99..",
+        ".9999......9999.",
+        "..999999999999..",
+        ".99999999999999.",
+        "9999999999999999",
+        "9999.999999.9999",
+        "9999999999999999",
+        ".99999999999999.",
+        "..999999999999..",
+        "...9999999999...",
+        "..99.99..99.99..",
+        "................",
+        "................",
+        "................"
+      ],
+      "lineColors": [
+        0,
+        0,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        0,
+        0,
+        0
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 3
+      }
+    },
+    {
+      "id": "bat_00",
+      "patternNumber": 4,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        "DD............DD",
+        "DDD..........DDD",
+        "DDDDD......DDDDD",
+        "DDDDDDDDDDDDDDDD",
+        ".DDDDDDDDDDDDDD.",
+        "..DDDD.DD.DDDD..",
+        "...DDDDDDDDDD...",
+        "....DDDDDDDD....",
+        ".....DDDDDD.....",
+        "......DDDD......",
+        ".......DD.......",
+        "................",
+        "................",
+        "................"
+      ],
+      "lineColors": [
+        0,
+        0,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        0,
+        0,
+        0
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 4
+      }
+    }
+  ],
+  "tileFormat": {
+    "pixels": "16行 x 16文字。'.' は透明、それ以外はパレット番号の16進1桁。タイルは4bppのビットマップなので1行に何色でも使える。",
+    "drawInsetPx": "0 なら16x16全部を描く。2 なら外周2pxを描かない（坑道の薄い土の膜を消さないため）。"
+  },
+  "tiles": [
+    {
+      "id": "powder",
+      "tileNumber": 0,
+      "size": [
+        16,
+        16
+      ],
+      "name": {
+        "ja": "火薬",
+        "en": "Gunpowder"
+      },
+      "kind": "pickup",
+      "description": "拾うとダイナマイトのストックが1増える。次の面へ持ち越す。",
+      "drawInsetPx": 2,
+      "pixels": [
+        "................",
+        "................",
+        ".........A......",
+        "........A.......",
+        "........A.......",
+        "....33333333....",
+        "...3888888883...",
+        "...3888888883...",
+        "...AAAAAAAAAA...",
+        "...3888888883...",
+        "...3888888883...",
+        "...3888888883...",
+        "...AAAAAAAAAA...",
+        "....33333333....",
+        "................",
+        "................"
+      ],
+      "source": {
+        "file": "assets/tiles.png",
+        "cell": 0
+      }
+    },
+    {
+      "id": "bath",
+      "tileNumber": 1,
+      "size": [
+        16,
+        16
+      ],
+      "name": {
+        "ja": "風呂",
+        "en": "Bath"
+      },
+      "kind": "field",
+      "description": "通過すると体温が一気に下がる。何度でも入れる。落下する岩と爆風でだけ壊れる。",
+      "drawInsetPx": 2,
+      "pixels": [
+        "................",
+        "......F...F.....",
+        ".....F...F......",
+        "......F...F.....",
+        "................",
+        ".33333333333333.",
+        ".3FFFFFFFFFFFF3.",
+        ".35555555555553.",
+        ".35555555555553.",
+        ".35555555555553.",
+        ".35555555555553.",
+        ".35555555555553.",
+        ".33333333333333.",
+        "..3..........3..",
+        "................",
+        "................"
+      ],
+      "source": {
+        "file": "assets/tiles.png",
+        "cell": 1
+      }
+    },
+    {
+      "id": "bscore",
+      "tileNumber": 2,
+      "size": [
+        16,
+        16
+      ],
+      "name": {
+        "ja": "金塊",
+        "en": "Gold nugget"
+      },
+      "kind": "bonus",
+      "description": "ボーナス：得点。",
+      "drawInsetPx": 2,
+      "pixels": [
+        "................",
+        "................",
+        ".....3333.......",
+        "....3AAAA3......",
+        "...3AAFFAA3.....",
+        "..3AAAFFAAA3....",
+        "..3AAAAAAAA3....",
+        "..3AAAAAAAA3....",
+        "..3AAAAAAAA3....",
+        "...3AAAAAA3.....",
+        "....3AAAA3......",
+        ".....3333.......",
+        "................",
+        "................",
+        "................",
+        "................"
+      ],
+      "source": {
+        "file": "assets/tiles.png",
+        "cell": 2
+      }
+    },
+    {
+      "id": "bcool",
+      "tileNumber": 3,
+      "size": [
+        16,
+        16
+      ],
+      "name": {
+        "ja": "水滴",
+        "en": "Water drop"
+      },
+      "kind": "bonus",
+      "description": "ボーナス：体温が全回復する。",
+      "drawInsetPx": 2,
+      "pixels": [
+        "................",
+        "................",
+        "......FF........",
+        ".....F55F.......",
+        "....F5555F......",
+        "...F555555F.....",
+        "..F55555555F....",
+        "..F55555555F....",
+        "..F55555555F....",
+        "...F555555F.....",
+        "....FFFFFF......",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................"
+      ],
+      "source": {
+        "file": "assets/tiles.png",
+        "cell": 3
+      }
+    },
+    {
+      "id": "blife",
+      "tileNumber": 4,
+      "size": [
+        16,
+        16
+      ],
+      "name": {
+        "ja": "ヘルメット",
+        "en": "Helmet"
+      },
+      "kind": "bonus",
+      "description": "ボーナス：残機が1増える。",
+      "drawInsetPx": 2,
+      "pixels": [
+        "................",
+        "................",
+        "................",
+        ".....FFFFFF.....",
+        "....FFFFFFFF....",
+        "...FFFFFFFFFF...",
+        "..FFFFFFFFFFFF..",
+        "..AAAAAAAAAAAA..",
+        "................",
+        "......2222......",
+        ".....222222.....",
+        ".....22..22.....",
+        "................",
+        "................",
+        "................",
+        "................"
+      ],
+      "source": {
+        "file": "assets/tiles.png",
+        "cell": 4
+      }
+    },
+    {
+      "id": "cave",
+      "tileNumber": 5,
+      "size": [
+        16,
+        16
+      ],
+      "name": {
+        "ja": "横穴",
+        "en": "Cave mouth"
+      },
+      "kind": "field",
+      "description": "敵の湧き出し口。数字の掘り抜きとは別に、土の中へ独立して1ブロックだけ開ける。",
+      "drawInsetPx": 0,
+      "pixels": [
+        "EEEEEEEEEEEEEEEE",
+        "EEEEEEEEEEEEEEEE",
+        "EEEEE111111EEEEE",
+        "EEE1111111111EEE",
+        "EE111111111111EE",
+        "E11111111111111E",
+        "E11111111111111E",
+        "E11111111111111E",
+        "E11111111111111E",
+        "E11111111111111E",
+        "E11111111111111E",
+        "E11111111111111E",
+        "E11111111111111E",
+        "E11111111111111E",
+        "E11111111111111E",
+        "EEEEEEEEEEEEEEEE"
+      ],
+      "source": {
+        "file": "assets/tiles.png",
+        "cell": 5
+      }
+    },
+    {
+      "id": "dia",
+      "tileNumber": 6,
+      "size": [
+        16,
+        16
+      ],
+      "name": {
+        "ja": "ダイヤモンド鉱石",
+        "en": "Diamond block"
+      },
+      "kind": "field",
+      "description": "自機は掘れず通れない。ダイナマイトの爆風だけが壊せ、壊すと採掘率に加算される。",
+      "drawInsetPx": 0,
+      "pixels": [
+        "1111111111111111",
+        "1CCCCCCCCCCCCCC1",
+        "1CFFFFFFCCCCCCC1",
+        "1CFFFFCCCCCCCCC1",
+        "1CFFCCCCCCCCCCC1",
+        "1CCCCCCCCCCCCCC1",
+        "1CCCCCCCCCCCCCC1",
+        "1CCCCCCC111CCCC1",
+        "1CCCCCC11111CCC1",
+        "1CCCCCCC111CCCC1",
+        "1CCCCCCCCCCCCCC1",
+        "1CCCCCCCCCCCCCC1",
+        "1CCCCCCCCCCCCCC1",
+        "1CCCCCCCCCCCCCC1",
+        "1CCCCCCCCCCCCCC1",
+        "1111111111111111"
+      ],
+      "source": {
+        "file": "assets/tiles.png",
+        "cell": 6
+      }
+    }
+  ],
+  "characters": [
+    {
+      "id": "miner",
+      "name": {
+        "ja": "丹野3時",
+        "en": "Tanno Sanji"
+      },
+      "role": "player",
+      "description": "先山（坑内で採炭を主導する炭鉱夫）。主人公。ヘルメットにカンテラ。",
+      "spritePlanes": [
+        0
+      ],
+      "defaultPattern": "miner_00",
+      "animations": [
+        {
+          "id": "walk_right",
+          "name": {
+            "ja": "右移動",
+            "en": "Walk right"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "miner_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "右移動1",
+                "en": "Walk right 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "miner_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "右移動2",
+                "en": "Walk right 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        },
+        {
+          "id": "walk_left",
+          "name": {
+            "ja": "左移動",
+            "en": "Walk left"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "miner_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "左移動1",
+                "en": "Walk left 1"
+              },
+              "status": "placeholder"
+            },
+            {
+              "pattern": "miner_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "左移動2",
+                "en": "Walk left 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        },
+        {
+          "id": "walk_up",
+          "name": {
+            "ja": "上移動",
+            "en": "Walk up"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "miner_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "上移動1",
+                "en": "Walk up 1"
+              },
+              "status": "placeholder"
+            },
+            {
+              "pattern": "miner_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "上移動2",
+                "en": "Walk up 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        },
+        {
+          "id": "walk_down",
+          "name": {
+            "ja": "下移動",
+            "en": "Walk down"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "miner_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "下移動1",
+                "en": "Walk down 1"
+              },
+              "status": "placeholder"
+            },
+            {
+              "pattern": "miner_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "下移動2",
+                "en": "Walk down 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        },
+        {
+          "id": "dig",
+          "name": {
+            "ja": "掘り",
+            "en": "Dig"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "miner_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "掘り1",
+                "en": "Dig 1"
+              },
+              "status": "placeholder"
+            },
+            {
+              "pattern": "miner_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "掘り2",
+                "en": "Dig 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        },
+        {
+          "id": "miss",
+          "name": {
+            "ja": "ミス",
+            "en": "Miss"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "miner_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "ミス1",
+                "en": "Miss 1"
+              },
+              "status": "placeholder"
+            },
+            {
+              "pattern": "miner_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "ミス2",
+                "en": "Miss 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bomb",
+      "name": {
+        "ja": "ダイナマイト",
+        "en": "Dynamite"
+      },
+      "role": "item",
+      "description": "設置したダイナマイト。導火が燃えている間だけ表示する。",
+      "spritePlanes": [
+        1
+      ],
+      "defaultPattern": "bomb_00",
+      "animations": [
+        {
+          "id": "fuse",
+          "name": {
+            "ja": "導火",
+            "en": "Fuse burning"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "bomb_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "導火1",
+                "en": "Fuse burning 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "bomb_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "導火2",
+                "en": "Fuse burning 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rock",
+      "name": {
+        "ja": "岩",
+        "en": "Rock"
+      },
+      "role": "obstacle",
+      "description": "押せる／落ちる岩。Mr. Do! の apple 相当。",
+      "spritePlanes": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "defaultPattern": "rock_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "rock_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "rock_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        },
+        {
+          "id": "wobble",
+          "name": {
+            "ja": "ぐらつき",
+            "en": "Wobble"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "rock_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "ぐらつき1",
+                "en": "Wobble 1"
+              },
+              "status": "placeholder"
+            },
+            {
+              "pattern": "rock_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "ぐらつき2",
+                "en": "Wobble 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rat",
+      "name": {
+        "ja": "ネズミ",
+        "en": "Rat"
+      },
+      "role": "enemy",
+      "description": "坑内の小動物。坑道の中だけを歩く通常形態。",
+      "spritePlanes": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "defaultPattern": "rat_00",
+      "animations": [
+        {
+          "id": "walk_right",
+          "name": {
+            "ja": "右移動",
+            "en": "Walk right"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "rat_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "右移動1",
+                "en": "Walk right 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "rat_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "右移動2",
+                "en": "Walk right 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        },
+        {
+          "id": "walk_left",
+          "name": {
+            "ja": "左移動",
+            "en": "Walk left"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "rat_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "左移動1",
+                "en": "Walk left 1"
+              },
+              "status": "placeholder"
+            },
+            {
+              "pattern": "rat_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "左移動2",
+                "en": "Walk left 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        },
+        {
+          "id": "walk_up",
+          "name": {
+            "ja": "上移動",
+            "en": "Walk up"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "rat_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "上移動1",
+                "en": "Walk up 1"
+              },
+              "status": "placeholder"
+            },
+            {
+              "pattern": "rat_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "上移動2",
+                "en": "Walk up 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        },
+        {
+          "id": "walk_down",
+          "name": {
+            "ja": "下移動",
+            "en": "Walk down"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "rat_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "下移動1",
+                "en": "Walk down 1"
+              },
+              "status": "placeholder"
+            },
+            {
+              "pattern": "rat_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "下移動2",
+                "en": "Walk down 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bat",
+      "name": {
+        "ja": "コウモリ",
+        "en": "Bat"
+      },
+      "role": "enemy",
+      "description": "透明化して土をすり抜けている形態。トンネルへ入ると実体化してネズミへ戻る。",
+      "spritePlanes": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "defaultPattern": "bat_00",
+      "animations": [
+        {
+          "id": "float_right",
+          "name": {
+            "ja": "右移動",
+            "en": "Float right"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "bat_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "右移動1",
+                "en": "Float right 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "bat_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "右移動2",
+                "en": "Float right 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        },
+        {
+          "id": "float_left",
+          "name": {
+            "ja": "左移動",
+            "en": "Float left"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "bat_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "左移動1",
+                "en": "Float left 1"
+              },
+              "status": "placeholder"
+            },
+            {
+              "pattern": "bat_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "左移動2",
+                "en": "Float left 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        },
+        {
+          "id": "float_up",
+          "name": {
+            "ja": "上移動",
+            "en": "Float up"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "bat_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "上移動1",
+                "en": "Float up 1"
+              },
+              "status": "placeholder"
+            },
+            {
+              "pattern": "bat_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "上移動2",
+                "en": "Float up 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        },
+        {
+          "id": "float_down",
+          "name": {
+            "ja": "下移動",
+            "en": "Float down"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "bat_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "下移動1",
+                "en": "Float down 1"
+              },
+              "status": "placeholder"
+            },
+            {
+              "pattern": "bat_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "下移動2",
+                "en": "Float down 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "procedural": [
+    {
+      "id": "dirt",
+      "name": {
+        "ja": "土",
+        "en": "Dirt"
+      },
+      "description": "面ごとに色が変わる。矩形塗りで一面を塗ってから掘り抜きを彫る。",
+      "params": {
+        "colorIndex": 6,
+        "note": "色は paletteVariants で面ごとに差し替える"
+      }
+    },
+    {
+      "id": "tunnel",
+      "name": {
+        "ja": "坑道",
+        "en": "Tunnel"
+      },
+      "description": "掘り済みの升目。隣が土の辺だけ内側2pxにして、隣接する平行トンネルの間に薄い土の膜を残す（本作の肝）。",
+      "params": {
+        "colorIndex": 1,
+        "insetPx": 2
+      }
+    },
+    {
+      "id": "blast",
+      "name": {
+        "ja": "爆風",
+        "en": "Blast flash"
+      },
+      "description": "爆発の瞬間だけ、十字の5升を1色で塗る。",
+      "params": {
+        "colorIndex": 11,
+        "durationFrames": 8
+      }
+    },
+    {
+      "id": "hud",
+      "name": {
+        "ja": "HUD の帯",
+        "en": "HUD band"
+      },
+      "description": "画面下 y=176..211 の36px。文字は本体 BIOS の8x8フォント。",
+      "params": {
+        "colorIndex": 4,
+        "rect": [
+          0,
+          176,
+          256,
+          36
+        ]
+      }
+    }
+  ],
+  "stages": {
+    "count": 15,
+    "carving": {
+      "description": "各面の掘り抜きは面番号の算用数字の形。1桁は中央、2桁は左右に並べる。自機の出発点・風呂・火薬は数字の線の上。",
+      "digitSize": [
+        5,
+        9
+      ],
+      "digitTopRow": 1,
+      "singleDigitCol": 5,
+      "twoDigitCols": [
+        1,
+        9
+      ],
+      "digits": [
+        [
+          ".###.",
+          "#...#",
+          "#...#",
+          "#...#",
+          "#...#",
+          "#...#",
+          "#...#",
+          "#...#",
+          ".###."
+        ],
+        [
+          "..#..",
+          ".##..",
+          "#.#..",
+          "..#..",
+          "..#..",
+          "..#..",
+          "..#..",
+          "..#..",
+          "#####"
+        ],
+        [
+          ".###.",
+          "#...#",
+          "....#",
+          "...#.",
+          "..#..",
+          ".#...",
+          "#....",
+          "#....",
+          "#####"
+        ],
+        [
+          ".###.",
+          "#...#",
+          "....#",
+          "..##.",
+          "....#",
+          "....#",
+          "....#",
+          "#...#",
+          ".###."
+        ],
+        [
+          "...#.",
+          "..##.",
+          ".#.#.",
+          "#..#.",
+          "#####",
+          "...#.",
+          "...#.",
+          "...#.",
+          "...#."
+        ],
+        [
+          "#####",
+          "#....",
+          "#....",
+          "####.",
+          "....#",
+          "....#",
+          "....#",
+          "#...#",
+          ".###."
+        ],
+        [
+          "..##.",
+          ".#...",
+          "#....",
+          "####.",
+          "#...#",
+          "#...#",
+          "#...#",
+          "#...#",
+          ".###."
+        ],
+        [
+          "#####",
+          "....#",
+          "....#",
+          "...#.",
+          "..#..",
+          "..#..",
+          ".#...",
+          ".#...",
+          ".#..."
+        ],
+        [
+          ".###.",
+          "#...#",
+          "#...#",
+          ".###.",
+          "#...#",
+          "#...#",
+          "#...#",
+          "#...#",
+          ".###."
+        ],
+        [
+          ".###.",
+          "#...#",
+          "#...#",
+          "#...#",
+          ".####",
+          "....#",
+          "....#",
+          "...#.",
+          ".##.."
+        ]
+      ]
+    },
+    "perStage": {
+      "diamondPercentOfDirt": "(stage-1) * 2  （土の面積に対する割合。ブロック単位で切り上げ）",
+      "powderCount": 10,
+      "enemyTotal": "4 + stage",
+      "enemyOnScreenMax": 4,
+      "rockCount": "2 + (stage-1)/7",
+      "clearCondition": "採掘率 90%"
+    }
+  },
+  "sources": {
+    "spriteSheet": "assets/sprites.png",
+    "tileSheet": "assets/tiles.png",
+    "titleImage": "assets/title.png",
+    "palette": "tools/palette.py",
+    "spec": "docs/GAMEDATA_FORMAT.md"
+  }
+}

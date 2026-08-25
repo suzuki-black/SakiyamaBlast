@@ -85,6 +85,7 @@ SCREEN 5（GRAPHIC 4, 256x212, 16色/512パレット, 16x16 mode-2 スプライ�
 | `tools/png2art.py` | PNG → スプライト／背景タイルの C 配列 |
 | `tools/palette.py` | ゲームのパレット定義（絵の変換が参照する） |
 | `tools/make_art.py` | たたき台の PNG を ASCII アートから生成（任意） |
+| `tools/export_gamedata.py` | ゲーム1本ぶんのグラフィックデータを JSON へ書き出す |
 | `tools/smoketest.sh` | openMSX 上で起動〜描画結果を検査（`make check`） |
 
 ## 実装状況
@@ -152,6 +153,20 @@ SCREEN 5（GRAPHIC 4, 256x212, 16色/512パレット, 16x16 mode-2 スプライ�
 
 たたき台の PNG は `python3 tools/make_art.py` で作り直せる（ASCII アートから生成）。
 ただし**正は PNG のほう**なので、ドット絵エディタで直接描き替えて構わない。
+
+## 外部ツールへの受け渡し（gamedata.json）
+
+画面・パレット・スプライト・背景タイル・キャラと動作・面構成を**1つの JSON** にまとめて
+書き出せる。パターンエディタなど外部ツールへ渡すためのもの。
+
+```bash
+make gamedata      # gamedata.json を作り直す
+```
+
+- 形式の仕様は **[docs/GAMEDATA_FORMAT.md](docs/GAMEDATA_FORMAT.md)**
+- 絵の正は `assets/` の PNG。JSON はそこから書き出す（**ゲーム → JSON の一方向**。
+  編集した JSON をゲームへ取り込む側は TODO）
+- 絵は16行の文字列で持つ（`.`＝透明／`0`〜`F`＝パレット番号）。手で直せて diff も取れる
 
 ## Mr. Do! 準拠について
 
