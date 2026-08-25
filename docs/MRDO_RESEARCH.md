@@ -55,16 +55,39 @@ SDCC 移植にあたり、岩（＝Mr. Do! の apple）・敵の追跡・穴掘�
 > 「敵は自機の方向へ掘る」「アルファは直進」から、本作では
 > **開き方向の候補から自機に近づく向きを優先し、同点なら現在の向きを維持、1/8で乱択**とする。
 
-## 4. `DESIGN.md` から変更した点（重要）
+## 4. 岩の支えと敵の挙動は **Dig Dug 準拠**（2026-08-25 に差し戻し）
 
-`DESIGN.md` は岩の支えを **Dig Dug 準拠**（「自機が真下にいる間は自機が支えになり落ちない」）と
-規定していた。今回の再調査では、**Mr. Do! はタイルだけを見て支えを判定**しており、自機は支えに
-ならない（`APPLEWAIT` = "support test on tiles below"）。攻略の定石も「真下を掘って**通り過ぎる**と
-後ろに落ちる」であって「真下に居座って止める」ではない。
+いったん Mr. Do! に寄せて次の2点を変更したが、**作者の判断で Dig Dug 準拠へ戻した**。
+経緯を残しておく。
 
-本作は岩を **Mr. Do! 準拠**と明記しているため、**Dig Dug の支えルールは採用しない**。
-代わりに **60フレームの揺れ**が猶予になり、「真下を掘り抜いた直後に離脱すれば当たらない」という
-同じ駆け引きが成立する。この変更は `DESIGN.md` / `HANDOFF_SDCC.md` にも反映済み。
+### 4-1. 岩の支え
+
+- 一時採用した Mr. Do! 版: 支え判定はタイルだけを見る（`APPLEWAIT` = "support test on tiles below"）。
+  自機は支えにならない。
+- **確定版（Dig Dug）**: **真下の升目に自機が居る間、岩は揺れも落下もしない。好きなだけ待てる。**
+  自機が離れた瞬間に揺れ始め、約0.75秒で落ちる。
+  出典: *"The rock will only start to fall once Dig Dug moves out from under it. Until such time, he can
+  wait underneath the rock for as long as he likes."* / *"You can hold a rock in place by staying directly
+  under it. Wait there until a Pooka or Fygar comes up from below, move to either side, and the rock will
+  crush the enemy."*（[Getting Good: Dig Dug](https://primetimeamusements.com/getting-good-dig-dug/)）
+- 押し・落下距離での割れ・潰しは **Mr. Do! 準拠のまま**。
+
+### 4-2. 敵の掘り
+
+- 一時採用した Mr. Do! 版: 掘り屋（Driller Dino）へ変異して土を掘り進む。
+- **確定版（Dig Dug）**: **敵は自分では掘らない**。透明になって土をすり抜け、トンネルに入ると
+  実体化する。土の中では倒せず、トンネルの中では倒せる。斜め移動する。
+  出典: *"After a few seconds of losing sight of the player, monsters can transform into ghostly forms to
+  move through solid earth until they reach another tunnel"* / *"travel diagonally"* /
+  *"once a ghost enters a tunnel, it can be killed"*（[Pookapedia](https://digdug.fandom.com/wiki/Dig_Dug)）
+- 坑道の中を歩くときの向きの決め方は **Mr. Do! 準拠のまま**（現在の向きを維持・約1/8で選び直し）。
+
+### 4-3. 方向転換
+
+- 一時採用した Mr. Do! 版: 整列していなければ曲がれない（入力は保持）。
+- **確定版（Dig Dug）**: 曲がるのは節点だけだが、**半歩ずれていれば最寄りの節点へ寄せてから曲がる**。
+  Dig Dug も *"can only make ninety degree turns at particular points along an invisible grid"* だが、
+  「整列するまで曲がらない」だけでは止まった位置がずれていると詰んでしまうため。
 
 ## 5. 本作であえて Mr. Do! と変える点
 

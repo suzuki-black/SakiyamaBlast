@@ -3,9 +3,11 @@
  *
  * 状態機械は APPLEWAIT / APPLEJIG / APPLEFALL / APPLESPLIT の4状態に対応する。
  * 根拠と出典は docs/MRDO_RESEARCH.md。要点:
- *  - 支え判定は「真下のセル(地形)」だけを見る。**自機は支えにならない**。
- *    真下を掘り抜いて居座れば潰される (Dig Dug の「自機が支え」ルールは採らない)。
- *  - 支えを失うと 60フレーム揺れてから落下する。この猶予が「掘って通り過ぎる」駆け引き。
+ *  - 支え判定は「真下のセル(地形)」に加えて **自機そのもの**も見る (Dig Dug 準拠)。
+ *    真下の升目に自機が居る間、岩は揺れも落下もしない。好きなだけ待てる。
+ *    出典: "The rock will only start to fall once Dig Dug moves out from under it.
+ *    Until such time, he can wait underneath the rock for as long as he likes."
+ *  - 自機が真下から離れた瞬間に揺れ始め、揺れ切ると落下する。
  *  - 押しは横方向のみ。押し先が開いている(掘り済み)セルの時だけ。土へは押し込めない。
  *  - 自身の高さ超 (2セル以上) 落ちるか、何かを潰すと割れて消える。1セルなら割れず存続。
  */
@@ -69,7 +71,8 @@ static uint8_t rock_solid_at(int8_t cx, int8_t cy)
     return (uint8_t)(rock_state[i] != ROCK_FALL);
 }
 
-/* 真下が支えられているか。地形(未掘の土)・盤面の底・静止した岩が支えになる。 */
+/* 真下が支えられているか。地形(未掘の土)・盤面の底・静止した岩に加えて、
+   **真下の升目に自機が居る場合も支え**とする (Dig Dug 準拠)。 */
 static uint8_t supported(uint8_t i)
 {
     int8_t c = (int8_t)(rock_x[i] >> 4);
@@ -79,6 +82,9 @@ static uint8_t supported(uint8_t i)
     }
     if (!cell_dug(c, (int8_t)(r + 1))) {
         return 1;
+    }
+    if ((int8_t)player_cell_c() == c && (int8_t)player_cell_r() == (int8_t)(r + 1)) {
+        return 1;                       /* 自機が真下で支えている */
     }
     return rock_solid_at(c, (int8_t)(r + 1));
 }

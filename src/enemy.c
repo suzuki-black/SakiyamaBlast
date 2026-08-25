@@ -19,9 +19,9 @@ uint8_t en_state[ENEMY_MAX];
 uint8_t en_x[ENEMY_MAX], en_y[ENEMY_MAX];
 
 static uint8_t  en_dir[ENEMY_MAX];
-static uint8_t  en_digger[ENEMY_MAX];
+static uint8_t  en_ghost[ENEMY_MAX];      /* 1 = 透明で土をすり抜けている */
+static uint8_t  en_gdirt[ENEMY_MAX];      /* 透明化してから一度でも土の中へ入ったか */
 static uint8_t  en_acc[ENEMY_MAX];
-static uint8_t  en_chew[ENEMY_MAX];
 static uint8_t  en_pause[ENEMY_MAX];
 static uint16_t en_morph[ENEMY_MAX];
 static uint8_t  en_col[ENEMY_MAX];      /* 色テーブルへ焼いた色 (変化時だけ書く) */
@@ -55,12 +55,12 @@ void enemy_clear(void)
     }
 }
 
-static uint16_t morph_frames(void)
+static uint16_t ghost_frames(void)
 {
-    uint16_t t = MORPH_BASE;
-    uint16_t d = (uint16_t)(stage - 1) * MORPH_STEP;
-    if (d >= t || (uint16_t)(t - d) < MORPH_MIN) {
-        return MORPH_MIN;
+    uint16_t t = GHOST_BASE;
+    uint16_t d = (uint16_t)(stage - 1) * GHOST_STEP;
+    if (d >= t || (uint16_t)(t - d) < GHOST_MIN) {
+        return GHOST_MIN;
     }
     return (uint16_t)(t - d);
 }
@@ -105,11 +105,10 @@ static void enemy_spawn(void)
         en_y[i] = (uint8_t)(nest_r << 4);
         en_state[i] = 1;
         en_dir[i] = (uint8_t)(DIR_UP + (rnd8() & 3));   /* 出た向きは適当に散らす */
-        en_digger[i] = 0;
+        en_ghost[i] = 0;
         en_acc[i] = 0;
-        en_chew[i] = 0;
         en_pause[i] = 0;
-        en_morph[i] = morph_frames();
+        en_morph[i] = ghost_frames();
         en_spawned++;
         return;
     }
@@ -144,11 +143,13 @@ static void spawn_tick(void)
     }
 }
 
+/* 透明でも「トンネルの中に居る間」は倒せる (Dig Dug 準拠:
+   "once a ghost enters a tunnel, it can be killed")。土の中に居る間だけ無敵。 */
 uint8_t enemy_kill_at(int8_t cx, int8_t cy)
 {
     uint8_t i, killed = 0;
     for (i = 0; i < ENEMY_MAX; i++) {
-        if (en_state[i]) {
+        if (en_state[i] && !(en_ghost[i] && !cell_dug(cx, cy))) {
             if ((int8_t)((en_x[i] + 8) >> 4) == cx && (int8_t)((en_y[i] + 8) >> 4) == cy) {
                 en_state[i] = 0;
                 spr_park((uint8_t)(SPR_ENEMY + i));
@@ -190,10 +191,7 @@ static uint8_t can_go(uint8_t i, uint8_t d)
         if (d == DIR_RIGHT) { return rock_can_push(ri, 1); }
         return 0;                        /* 縦には押せない = 岩を避ける */
     }
-    if (en_digger[i]) {
-        return 1;
-    }
-    return cell_dug(cx, cy);
+    return cell_dug(cx, cy);          /* 敵は自分では掘らない (Dig Dug 準拠) */
 }
 
 /* 自機に近づく向きを優先度順に並べる (プロトの CHASEDIR と同じ考え方)。 */
@@ -236,11 +234,6 @@ static void decide_dir(uint8_t i)
     }
 }
 
-static void enemy_carve(uint8_t i)
-{
-    vdp_fill((uint16_t)(en_x[i] + 2), (uint16_t)(en_y[i] + 2), 12, 12, COL_TUNNEL);
-}
-
 static void enemy_step(uint8_t i)
 {
     uint8_t at_node = (uint8_t)(((en_x[i] & 15) == 0) && ((en_y[i] & 15) == 0));
@@ -264,10 +257,12 @@ static void enemy_step(uint8_t i)
                 return;
             }
         }
-        en_chew[i] = (uint8_t)(cell_dug(cx, cy) ? 0 : 1);
+        if (!cell_dug(cx, cy)) {
+            return;                      /* 敵は掘れない。坑道の中だけを歩く。 */
+        }
     }
 
-    en_acc[i] = (uint8_t)(en_acc[i] + (en_chew[i] ? SPD_ENEMY_DIG : SPD_ENEMY));
+    en_acc[i] = (uint8_t)(en_acc[i] + SPD_ENEMY);
     if (en_acc[i] < SPD_UNIT) {
         return;
     }
@@ -279,12 +274,39 @@ static void enemy_step(uint8_t i)
     case DIR_LEFT:  if (en_x[i]) { en_x[i]--; } break;
     default:        if (en_x[i] < (uint8_t)XMAX) { en_x[i]++; } break;
     }
+}
 
-    if (en_chew[i]) {
-        enemy_carve(i);                  /* 掘り屋が掘った跡も本物の坑道になる */
-        if (((en_x[i] & 15) == 0) && ((en_y[i] & 15) == 0)) {
-            dig_sweep((uint8_t)(en_x[i] >> 4), (uint8_t)(en_y[i] >> 4));
-        }
+/* 透明ですり抜けている間: 自機へ向かって斜めに直進し、トンネルに入ったら実体化する。
+   土もダイヤも岩も素通りする。倒せないかわりに動きは遅い (Dig Dug 準拠)。 */
+static void ghost_step(uint8_t i)
+{
+    uint8_t c, r;
+
+    en_acc[i] = (uint8_t)(en_acc[i] + SPD_ENEMY_GHOST);
+    if (en_acc[i] < SPD_UNIT) {
+        return;
+    }
+    en_acc[i] = (uint8_t)(en_acc[i] - SPD_UNIT);
+
+    if (en_x[i] < px)      { if (en_x[i] < (uint8_t)XMAX) { en_x[i]++; } }
+    else if (en_x[i] > px) { if (en_x[i]) { en_x[i]--; } }
+    if (en_y[i] < py)      { if (en_y[i] < (uint8_t)YMAX) { en_y[i]++; } }
+    else if (en_y[i] > py) { if (en_y[i]) { en_y[i]--; } }
+
+    c = (uint8_t)((en_x[i] + 8) >> 4);
+    r = (uint8_t)((en_y[i] + 8) >> 4);
+    if (!cell_dug((int8_t)c, (int8_t)r)) {
+        en_gdirt[i] = 1;                 /* 土の中へ入った */
+        return;
+    }
+    /* 一度も土へ入っていないうちは実体化しない。そうしないと、トンネルの中で
+       透明化した敵がすぐ戻ってしまい、すり抜けがほとんど発動しない。 */
+    if (en_gdirt[i]) {
+        en_x[i] = (uint8_t)(c << 4);     /* トンネルに入った -> グリッドへ寄せて実体化 */
+        en_y[i] = (uint8_t)(r << 4);
+        en_ghost[i] = 0;
+        en_acc[i] = 0;
+        en_morph[i] = ghost_frames();
     }
 }
 
@@ -308,14 +330,19 @@ void enemy_update(void)
         if (en_pause[i]) {
             en_pause[i]--;               /* 変異中は一瞬止まる */
         } else {
-            if (!en_digger[i]) {
+            if (en_ghost[i]) {
+                ghost_step(i);
+            } else {
                 en_morph[i]--;
                 if (en_morph[i] == 0) {
-                    en_digger[i] = 1;
-                    en_pause[i] = MORPH_PAUSE;
+                    en_ghost[i] = 1;     /* 透明になって土をすり抜ける */
+                    en_pause[i] = GHOST_PAUSE;
+                    en_gdirt[i] = 0;
+                    en_acc[i] = 0;
+                } else {
+                    enemy_step(i);
                 }
             }
-            enemy_step(i);
         }
         if (!invuln && !dead && touches_player(i)) {
             dead = 1;
@@ -331,12 +358,12 @@ void enemy_draw(void)
             spr_park((uint8_t)(SPR_ENEMY + i));
             continue;
         }
-        col = (uint8_t)(en_digger[i] ? PAT_BAT : PAT_RAT);
+        col = (uint8_t)(en_ghost[i] ? PAT_BAT : PAT_RAT);
         if (col != en_col[i]) {
             en_col[i] = col;
             spr_color_lines((uint8_t)(SPR_ENEMY + i), art_colours(col));
         }
         spr_set((uint8_t)(SPR_ENEMY + i), en_x[i], (uint8_t)(en_y[i] - 1),
-                (uint8_t)(en_digger[i] ? PAT_BAT : PAT_RAT));
+                (uint8_t)(en_ghost[i] ? PAT_BAT : PAT_RAT));
     }
 }

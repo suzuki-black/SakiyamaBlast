@@ -56,8 +56,10 @@ Mr.Do! / Dig Dug の系譜だが、遊びの軸（武器＝消費式ダイナマ
 ## 操作
 
 - 方向: 移動＝土なら掘って進む（ダイヤ・岩・場外は不可）。岩は押せる（下記）。
-  - **曲がり角ゲート（Mr.Do! 準拠）**: 方向転換できるのは**セルに整列している時だけ**。半歩中に直交を
-    押しても曲がらず、整列した瞬間に曲がる（入力は保持する）。スナップ＝ワープはしない。
+  - **方向転換（Dig Dug 準拠）**: 曲がれるのはグリッドの節点だけ（*"can only make ninety degree turns at
+    particular points along an invisible grid"*）。ただし**半歩ずれた位置で直交方向を押したときは
+    最寄りの節点へ寄せてから曲がる**。「整列するまで曲がらない」だけにすると、止まった位置がずれていると
+    いつまでも曲がれず詰んでしまうため。
   - **掘削中は減速（Mr.Do! 準拠）**: 既掘の坑道は等速、**未掘の土を食い進む間は遅くなる**
     （Mr. Do! の `EATWALL` 速度ペナルティ相当）。
 - ボタン: **ダイナマイト設置**（ストック>0のとき足元セルに1個・1消費）。
@@ -81,12 +83,13 @@ Mr.Do! / Dig Dug の系譜だが、遊びの軸（武器＝消費式ダイナマ
 
 - **押し**: 自機（と敵）は岩を横に押せる。**押し先が開いている（掘り済み）セルの時だけ**押せる（土へは押し込めない）。
 - **落下**: 岩の**真下セルが開く**（掘る／爆破／縁へ押し出し）と、**少しぐらついてから**落下。1セルずつ落ちる。
-  - **支えルール（Mr.Do! 準拠・重要）**: 支え判定は**真下のセル（地形）だけ**を見る。**自機は支えにならない**
-    （真下に居座っても止まらない）。真下が開いた時点で**揺れ状態に入り、約1秒（60フレーム）後に落下**する。
-    出典: Mr. Do! の状態機械 `APPLEWAIT`（"support test on tiles below"）/ `APPLEJIG`（"60-frame wobble"）
-    （[Retro Reversing](https://www.retroreversing.com/mrdo)）。攻略の定石も「真下を掘って**通り過ぎる**と
-    リンゴが後ろに落ちる」であり、居座って止める遊びではない。
-    → 詳細と他案を採らなかった理由は `docs/MRDO_RESEARCH.md`。
+  - **支えルール（Dig Dug 準拠・重要）**: 真下セルを掘り抜いても、**自機が真下セルにいる間は自機が支え**になり
+    岩は揺れも落下もしない（好きなだけ待てる）。**自機が真下から離れた瞬間**に揺れ始め、約0.75秒後に落下する。
+    出典: *"The rock will only start to fall once Dig Dug moves out from under it. Until such time, he can
+    wait underneath the rock for as long as he likes."* / *"You can hold a rock in place by staying directly
+    under it."*（[Getting Good: Dig Dug](https://primetimeamusements.com/getting-good-dig-dug/)）
+    → 2026-08-25、いったん Mr. Do! のタイル支えへ変えたが、**本作は Dig Dug 準拠に戻した**。
+    経緯は `docs/MRDO_RESEARCH.md`。
   - **掘り切り判定**: 真下ワンブロックを**丸々掘り切った**時だけ支え喪失扱い（少し掠めた程度では落ちない）。
     実装上は DUG 記録を「そのセルに完全整列した時だけ」にして担保（2px 重なりでは掘れた扱いにしない）。
 - **割れ/存続**: **1レベル落下で敵を潰さなければ割れず存続**。**自身の高さ超（>1セル）落下、または敵/自機を潰すと割れて消える**。
@@ -103,12 +106,17 @@ Mr.Do! / Dig Dug の系譜だが、遊びの軸（武器＝消費式ダイナマ
   総数を出し切ったらそれ以上出現しない（面の1体目はタイマで出す。開始と同時に湧くと
   自機が動く前に捕まるため）。
 - 以後は AI で坑道を移動。自機に触れると **1ミス**。爆風・落下岩で倒せる。
-- **移動 AI（Mr.Do! 準拠）**: 節点で通れる4方向のマスクを作り、**通れるなら現在の向きを維持**、
+- **坑道内の移動 AI（Mr.Do! 準拠）**: 節点で通れる4方向のマスクを作り、**通れるなら現在の向きを維持**、
   だめなら選び直す。さらに**約1/8の確率で強制的に選び直す**（一本道での往復や完全な予測を防ぐ）。
   候補のうち自機に近づく向きを優先する。出典: `WORKEXITS` / `FINDEXITS` / `RND2 & 7 == 0`
   （[Retro Reversing](https://www.retroreversing.com/mrdo)）。
-- **掘り屋化（Mr.Do! 準拠）**: 一定条件で土を掘れる個体へ変異し、自機の方向へ掘り進む。
-  掘っている間は自機と同じく減速する。面が進むほど変異しやすい。
+- **すり抜け（Dig Dug 準拠・重要）**: **敵は自分では掘らない**。一定時間で**透明**になり、
+  土の中を**自機へ向かって斜めに直進**して、**トンネルに入ると実体化**する。
+  **土の中に居る間は倒せない**が、**トンネルの中に居る間は倒せる**。面が進むほど早く透明化する。
+  出典: *"monsters can transform into ghostly forms to move through solid earth until they reach another
+  tunnel"* / *"travel diagonally"* / *"rematerialize as soon as they get into a tunnel"* /
+  *"once a ghost enters a tunnel, it can be killed"*（[Pookapedia](https://digdug.fandom.com/wiki/Dig_Dug)）。
+  → 2026-08-25、いったん Mr. Do! の掘り屋（Driller Dino）へ寄せたが、**本作は Dig Dug 準拠に戻した**。
 
 ## 体温オーバーヒート＋風呂（生存管理）
 

@@ -24,18 +24,24 @@
 #define SPD_TUNNEL  3
 #define SPD_DIG     2
 
-/* 岩 (Mr. Do! の apple 準拠)。支え判定は真下のセル(地形)だけを見る = 自機は支えにならない。
-   支えを失うと 60フレーム揺れてから落下する (APPLEJIG の "60-frame wobble")。 */
+/* 岩。押し・落下距離での割れ・潰しは Mr. Do! の apple 準拠だが、**支え判定は Dig Dug 準拠**で、
+   真下の升目に自機が居る間は揺れも落下もしない (好きなだけ待てる)。自機が離れた瞬間に
+   揺れ始め、揺れ切ると落ちる。 */
 #define ROCK_MAX      4
-#define ROCK_JIG_FRAMES 60    /* 揺れ (約1秒) */
+#define ROCK_JIG_FRAMES 45    /* 揺れ (約0.75秒。DESIGN の当初値) */
 #define ROCK_FALL_SPD 2       /* 落下 px/frame (1セル=8フレーム) */
 
 /* 敵 (ネズミ / コウモリ)。
    出現: 画面中央の「巣」(ステージ開始時から掘られている升目) から湧く。ステージ毎に
    決められた総数まで、一定時間ごと、または画面上の敵が全滅した瞬間に次が出てくる。
    総数を出し切ったらそれ以上出ない。
-   移動: Mr. Do! 式＝節点で通れる方向のマスクを作り、通れるなら現在の向きを維持、
-   約1/8で強制的に選び直す (WORKEXITS / RND2 & 7 == 0)。 */
+   移動: 坑道の中は Mr. Do! 式＝節点で通れる方向のマスクを作り、通れるなら現在の向きを
+   維持、約1/8で強制的に選び直す (WORKEXITS / RND2 & 7 == 0)。
+   すり抜け: **敵は自分では掘らない** (Dig Dug 準拠)。一定時間で透明になって土の中を
+   自機へ向かって斜めに直進し、トンネルに入ると実体化する。透明な間は倒せない。
+   出典: "monsters can transform into ghostly forms to move through solid earth until they
+   reach another tunnel" / "travel diagonally" / "rematerialize as soon as they get into a
+   tunnel"。 */
 #define ENEMY_MAX     4       /* 同時に画面に出る上限 */
 #define EN_QUOTA_BASE 5       /* 面1の総出現数。以降 面ごとに+1 (面15で19) */
 #define EN_QUOTA_MAX  19
@@ -43,11 +49,11 @@
 #define SPAWN_STEP    15      /* 面が進むごとに速くなる */
 #define SPAWN_MIN     120
 #define SPD_ENEMY     2       /* 坑道 40px/s (自機の 60px/s より遅い) */
-#define SPD_ENEMY_DIG 1       /* 掘り屋が土を掘り進む間 20px/s */
-#define MORPH_BASE    600     /* 掘り屋化までのフレーム数 (面1 = 10秒) */
-#define MORPH_STEP    90      /* 面が進むごとに早くなる */
-#define MORPH_MIN     180     /* 高次面での下限 (3秒) */
-#define MORPH_PAUSE   30      /* 変異中は一瞬止まる */
+#define SPD_ENEMY_GHOST 1     /* 透明ですり抜けている間 20px/s (遅い) */
+#define GHOST_BASE    480     /* 透明化までのフレーム数 (面1 = 8秒) */
+#define GHOST_STEP    30      /* 面が進むごとに早くなる */
+#define GHOST_MIN     180     /* 高次面での下限 (3秒) */
+#define GHOST_PAUSE   20      /* 透明になる瞬間は一拍止まる */
 
 /* 体温オーバーヒートと風呂。常磐炭鉱は地熱約40度＋湧水で過酷 (史実) という設定。
    体温は毎フレーム少しずつ上がり、上限に達すると1ミス。各面に1つある風呂を通過すると

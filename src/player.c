@@ -134,6 +134,41 @@ static uint8_t blocked_ahead(void)
     return 1;
 }
 
+/* 最寄りの節点へ寄せる。寄せた先が岩やダイヤで塞がっていたら手前の節点へ寄せる。 */
+static void snap_x(void)
+{
+    uint16_t nx = (uint16_t)(((uint16_t)px + 8) & 0xFFF0);
+    if (nx > XMAX) {
+        nx = XMAX;
+    }
+    if ((uint8_t)(nx >> 4) != (uint8_t)(px >> 4)) {
+        int8_t c = (int8_t)(nx >> 4), r = (int8_t)(py >> 4);
+        if (cell_diamond(c, r) || rock_at(c, r) >= 0) {
+            nx = (uint16_t)(px & 0xF0);          /* 前が塞がっていれば手前へ */
+        }
+    }
+    px = (uint8_t)nx;
+    player_carve();
+    dig_sweep((uint8_t)(px >> 4), (uint8_t)(py >> 4));
+}
+
+static void snap_y(void)
+{
+    uint16_t ny = (uint16_t)(((uint16_t)py + 8) & 0xFFF0);
+    if (ny > YMAX) {
+        ny = YMAX;
+    }
+    if ((uint8_t)(ny >> 4) != (uint8_t)(py >> 4)) {
+        int8_t c = (int8_t)(px >> 4), r = (int8_t)(ny >> 4);
+        if (cell_diamond(c, r) || rock_at(c, r) >= 0) {
+            ny = (uint16_t)(py & 0xF0);
+        }
+    }
+    py = (uint8_t)ny;
+    player_carve();
+    dig_sweep((uint8_t)(px >> 4), (uint8_t)(py >> 4));
+}
+
 void player_start(void)
 {
     px = (uint8_t)(start_c << 4);
@@ -172,14 +207,23 @@ void player_update(void)
     collect();
 
     q = read_dir();
-    /* Mr. Do! の曲がり角ゲート: 方向転換は直交軸がセルに整列している時だけ。
-       整列するまでは現在の向きで進み続ける (スナップ=ワープはしない)。 */
+    /* Dig Dug 式の方向転換。曲がれるのはグリッドの節点だけだが、半歩ずれた位置で
+       直交方向を押したときは**最寄りの節点へ寄せてから**曲がる。
+       「整列するまで曲がらない」だけにすると、止まった位置がずれていると
+       いつまでも曲がれず詰んでしまう。 */
     if (q == DIR_NONE) {
         cdir = DIR_NONE;
-    } else if (q == DIR_UP || q == DIR_DOWN) {
-        if ((px & 15) == 0) { cdir = q; }
     } else {
-        if ((py & 15) == 0) { cdir = q; }
+        if (q == DIR_UP || q == DIR_DOWN) {
+            if (px & 15) {
+                snap_x();
+            }
+        } else {
+            if (py & 15) {
+                snap_y();
+            }
+        }
+        cdir = q;
     }
     if (cdir == DIR_NONE) {
         return;
