@@ -11,6 +11,7 @@
 #include "sound.h"
 #include "art.h"
 #include "config.h"
+#include "palette.h"   /* tools/palette.py から自動生成 */
 
 #define ST_TITLE 0
 #define ST_START 1        /* 面を描き切って "STAGE n START" を出している間 */
@@ -60,22 +61,12 @@ static uint8_t fire_pressed(void)
 /* 坑内の色。タイトルの1枚絵がパレットを上書きするので、面を組む前に必ず焼き直す。 */
 static void set_game_palette(void)
 {
-    /* パレットは tools/palette.py と必ず一致させること (絵の変換がこれを見る) */
-    vdp_set_palette(COL_TUNNEL, 0, 0, 0);
-    vdp_set_palette(COL_SKIN,   7, 4, 3);
-    vdp_set_palette(COL_DARK,   2, 1, 1);
-    vdp_set_palette(COL_BODY,   2, 3, 6);
-    vdp_set_palette(COL_DIRT,   4, 2, 1);
-    vdp_set_palette(COL_HUD,    1, 1, 2);
-    vdp_set_palette(COL_BLAST,  7, 6, 1);
-    vdp_set_palette(COL_RED,    6, 1, 1);
-    vdp_set_palette(COL_FUSE,   7, 6, 2);
-    vdp_set_palette(COL_WHITE,  7, 7, 7);
-    vdp_set_palette(COL_ROCK,   5, 5, 5);
-    vdp_set_palette(COL_RAT,    7, 3, 2);
-    vdp_set_palette(COL_BAT,    7, 2, 7);
-    vdp_set_palette(COL_BATH,   2, 5, 7);
-    vdp_set_palette(COL_DIA,    3, 6, 7);
+    uint8_t i;
+    /* 色の値は tools/palette.py が正。build/palette.h はそこから自動生成される。
+       0番は背景色レジスタ (R#7) の色で出るので触らない。 */
+    for (i = 1; i < 16; i++) {
+        vdp_set_palette(i, game_palette[i][0], game_palette[i][1], game_palette[i][2]);
+    }
 }
 
 /* 面の中央に文字を出す。フォントは本体 BIOS のものを使う。 */

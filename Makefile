@@ -36,13 +36,14 @@ ART_SPR_SRC  := assets/sprites.png
 ART_TILE_SRC := assets/tiles.png
 ART_SPR      := $(BUILDDIR)/sprites.h
 ART_TILE     := $(BUILDDIR)/tiles.h
+PAL_H        := $(BUILDDIR)/palette.h
 ART_SPR_NAMES  := miner,bomb,rock,rat,bat
 ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia
 
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT
 MACHINE   ?= C-BIOS_MSX2+_JP
 
-.PHONY: all run check gamedata clean
+.PHONY: all run check gamedata gamedata-import clean
 
 all: $(ROM)
 
@@ -55,13 +56,16 @@ $(BUILDDIR)/%.rel: $(SRCDIR)/%.s | $(BUILDDIR)
 $(TITLE_BIN) $(TITLE_PAL): $(TITLE_SRC) tools/png2sc5.py | $(BUILDDIR)
 	python3 tools/png2sc5.py $(TITLE_SRC) $(BUILDDIR)/title $(TITLE_OPTS)
 
+$(PAL_H): tools/gen_palette_h.py tools/palette.py | $(BUILDDIR)
+	python3 tools/gen_palette_h.py $@
+
 $(ART_SPR): $(ART_SPR_SRC) tools/png2art.py tools/palette.py | $(BUILDDIR)
 	python3 tools/png2art.py $(ART_SPR_SRC) $@ --mode sprite --names $(ART_SPR_NAMES)
 
 $(ART_TILE): $(ART_TILE_SRC) tools/png2art.py tools/palette.py | $(BUILDDIR)
 	python3 tools/png2art.py $(ART_TILE_SRC) $@ --mode tile --names $(ART_TILE_NAMES)
 
-$(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(TITLE_PAL) $(ART_SPR) $(ART_TILE) | $(BUILDDIR)
+$(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(TITLE_PAL) $(ART_SPR) $(ART_TILE) $(PAL_H) | $(BUILDDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # crt0 が必ず先頭に来るようにリンク順を固定する
@@ -77,6 +81,12 @@ run: $(ROM)
 # パターンエディタ等へ渡す、ゲーム1本ぶんのグラフィックデータ (仕様は docs/GAMEDATA_FORMAT.md)
 gamedata: $(ART_SPR_SRC) $(ART_TILE_SRC) tools/export_gamedata.py tools/palette.py
 	python3 tools/export_gamedata.py gamedata.json
+
+# パターンエディタで編集した gamedata.json を取り込む (assets の PNG を書き戻す)
+gamedata-import: gamedata.json tools/import_gamedata.py tools/palette.py
+	python3 tools/import_gamedata.py gamedata.json \
+	    --sprites $(ART_SPR_SRC) --sprite-names $(ART_SPR_NAMES) \
+	    --tiles $(ART_TILE_SRC) --tile-names $(ART_TILE_NAMES)
 
 clean:
 	rm -rf $(BUILDDIR)

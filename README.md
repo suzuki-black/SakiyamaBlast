@@ -86,6 +86,7 @@ SCREEN 5（GRAPHIC 4, 256x212, 16色/512パレット, 16x16 mode-2 スプライ�
 | `tools/palette.py` | ゲームのパレット定義（絵の変換が参照する） |
 | `tools/make_art.py` | たたき台の PNG を ASCII アートから生成（任意） |
 | `tools/export_gamedata.py` | ゲーム1本ぶんのグラフィックデータを JSON へ書き出す |
+| `tools/import_gamedata.py` | 編集された JSON を検証して `assets/` の PNG へ書き戻す |
 | `tools/smoketest.sh` | openMSX 上で起動〜描画結果を検査（`make check`） |
 
 ## 実装状況
@@ -160,19 +161,30 @@ SCREEN 5（GRAPHIC 4, 256x212, 16色/512パレット, 16x16 mode-2 スプライ�
 書き出せる。パターンエディタなど外部ツールへ渡すためのもの。
 
 ```bash
-make gamedata      # gamedata.json を作り直す
+make gamedata          # assets/*.png -> gamedata.json （書き出し）
+make gamedata-import   # gamedata.json -> assets/*.png （取り込み）
 ```
 
 - 形式の仕様は **[docs/GAMEDATA_FORMAT.md](docs/GAMEDATA_FORMAT.md)**
-- 絵の正は `assets/` の PNG。JSON はそこから書き出す（**ゲーム → JSON の一方向**。
-  編集した JSON をゲームへ取り込む側は TODO）
+- 絵の正は `assets/` の PNG。JSON はそこから書き出す
 - 絵は16行の文字列で持つ（`.`＝透明／`0`〜`F`＝パレット番号）。手で直せて diff も取れる
+- 取り込みは `pixels` だけを見て PNG を書き戻す。そのあと `make` すれば
+  既存の `tools/png2art.py` が C の配列へ変換して ROM に載る
+- 取り込みは **MSX で表示できない絵を弾く**（1行2色のスプライト、0番（透明）で塗った
+  ドット、16x16 でない、など）。1つでも引っかかったら PNG を書かずに中止する。
+  `--dry-run` で検証だけできる
+- パレットは取り込みで書き換えない。食い違っていたら警告を出すので
+  `tools/palette.py` を直す（`build/palette.h` はそこから自動生成）
 
 ## Mr. Do! 準拠について
 
 岩・敵の追跡・穴掘りの挙動は一次情報（逆アセンブル解析を含む）で再調査した。
-根拠と、`DESIGN.md` から変更した点（岩の支え判定を Dig Dug 式から **Mr. Do! のタイル支え＋
-60フレーム揺れ**へ変更）は **[docs/MRDO_RESEARCH.md](docs/MRDO_RESEARCH.md)**。
+根拠は **[docs/MRDO_RESEARCH.md](docs/MRDO_RESEARCH.md)**。
+
+ただし**現在の実装は、岩の支え・敵の移動・方向転換については Dig Dug 準拠**に戻している
+（岩は自機が真下の升目に居座っている間は落ちない／敵は自分で掘らず透明化して土を抜ける／
+方向転換は升目へスナップして受け付ける）。`docs/MRDO_RESEARCH.md` の記述のうち
+「Mr. Do! のタイル支え」へ寄せた部分は現行の挙動ではない。
 
 ## タイトル画像の差し替え
 
