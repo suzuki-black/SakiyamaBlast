@@ -37,8 +37,8 @@
    移動: Mr. Do! 式＝節点で通れる方向のマスクを作り、通れるなら現在の向きを維持、
    約1/8で強制的に選び直す (WORKEXITS / RND2 & 7 == 0)。 */
 #define ENEMY_MAX     4       /* 同時に画面に出る上限 */
-#define EN_QUOTA_BASE 2       /* 面1の総出現数 */
-#define EN_QUOTA_MAX  8
+#define EN_QUOTA_BASE 5       /* 面1の総出現数。以降 面ごとに+1 (面15で19) */
+#define EN_QUOTA_MAX  19
 #define SPAWN_BASE    300     /* 次の湧きまでのフレーム数 (面1 = 5秒) */
 #define SPAWN_STEP    15      /* 面が進むごとに速くなる */
 #define SPAWN_MIN     120
@@ -62,6 +62,8 @@
 #define INVULN_FRAMES 90      /* ミス後の無敵 */
 #define WIN_PCT       90      /* 採掘率がこれ以上でステージクリア */
 #define LIVES_INIT    3
+#define MAX_STAGE     15      /* 全15面。掘り抜きが面番号の形になる */
+#define POWDER_PER_STAGE 10   /* 盤面に置く火薬の数 (面によらず一定) */
 
 /* --- パレット番号 --- */
 #define COL_TUNNEL 1

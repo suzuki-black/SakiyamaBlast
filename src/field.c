@@ -149,107 +149,310 @@ void field_redraw_cell(int8_t cx, int8_t cy)
     }
 }
 
-static void carve_rect(uint8_t c1, uint8_t r1, uint8_t c2, uint8_t r2)
+/* 掘り抜きの形に使う数字 (5列 x 9行)。1行の下位5ビットが左から右の升目に対応する。 */
+static const uint8_t digit_rows[10][9] = {
+    { 0x0E,0x11,0x11,0x11,0x11,0x11,0x11,0x11,0x0E },   /* 0 */
+    { 0x04,0x0C,0x14,0x04,0x04,0x04,0x04,0x04,0x1F },   /* 1 */
+    { 0x0E,0x11,0x01,0x02,0x04,0x08,0x10,0x10,0x1F },   /* 2 */
+    { 0x0E,0x11,0x01,0x06,0x01,0x01,0x01,0x11,0x0E },   /* 3 */
+    { 0x02,0x06,0x0A,0x12,0x1F,0x02,0x02,0x02,0x02 },   /* 4 */
+    { 0x1F,0x10,0x10,0x1E,0x01,0x01,0x01,0x11,0x0E },   /* 5 */
+    { 0x06,0x08,0x10,0x1E,0x11,0x11,0x11,0x11,0x0E },   /* 6 */
+    { 0x1F,0x01,0x01,0x02,0x04,0x04,0x08,0x08,0x08 },   /* 7 */
+    { 0x0E,0x11,0x11,0x0E,0x11,0x11,0x11,0x11,0x0E },   /* 8 */
+    { 0x0E,0x11,0x11,0x11,0x0F,0x01,0x01,0x02,0x0C },   /* 9 */
+};
+
+#define DIGIT_TOP 1        /* 数字を置く先頭行 */
+
+static void carve_digit(uint8_t d, uint8_t col0)
+{
+    uint8_t r, c;
+    for (r = 0; r < 9; r++) {
+        uint8_t bits = digit_rows[d][r];
+        for (c = 0; c < 5; c++) {
+            if (bits & (0x10 >> c)) {
+                dug[(uint16_t)(DIGIT_TOP + r) * COLS + (uint8_t)(col0 + c)] = 1;
+            }
+        }
+    }
+}
+
+/* 面番号の形に掘り抜く。1桁なら中央に1つ、2桁なら左右に並べる。 */
+static void carve_stage_number(void)
+{
+    if (stage < 10) {
+        carve_digit(stage, 5);
+    } else {
+        carve_digit((uint8_t)(stage / 10), 1);
+        carve_digit((uint8_t)(stage % 10), 9);
+    }
+}
+
+/* 掘り済みセルのうち、(tc,tr) に一番近いものを返す。すでに使った升目は避ける。
+   used は「その升目を使ってよいか」を返す関数の代わりに、単純な除外表で持つ。 */
+static uint8_t used[NCELL];
+
+/* pick_cell() の判定。自機の出発点と巣のすぐ隣は空けておく (開始直後に詰まないように)。 */
+static uint8_t near_key_cell(uint16_t i)
+{
+    int8_t dc, dr;
+    uint8_t c = (uint8_t)(i % COLS), r = (uint8_t)(i / COLS);
+    dc = (int8_t)(c - start_c); if (dc < 0) { dc = (int8_t)-dc; }
+    dr = (int8_t)(r - start_r); if (dr < 0) { dr = (int8_t)-dr; }
+    if (dc + dr < 2) {
+        return 1;
+    }
+    dc = (int8_t)(c - nest_c); if (dc < 0) { dc = (int8_t)-dc; }
+    dr = (int8_t)(r - nest_r); if (dr < 0) { dr = (int8_t)-dr; }
+    return (uint8_t)(dc + dr < 2);
+}
+
+static uint8_t cell_ok(uint16_t i, uint8_t kind)
+{
+    uint8_t c = (uint8_t)(i % COLS), r = (uint8_t)(i / COLS);
+    if (kind == 0) {
+        return (uint8_t)(dug[i] && !used[i]);
+    }
+    if (dug[i] || diamond[i] || rock_at((int8_t)c, (int8_t)r) >= 0) {
+        return 0;
+    }
+    if (near_key_cell(i)) {
+        return 0;
+    }
+    if (kind == 2) {
+        if (r + 1 >= ROWS) {
+            return 0;
+        }
+        if (dug[i + COLS] || diamond[i + COLS]) {
+            return 0;                                /* 岩の真下は土でなければならない */
+        }
+    }
+    return 1;
+}
+
+static uint16_t nearest_dug(uint8_t tc, uint8_t tr)
 {
     uint8_t c, r;
-    for (r = r1; r <= r2; r++) {
-        for (c = c1; c <= c2; c++) {
-            dug[(uint16_t)r * COLS + c] = 1;
+    uint16_t best = 0xFFFF;
+    uint8_t bestd = 255;
+    for (r = 0; r < ROWS; r++) {
+        for (c = 0; c < COLS; c++) {
+            uint16_t i = (uint16_t)r * COLS + c;
+            uint8_t d;
+            int8_t dc, dr;
+            if (!dug[i] || used[i]) {
+                continue;
+            }
+            dc = (int8_t)(c - tc); if (dc < 0) { dc = (int8_t)-dc; }
+            dr = (int8_t)(r - tr); if (dr < 0) { dr = (int8_t)-dr; }
+            d = (uint8_t)(dc + dr);
+            if (d < bestd) {
+                bestd = d;
+                best = i;
+            }
         }
     }
+    return best;
 }
 
-/* 既掘の通路を敷きつつ、その上に火薬を並べる (Mr. Do! のチェリーの房と同じ配置思想)。 */
-static void place_powder_line(uint8_t c, uint8_t r, uint8_t n)
+/* 掘り済みセルのうち (tc,tr) から一番遠いものを返す。自機の出発点を敵の巣から
+   できるだけ離すのに使う (開始と同時に捕まる「出落ち」を避けるため)。 */
+static uint16_t farthest_dug(uint8_t tc, uint8_t tr)
 {
-    uint8_t i;
-    uint16_t idx;
-    for (i = 0; i < n; i++) {
-        idx = (uint16_t)r * COLS + (uint8_t)(c + i);
-        dug[idx] = 1;
-        powder[idx] = 1;
+    uint8_t c, r;
+    uint16_t best = 0xFFFF;
+    uint8_t bestd = 0;
+    for (r = 0; r < ROWS; r++) {
+        for (c = 0; c < COLS; c++) {
+            uint16_t i = (uint16_t)r * COLS + c;
+            uint8_t d;
+            int8_t dc, dr;
+            if (!dug[i] || used[i]) {
+                continue;
+            }
+            dc = (int8_t)(c - tc); if (dc < 0) { dc = (int8_t)-dc; }
+            dr = (int8_t)(r - tr); if (dr < 0) { dr = (int8_t)-dr; }
+            d = (uint8_t)(dc + dr);
+            if (best == 0xFFFF || d > bestd) {
+                bestd = d;
+                best = i;
+            }
+        }
+    }
+    return best;
+}
+
+/* (tc,tr) に近い掘り抜きのうち、(ac,ar) から mind 以上離れているものを返す。
+   条件を満たすものが無ければ単に一番近いものを返す。 */
+static uint16_t nearest_dug_away(uint8_t tc, uint8_t tr, uint8_t ac, uint8_t ar, uint8_t mind)
+{
+    uint8_t c, r;
+    uint16_t best = 0xFFFF;
+    uint8_t bestd = 255;
+    for (r = 0; r < ROWS; r++) {
+        for (c = 0; c < COLS; c++) {
+            uint16_t i = (uint16_t)r * COLS + c;
+            uint8_t d;
+            int8_t dc, dr;
+            if (!dug[i] || used[i]) {
+                continue;
+            }
+            dc = (int8_t)(c - ac); if (dc < 0) { dc = (int8_t)-dc; }
+            dr = (int8_t)(r - ar); if (dr < 0) { dr = (int8_t)-dr; }
+            if ((uint8_t)(dc + dr) < mind) {
+                continue;
+            }
+            dc = (int8_t)(c - tc); if (dc < 0) { dc = (int8_t)-dc; }
+            dr = (int8_t)(r - tr); if (dr < 0) { dr = (int8_t)-dr; }
+            d = (uint8_t)(dc + dr);
+            if (d < bestd) {
+                bestd = d;
+                best = i;
+            }
+        }
+    }
+    return (best == 0xFFFF) ? nearest_dug(tc, tr) : best;
+}
+
+/* 掘り済みセルの重心。風呂を「掘ってある箇所の比較的真ん中」へ置くのに使う。 */
+static void dug_centre(uint8_t *oc, uint8_t *orr)
+{
+    uint16_t sc = 0, sr = 0, n = 0, i;
+    for (i = 0; i < NCELL; i++) {
+        if (dug[i]) {
+            sc = (uint16_t)(sc + (i % COLS));
+            sr = (uint16_t)(sr + (i / COLS));
+            n++;
+        }
+    }
+    *oc = (uint8_t)(n ? (sc / n) : 8);
+    *orr = (uint8_t)(n ? (sr / n) : 5);
+}
+
+/* 条件に合う升目を数え、その中から1つを乱数で選ぶ。当てずっぽうに座標を振ると
+   空きが少ないときに取りこぼすので、必ず「候補を数えて n 番目を採る」方式にする。
+   kind: 0 = 掘り抜きの上で未使用 / 1 = 土の中 / 2 = 土の中で真下も土 */
+static uint16_t pick_cell(uint8_t kind)
+{
+    uint16_t i, n = 0, hit;
+    for (i = 0; i < NCELL; i++) {
+        if (cell_ok(i, kind)) {
+            n++;
+        }
+    }
+    if (n == 0) {
+        return 0xFFFF;
+    }
+    hit = (uint16_t)(((uint16_t)rnd8() << 8 | rnd8()) % n);
+    for (i = 0; i < NCELL; i++) {
+        if (cell_ok(i, kind)) {
+            if (hit == 0) {
+                return i;
+            }
+            hit--;
+        }
+    }
+    return 0xFFFF;
+}
+
+/* 火薬を掘り抜きの上へ n 個ばら撒く。 */
+static void place_powder(uint8_t n)
+{
+    uint16_t i;
+    while (n) {
+        i = pick_cell(0);
+        if (i == 0xFFFF) {
+            return;                                  /* 置ける升目が尽きた */
+        }
+        used[i] = 1;
+        powder[i] = 1;
+        n--;
     }
 }
 
-/* ダイヤモンドブロックを土の中へばら撒く。面が進むほど増える。
-   自機の出現位置と巣のまわりは避ける (開始直後に閉じ込められないように)。 */
+/* ダイヤモンドブロックを土の中へ。割合は「土の面積」に対する (面-1)*2%、
+   ブロック単位で切り上げる (何%であっても必ずブロック数として増える)。 */
 static void place_diamonds(void)
 {
-    uint8_t n, placed = 0, tries = 0, c, r;
-    int8_t dc, dr;
-    uint16_t i;
+    uint16_t dirt = 0, i, want, placed = 0;
+    uint8_t pct = (uint8_t)((stage - 1) * 2);
 
-    n = (uint8_t)(2 + (stage - 1) * 2);
-    if (n > 12) {
-        n = 12;
+    for (i = 0; i < NCELL; i++) {
+        if (!dug[i]) {
+            dirt++;
+        }
     }
-    while (placed < n && tries < 250) {
-        tries++;
-        c = (uint8_t)(rnd8() & 15);
-        r = (uint8_t)(rnd8() % ROWS);
-        i = (uint16_t)r * COLS + c;
-        if (dug[i] || diamond[i]) {
-            continue;                       /* 土の中にだけ置く */
-        }
-        if (rock_at((int8_t)c, (int8_t)r) >= 0) {
-            continue;
-        }
-        dc = (int8_t)(c - start_c); if (dc < 0) { dc = (int8_t)-dc; }
-        dr = (int8_t)(r - start_r); if (dr < 0) { dr = (int8_t)-dr; }
-        if (dc + dr < 3) {
-            continue;
-        }
-        dc = (int8_t)(c - nest_c); if (dc < 0) { dc = (int8_t)-dc; }
-        dr = (int8_t)(r - nest_r); if (dr < 0) { dr = (int8_t)-dr; }
-        if (dc + dr < 2) {
-            continue;
+    want = (uint16_t)((dirt * pct + 99) / 100);      /* 切り上げ */
+    while (placed < want) {
+        i = pick_cell(1);
+        if (i == 0xFFFF) {
+            return;
         }
         diamond[i] = 1;
         placed++;
     }
 }
 
+/* 岩を土の中へ。真下も土であること (置いた瞬間に落ち始めないように)。 */
+static void place_rocks(void)
+{
+    uint8_t n = (uint8_t)(2 + (stage - 1) / 7);      /* 2〜4個 */
+    uint16_t i;
+    if (n > ROCK_MAX) {
+        n = ROCK_MAX;
+    }
+    while (n) {
+        i = pick_cell(2);
+        if (i == 0xFFFF) {
+            return;
+        }
+        rock_place((uint8_t)(i % COLS), (uint8_t)(i / COLS));
+        n--;
+    }
+}
+
 static void set_stage_layout(void)
 {
-    uint8_t sidx = (uint8_t)((stage - 1) % 3);
+    uint16_t i;
+    uint8_t cc, cr;
 
-    start_c = 8;
-    start_r = 9;
-    nest_c = 8;                        /* 敵の巣 = 画面のほぼ中央 */
-    nest_r = 5;
-    carve_rect(8, 1, 8, 9);            /* 縦の背骨。巣と自機の出現位置を含む */
-
-    /* 岩は土の中 (真下も土) に置く。真下を掘り抜くと揺れて落ちてくる。 */
-    /* 風呂は自機の出現位置の近くに、面ごとに違う場所へ置く */
-    bath_c = 8;
-    bath_r = (uint8_t)(8 - sidx);
-    bath_on = 1;
-
-    if (sidx == 0) {
-        vdp_set_palette(COL_DIRT, 4, 2, 1);      /* 炭層まじりの茶 */
-        place_powder_line(2, 3, 6);
-        place_powder_line(9, 7, 6);
-        rock_place(4, 5);
-        rock_place(12, 4);
-    } else if (sidx == 1) {
-        vdp_set_palette(COL_DIRT, 3, 3, 2);      /* 硬い岩盤の灰 */
-        place_powder_line(1, 2, 7);
-        place_powder_line(9, 5, 6);
-        place_powder_line(2, 8, 6);
-        rock_place(4, 4);
-        rock_place(13, 2);
-        rock_place(11, 7);
-    } else {
-        vdp_set_palette(COL_DIRT, 2, 2, 4);      /* 湧水を含む青みの層 */
-        place_powder_line(2, 2, 6);
-        place_powder_line(9, 4, 6);
-        place_powder_line(1, 6, 7);
-        place_powder_line(9, 8, 6);
-        rock_place(4, 3);
-        rock_place(12, 2);
-        rock_place(4, 7);
-        rock_place(12, 6);
+    for (i = 0; i < NCELL; i++) {
+        used[i] = 0;
     }
+
+    /* 面ごとに土の色を変える */
+    switch ((stage - 1) % 3) {
+    case 0:  vdp_set_palette(COL_DIRT, 4, 2, 1); break;   /* 炭層まじりの茶 */
+    case 1:  vdp_set_palette(COL_DIRT, 3, 3, 2); break;   /* 硬い岩盤の灰 */
+    default: vdp_set_palette(COL_DIRT, 2, 2, 4); break;   /* 湧水を含む青みの層 */
+    }
+
+    carve_stage_number();
+
+    /* 敵の巣: 画面の真ん中に一番近い掘り抜き (仕様どおり中央) */
+    i = nearest_dug(8, 5);
+    nest_c = (uint8_t)(i % COLS);
+    nest_r = (uint8_t)(i / COLS);
+    used[i] = 1;
+
+    /* 自機の出発点: 巣から一番遠い掘り抜き。開始と同時に捕まるのを避ける。 */
+    i = farthest_dug(nest_c, nest_r);
+    start_c = (uint8_t)(i % COLS);
+    start_r = (uint8_t)(i / COLS);
+    used[i] = 1;
+
+    /* 風呂: 掘ってある箇所の重心に近く、かつ巣の隣にはならないところ */
+    dug_centre(&cc, &cr);
+    i = nearest_dug_away(cc, cr, nest_c, nest_r, 3);
+    bath_c = (uint8_t)(i % COLS);
+    bath_r = (uint8_t)(i / COLS);
+    bath_on = 1;
+    used[i] = 1;
+
+    place_powder(POWDER_PER_STAGE);
+    place_rocks();
+    place_diamonds();
 }
 
 void build_stage(void)
@@ -264,8 +467,6 @@ void build_stage(void)
     }
     rock_clear();
     set_stage_layout();
-
-    place_diamonds();
 
     dug_n = 0;
     for (i = 0; i < NCELL; i++) {

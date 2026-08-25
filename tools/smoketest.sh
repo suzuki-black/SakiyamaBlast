@@ -29,44 +29,38 @@ addr() {
 }
 
 A_PX=$(addr px);        A_PY=$(addr py)
-A_ROCKX=$(addr rock_x); A_ROCKY=$(addr rock_y)
-A_BATHON=$(addr bath_on); A_BATHC=$(addr bath_c); A_BATHR=$(addr bath_r)
+A_STARTC=$(addr start_c); A_STARTR=$(addr start_r)
 A_NESTC=$(addr nest_c); A_NESTR=$(addr nest_r)
+A_BATHON=$(addr bath_on); A_BATHC=$(addr bath_c); A_BATHR=$(addr bath_r)
+A_POWDER=$(addr powder); A_DIA=$(addr diamond); A_DUG=$(addr dug)
+A_PCT=$(addr dug_pct)
 
-# タイトル1枚絵の照合用。坑夫の胴あたり (x=128,y=120) の VRAM = 120*128 + 64
-TITLE_OFS=15424
-TITLE_EXPECT=$(python3 -c "print(open('$TITLE','rb').read()[$TITLE_OFS])")
-
-# 自機の初期位置はセル(8,9) = px 128,144。掘り跡は (130,146)-(141,157)。
-# その内側 (132,150) の VRAM アドレス = 150*128 + 132/2 = 19266。
-# 縦坑のセル(8,5)中心 (132,82) = 82*128 + 66 = 10562。火薬(2,3)の樽 (38,55) = 55*128+19 = 7059。
+# 面1は掘り抜きが数字の「1」(15升)。自機は巣から一番遠い升目、巣は画面中央付近。
+# 火薬・岩・ダイヤの位置は乱数なので、位置ではなく個数で検査する。
 openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
     -command "set renderer none; set throttle off; \
-        after time 6.5 { set g [open $OUT.t w]; \
-            puts \$g \"TITLE [debug read VRAM $TITLE_OFS]\"; close \$g }; \
-        after time 7.0 { keymatrixdown 8 0x01 }; \
-        after time 7.2 { keymatrixup 8 0x01 }; \
-        after time 9 { \
+        after time 6 {keymatrixdown 8 0x01}; after time 6.2 {keymatrixup 8 0x01}; \
+        after time 8.5 { \
             set f [open $OUT w]; \
             puts \$f \"R0 [debug read {VDP regs} 0]\"; \
             puts \$f \"R1 [debug read {VDP regs} 1]\"; \
             puts \$f \"DIRT [debug read VRAM 0]\"; \
-            puts \$f \"TUNNEL [debug read VRAM 19266]\"; \
-            puts \$f \"SPINE [debug read VRAM 10562]\"; \
-            puts \$f \"POWDER [debug read VRAM 7059]\"; \
+            puts \$f \"NESTCELL [debug read VRAM 11322]\"; \
             puts \$f \"PX [debug read memory $A_PX]\"; \
             puts \$f \"PY [debug read memory $A_PY]\"; \
-            puts \$f \"ROCKX [debug read memory $A_ROCKX]\"; \
-            puts \$f \"ROCKY [debug read memory $A_ROCKY]\"; \
-            puts \$f \"BATHON [debug read memory $A_BATHON]\"; \
-            puts \$f \"BATHC [debug read memory $A_BATHC]\"; \
-            puts \$f \"BATHR [debug read memory $A_BATHR]\"; \
+            puts \$f \"STARTC [debug read memory $A_STARTC]\"; \
+            puts \$f \"STARTR [debug read memory $A_STARTR]\"; \
             puts \$f \"NESTC [debug read memory $A_NESTC]\"; \
             puts \$f \"NESTR [debug read memory $A_NESTR]\"; \
+            puts \$f \"BATHON [debug read memory $A_BATHON]\"; \
+            set p 0; set d 0; set g 0; \
+            for {set i 0} {\$i<176} {incr i} { \
+                incr p [debug read memory [expr {$A_POWDER+\$i}]]; \
+                incr d [debug read memory [expr {$A_DIA+\$i}]]; \
+                incr g [debug read memory [expr {$A_DUG+\$i}]] }; \
+            puts \$f \"POWDERN \$p\"; puts \$f \"DIAN \$d\"; puts \$f \"DUGN \$g\"; \
+            puts \$f \"PCT [debug read memory $A_PCT]\"; \
             close \$f; exit }" >/dev/null 2>&1
-
-cat "$OUT.t" >> "$OUT" 2>/dev/null || true
-rm -f "$OUT.t"
 
 fail=0
 check() {
@@ -80,22 +74,21 @@ check() {
 }
 
 echo "smoketest: $ROM on $MACHINE"
-check TITLE  "$TITLE_EXPECT" "タイトル1枚絵が VRAM へ展開されている"
-check R0     6   "SCREEN 5 (GRAPHIC 4) になっている"
-check R1     98  "表示ON・垂直帰線割り込みON・16x16スプライト"
-check DIRT   102 "盤面が土で塗られている (0x66)"
-check TUNNEL 17  "自機の足元が掘られている (0x11)"
-check SPINE  17  "面データの縦坑が掘られている (0x11)"
-check POWDER 136 "火薬が置かれ描かれている (0x88)"
-check PX     128 "自機の初期位置 X (セル8)"
-check PY     144 "自機の初期位置 Y (セル9)"
-check ROCKX  64  "岩の初期位置 X (セル4)"
-check ROCKY  80  "岩の初期位置 Y (セル5)"
-check BATHON 1   "風呂が健在"
-check BATHC  8   "風呂の列 (自機の出現位置の近く)"
-check BATHR  8   "風呂の行 (面1)"
-check NESTC  8   "敵の巣の列 (画面中央)"
-check NESTR  5   "敵の巣の行 (画面中央)"
+check R0       6   "SCREEN 5 (GRAPHIC 4) になっている"
+check R1       98  "表示ON・垂直帰線割り込みON・16x16スプライト"
+check DIRT     102 "盤面が土で塗られている (0x66)"
+check NESTCELL 17  "掘り抜きの縦線が掘られている (0x11)"
+check DUGN     15  "面1の掘り抜きが数字の「1」の形 (15升)"
+check PCT      8   "開始時の採掘率"
+check POWDERN  10  "火薬が10個置かれている"
+check DIAN     0   "面1のダイヤは0個 ((面-1)x2% = 0%)"
+check STARTC   5   "自機の出発点の列 (巣から一番遠い升目)"
+check STARTR   9   "自機の出発点の行"
+check NESTC    7   "敵の巣の列 (画面中央に一番近い掘り抜き)"
+check NESTR    5   "敵の巣の行"
+check PX       80  "自機のX (= 出発点の列 x16)"
+check PY       144 "自機のY (= 出発点の行 x16)"
+check BATHON   1   "風呂が健在"
 
 [ $fail -eq 0 ] && echo "smoketest: PASS" || echo "smoketest: FAIL"
 exit $fail
