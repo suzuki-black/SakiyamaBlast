@@ -10,17 +10,22 @@
 #include "text.h"
 #include "sound.h"
 #include "art.h"
+#include "config.h"
 
 #define ST_TITLE 0
 #define ST_START 1        /* 面を描き切って "STAGE n START" を出している間 */
 #define ST_PLAY  2
 #define ST_CLEAR 3        /* クリア。自機も敵もその場で停止しファンファーレ */
+#define ST_CONFIG 4       /* 隠しコンフィグ (タイトルで 上上下下左右左右BA) */
+#define ST_ENDING 5       /* エンディング */
 
 #define START_HOLD  60    /* 開始表示を出しておくフレーム数 (1秒) */
 #define MSG_ROW     5     /* 開始表示を出すセル行 */
 
 static uint8_t state;
 static uint8_t prev_trig;
+static uint8_t ending_to_ura;
+static uint8_t loop_n;            /* 0=表 1以降=裏 (裏面の内容は TODO) */
 static uint8_t timer;
 static uint8_t msg_c0, msg_c1;    /* 開始表示が占めたセル列 (消すとき使う) */
 static char    msg[16];
@@ -107,8 +112,8 @@ static void start_stage(void)
 static void new_game(void)
 {
     rnd_seed((uint16_t)((uint16_t)JIFFY << 8 | (uint16_t)JIFFY));
-    lives = LIVES_INIT;
-    stage = 1;
+    lives = cfg_lives;
+    stage = cfg_start_stage;
     stock = 0;              /* 開始ストックは0。火薬を拾って貯める。 */
     start_stage();
 }
@@ -132,6 +137,24 @@ static void draw_actors(void)
     oam_flush();
 }
 
+/* エンディング。中身は仮。15面クリア後は裏面へ、コンフィグから見た場合はタイトルへ戻る。 */
+static void goto_ending(uint8_t to_ura)
+{
+    snd_stop();
+    spr_park_all();
+    oam_flush();
+    set_game_palette();          /* タイトル1枚絵のパレットから戻す */
+    vdp_fill(0, 0, 256, SCR_H, COL_TUNNEL);
+    text_draw(48, 40, "CONGRATULATIONS", COL_FUSE, COL_TUNNEL, 1);
+    text_draw(24, 72, "TANNO SANJI HAS DUG OUT", COL_WHITE, COL_TUNNEL, 1);
+    text_draw(24, 88, "ALL THE BLACK DIAMONDS.", COL_WHITE, COL_TUNNEL, 1);
+    text_draw(96, 128, "THE END", COL_WHITE, COL_TUNNEL, 2);
+    text_draw(56, 176, "PUSH SPACE KEY", COL_DIA, COL_TUNNEL, 1);
+    snd_play_fanfare();
+    ending_to_ura = to_ura;
+    state = ST_ENDING;
+}
+
 static void goto_title(void)
 {
     snd_stop();
@@ -147,6 +170,7 @@ void main(void)
     set_game_palette();
     text_init();
     snd_init();
+    config_init();
 
     spr_init();
     {
@@ -169,8 +193,37 @@ void main(void)
         snd_tick();
 
         if (state == ST_TITLE) {
-            if (fire_pressed()) {
+            if (konami_check()) {
+                set_game_palette();      /* タイトル1枚絵のパレットから戻す */
+                config_enter();
+                state = ST_CONFIG;
+            } else if (fire_pressed()) {
+                loop_n = 0;
                 new_game();      /* start_stage() が ST_START にする */
+            }
+            continue;
+        }
+
+        if (state == ST_CONFIG) {
+            uint8_t r = config_update();
+            if (r == CFG_START) {
+                loop_n = 0;
+                new_game();
+            } else if (r == CFG_ENDING) {
+                goto_ending(0);
+            }
+            continue;
+        }
+
+        if (state == ST_ENDING) {
+            if (fire_pressed()) {
+                if (ending_to_ura) {
+                    loop_n++;                  /* 裏面へ。内容の作り込みは TODO */
+                    stage = 1;
+                    start_stage();
+                } else {
+                    goto_title();
+                }
             }
             continue;
         }
@@ -190,7 +243,11 @@ void main(void)
             /* 自機も敵もその場で停止したまま、ファンファーレが終わるのを待つ */
             draw_actors();
             if (!snd_busy()) {
-                next_stage();
+                if (stage >= MAX_STAGE) {
+                    goto_ending(1);            /* 15面クリア -> エンディング -> 裏1面 */
+                } else {
+                    next_stage();
+                }
             }
             continue;
         }
@@ -206,6 +263,11 @@ void main(void)
         bomb_update();
         rock_update();
         enemy_update();
+
+        if (dead && cfg_invincible) {
+            dead = 0;                /* 無敵設定 (動作確認用) */
+            temp = 0;
+        }
 
         if (dead) {
             /* 自爆の場合は爆風の閃光を見せ切ってからミス処理する。

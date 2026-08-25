@@ -330,38 +330,45 @@ static void dug_centre(uint8_t *oc, uint8_t *orr)
     *orr = (uint8_t)(n ? (sr / n) : 5);
 }
 
-/* 条件に合う升目を数え、その中から1つを乱数で選ぶ。当てずっぽうに座標を振ると
-   空きが少ないときに取りこぼすので、必ず「候補を数えて n 番目を採る」方式にする。
+/* 条件に合う升目をあらかじめ一覧にしておき、そこから乱数で1つ取り出す。
+   「置くたびに全升目を走査する」方式だと、ダイヤが40個になる高次面で面の構築に
+   2秒以上かかってしまう (実測)。一覧を作るのは1回だけにする。
    kind: 0 = 掘り抜きの上で未使用 / 1 = 土の中 / 2 = 土の中で真下も土 */
-static uint16_t pick_cell(uint8_t kind)
+static uint8_t cand[NCELL];
+static uint8_t cand_n;
+
+static void build_candidates(uint8_t kind)
 {
-    uint16_t i, n = 0, hit;
+    uint16_t i;
+    cand_n = 0;
     for (i = 0; i < NCELL; i++) {
         if (cell_ok(i, kind)) {
-            n++;
+            cand[cand_n++] = (uint8_t)i;
         }
     }
-    if (n == 0) {
+}
+
+/* 一覧から1つ取り出す。取り出した枠には末尾を詰めるので O(1)。 */
+static uint16_t take_candidate(void)
+{
+    uint8_t k, v;
+    if (cand_n == 0) {
         return 0xFFFF;
     }
-    hit = (uint16_t)(((uint16_t)rnd8() << 8 | rnd8()) % n);
-    for (i = 0; i < NCELL; i++) {
-        if (cell_ok(i, kind)) {
-            if (hit == 0) {
-                return i;
-            }
-            hit--;
-        }
-    }
-    return 0xFFFF;
+    k = (uint8_t)(rnd8() % cand_n);
+    v = cand[k];
+    cand_n--;
+    cand[k] = cand[cand_n];
+    return v;
 }
 
 /* 火薬を掘り抜きの上へ n 個ばら撒く。 */
 static void place_powder(uint8_t n)
 {
     uint16_t i;
+    build_candidates(0);
     while (n) {
-        i = pick_cell(0);
+        i = take_candidate();
         if (i == 0xFFFF) {
             return;                                  /* 置ける升目が尽きた */
         }
@@ -384,8 +391,9 @@ static void place_diamonds(void)
         }
     }
     want = (uint16_t)((dirt * pct + 99) / 100);      /* 切り上げ */
+    build_candidates(1);
     while (placed < want) {
-        i = pick_cell(1);
+        i = take_candidate();
         if (i == 0xFFFF) {
             return;
         }
@@ -403,7 +411,8 @@ static void place_rocks(void)
         n = ROCK_MAX;
     }
     while (n) {
-        i = pick_cell(2);
+        build_candidates(2);        /* 岩は互いの真下条件に効くので毎回作り直す (最大4個) */
+        i = take_candidate();
         if (i == 0xFFFF) {
             return;
         }

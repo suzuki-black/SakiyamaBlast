@@ -14,6 +14,7 @@ typedef signed int     int16_t;
 /* 入力 (BIOS) : 0=カーソルキー, 1/2=ジョイスティック */
 uint8_t gtstck(uint8_t dev) __z88dk_fastcall;
 uint8_t gttrig(uint8_t dev) __z88dk_fastcall;
+uint8_t snsmat(uint8_t row) __z88dk_fastcall;   /* キーマトリクス1行 (0=押下) */
 
 /* ROM データ窓 (0xA000-0xBFFF) のセグメント切り替え */
 void bank_select(uint8_t seg) __z88dk_fastcall;
