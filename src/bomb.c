@@ -45,32 +45,36 @@ void bomb_fire(void)
     snd_sfx(SFX_SET);
 }
 
-/* 爆風1セル: 掘って閃光を出し、そこに居る自機を殺す。 */
-static void blast_one(int8_t cx, int8_t cy)
+/* 爆風1セル: 掘って閃光を出し、そこに居る自機を殺す。倒した敵の数を返す。 */
+static uint8_t blast_one(int8_t cx, int8_t cy)
 {
+    uint8_t killed;
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
-        return;
+        return 0;
     }
     diamond_blast(cx, cy);          /* ダイヤはダイナマイトだけが壊せる */
     dig_sweep((uint8_t)cx, (uint8_t)cy);
     rock_destroy_at(cx, cy);        /* 爆風にかかった岩は吹き飛ぶ */
-    enemy_kill_at(cx, cy);          /* 爆風は敵も倒す */
+    killed = enemy_kill_at(cx, cy); /* 爆風は敵も倒す */
     bath_destroy_at(cx, cy);        /* 風呂は爆風で壊れる (敵には壊されない) */
     vdp_fill((uint16_t)((uint8_t)cx << 4), (uint16_t)((uint8_t)cy << 4), 16, 16, COL_BLAST);
     if (player_cell_c() == (uint8_t)cx && player_cell_r() == (uint8_t)cy) {
         dead = 1;               /* 自爆も1ミス */
     }
+    return killed;
 }
 
 static void explode(void)
 {
     int8_t c = (int8_t)bomb_c;
     int8_t r = (int8_t)bomb_r;
-    blast_one(c, r);
-    blast_one(c, (int8_t)(r - 1));
-    blast_one(c, (int8_t)(r + 1));
-    blast_one((int8_t)(c - 1), r);
-    blast_one((int8_t)(c + 1), r);
+    uint8_t killed = 0;
+    killed = (uint8_t)(killed + blast_one(c, r));
+    killed = (uint8_t)(killed + blast_one(c, (int8_t)(r - 1)));
+    killed = (uint8_t)(killed + blast_one(c, (int8_t)(r + 1)));
+    killed = (uint8_t)(killed + blast_one((int8_t)(c - 1), r));
+    killed = (uint8_t)(killed + blast_one((int8_t)(c + 1), r));
+    score_kills(killed, 0);         /* 同時に倒すほど得点が伸びる */
     bomb_state = 2;
     flash = FLASH_FRAMES;
     spr_park(SPR_BOMB);

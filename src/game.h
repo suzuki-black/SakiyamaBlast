@@ -186,7 +186,20 @@ void bomb_update(void);
 void title_draw(void);
 
 /* --- hud.c --- */
+#define SCORE_DIGITS 6
+extern uint8_t score_d[SCORE_DIGITS];   /* 10進の桁 (0 が最上位) */
+
 void hud_reset(void);
 void hud_draw(void);
+void score_reset(void);
+void score_add(uint16_t v);
+void score_kills(uint8_t n, uint8_t by_rock);   /* 同時に倒した数で倍々 */
+
+/* 得点表 */
+#define PTS_POWDER  10
+#define PTS_DIAMOND 50
+#define PTS_DIG      5
+#define PTS_BONUS 1000
+#define PTS_LEFTOVER_DYN 100            /* 面クリア時に残ダイナマイト1本あたり */
 
 #endif

@@ -157,8 +157,13 @@ static void rock_fall_step(uint8_t i)
         crushed[i] = 1;
     }
     /* 落下中の岩は縦一列の敵をまとめて潰す (Mr. Do! 準拠) */
-    if (enemy_kill_at((int8_t)(rock_x[i] >> 4), (int8_t)((rock_y[i] + 8) >> 4))) {
-        crushed[i] = 1;
+    {
+        uint8_t killed = enemy_kill_at((int8_t)(rock_x[i] >> 4),
+                                       (int8_t)((rock_y[i] + 8) >> 4));
+        if (killed) {
+            crushed[i] = 1;
+            score_kills(killed, 1);      /* 落下岩は爆風の倍 */
+        }
     }
 
     if (rock_y[i] & 15) {

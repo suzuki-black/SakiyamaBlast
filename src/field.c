@@ -37,6 +37,7 @@ void diamond_blast(int8_t cx, int8_t cy)
         return;
     }
     diamond[(uint8_t)cy * COLS + (uint8_t)cx] = 0;
+    score_add(PTS_DIAMOND);
 }
 
 void dig_sweep(uint8_t cx, uint8_t cy)
@@ -52,6 +53,7 @@ void dig_sweep(uint8_t cx, uint8_t cy)
     dug[i] = 1;
     dug_n++;
     dug_pct = (uint8_t)((dug_n * 100u) / NCELL);
+    score_add(PTS_DIG);
 }
 
 /* 16x16 のタイルを1セルへ描く。inset=2 にすると外周2pxを残すので、

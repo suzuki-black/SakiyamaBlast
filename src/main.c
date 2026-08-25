@@ -114,12 +114,14 @@ static void new_game(void)
     rnd_seed((uint16_t)((uint16_t)JIFFY << 8 | (uint16_t)JIFFY));
     lives = cfg_lives;
     stage = cfg_start_stage;
+    score_reset();
     stock = 0;              /* 開始ストックは0。火薬を拾って貯める。 */
     start_stage();
 }
 
 static void next_stage(void)
 {
+    score_add((uint16_t)stock * PTS_LEFTOVER_DYN);   /* 残ダイナマイトを得点に */
     stage++;                /* ストックは持ち越す (リセットしない) */
     start_stage();
 }
@@ -266,7 +268,9 @@ void main(void)
 
         if (dead && cfg_invincible) {
             dead = 0;                /* 無敵設定 (動作確認用) */
-            temp = 0;
+            if (temp >= TEMP_MAX) {
+                temp = 0;            /* オーバーヒートのときだけ冷ます */
+            }
         }
 
         if (dead) {

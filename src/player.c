@@ -79,6 +79,7 @@ static void collect(void)
         draw_dug_cell((int8_t)c, (int8_t)r);   /* 火薬の絵を消して坑道へ戻す */
         player_carve();
         stock++;
+        score_add(PTS_POWDER);
         snd_sfx(SFX_PICK);
     }
 }
