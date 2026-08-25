@@ -24,18 +24,26 @@
 
 static uint8_t state;
 static uint8_t prev_trig;
+uint16_t frame_n;                 /* 実フレーム数。速度計測用 (1フレーム1増) */
 static uint8_t ending_to_ura;
 static uint8_t loop_n;            /* 0=表 1以降=裏 (裏面の内容は TODO) */
 static uint8_t timer;
 static uint8_t msg_c0, msg_c1;    /* 開始表示が占めたセル列 (消すとき使う) */
 static char    msg[16];
 
+/* 垂直帰線待ち。
+   「次に JIFFY が変わるまで待つ」だけにすると、1フレームの処理が 16.7ms を
+   わずかでも超えたときに次の次まで待ってしまい、60fps から 30fps へ一気に半減する
+   (移動は1フレーム1pxなので、そのまま速度が半分になる)。
+   既に遅れている場合は待たずに進めることで、落ち方をなだらかにする。 */
+static uint8_t last_j;
+
 static void wait_vsync(void)
 {
-    uint8_t t = JIFFY;
-    while (JIFFY == t) {
-        /* 垂直帰線待ち */
+    while (JIFFY == last_j) {
+        /* まだ次のフレームが来ていない */
     }
+    last_j = JIFFY;
 }
 
 /* ボタンの立ち上がりだけを拾う (押しっぱなしで連射しない) */
@@ -192,6 +200,7 @@ void main(void)
 
     for (;;) {
         wait_vsync();
+        frame_n++;
         snd_tick();
 
         if (state == ST_TITLE) {

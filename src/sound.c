@@ -44,6 +44,7 @@ static uint8_t ch_t[3];
 static uint8_t ch_note[3];
 static uint8_t ch_vol0[3];
 static uint8_t ch_dec[3];      /* 音量の減衰速度 (右シフト量。小さいほど速く減衰) */
+static uint8_t ch_lastvol[3];  /* 直前に書いた音量。変わっていなければ書かない */
 static uint8_t mode;
 static uint8_t mixer_base;
 static uint8_t drum_on;        /* 1 = チャンネルC をノイズのドラムとして使う */
@@ -152,6 +153,7 @@ static void snd_start(const uint8_t *a, const uint8_t *b, const uint8_t *c, uint
     ch_left[0] = ch_left[1] = ch_left[2] = 0;
     ch_t[0] = ch_t[1] = ch_t[2] = 0;
     ch_note[0] = ch_note[1] = ch_note[2] = 0;
+    ch_lastvol[0] = ch_lastvol[1] = ch_lastvol[2] = 0xFF;
     mode = m;
 }
 
@@ -238,7 +240,11 @@ void snd_tick(void)
         if (!(i == 2 && sfx_on)) {         /* 効果音が ch C を使っている間は触らない */
             uint8_t v = (uint8_t)(ch_note[i] ? ch_vol0[i] : 0);
             uint8_t d = (uint8_t)(ch_t[i] >> ch_dec[i]);
-            PSG_W(8 + i, (uint8_t)((d >= v) ? 0 : (v - d)));
+            v = (uint8_t)((d >= v) ? 0 : (v - d));
+            if (v != ch_lastvol[i]) {      /* 同じ音量を毎フレーム書き直さない */
+                ch_lastvol[i] = v;
+                PSG_W(8 + i, v);
+            }
         }
         if (ch_t[i] < 255) {
             ch_t[i]++;

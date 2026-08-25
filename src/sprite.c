@@ -1,8 +1,10 @@
 /* SakiyamaBlast - スプライト管理 */
 #include "sprite.h"
 #include "vdp.h"
+#include "game.h"   /* SPR_ACTIVE (使う面の数) */
 
 uint8_t oam[SPR_PLANES * 4];
+uint8_t oam_len = SPR_PLANES * 4;
 
 void spr_init(void)
 {
@@ -15,7 +17,9 @@ void spr_init(void)
     }
     /* 色テーブルを一旦すべて 0 (透明) に */
     vdp_memset(VRAM_SPRCOL, 0, SPR_PLANES * 16);
+    oam_len = SPR_PLANES * 4;      /* 初回だけ全32面を場外へ書き込む */
     oam_flush();
+    oam_len = SPR_ACTIVE * 4;      /* 以後は使う面だけ */
 }
 
 void spr_pattern(uint8_t pat, const uint8_t *data)

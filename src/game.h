@@ -94,6 +94,7 @@
 #define SPR_BOMB   1
 #define SPR_ROCK   2                        /* 面 2..5 */
 #define SPR_ENEMY  (SPR_ROCK + ROCK_MAX)    /* 面 6..9 */
+#define SPR_ACTIVE (SPR_ENEMY + ENEMY_MAX)  /* 実際に使う面の数。OAM 転送量を抑える */
 
 /* スプライトの絵番号 */
 #define PAT_MINER 0
@@ -181,6 +182,8 @@ extern uint8_t bomb_c, bomb_r;
 void bomb_clear(void);
 void bomb_fire(void);
 void bomb_update(void);
+
+extern uint16_t frame_n;      /* 実フレーム数 (速度計測用) */
 
 /* --- title.c --- */
 void title_draw(void);

@@ -9,6 +9,8 @@
 
 /* OAM の複製 (Y, X, パターン, 予備) x 32面。oam_flush() で VRAM へ一括転送する。 */
 extern uint8_t oam[SPR_PLANES * 4];
+/* oam_flush() が毎フレーム転送するバイト数。使っている面のぶんだけにする。 */
+extern uint8_t oam_len;
 
 void spr_init(void);
 void spr_pattern(uint8_t pat, const uint8_t *data);   /* VRAM 並びそのまま (32バイト) */

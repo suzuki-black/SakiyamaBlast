@@ -175,10 +175,14 @@ void hud_draw(void)
     uint8_t blocks = (uint8_t)(((uint16_t)temp * TEMP_BLK) / TEMP_MAX);
     uint8_t i, sc = 0;
 
-    for (i = 0; i < SCORE_DIGITS; i++) {
-        if (score_d[i] != h_score[i]) {
-            sc = 1;
-            break;
+    /* スコアは掘るたびに動く (敵の掘り屋も掘る) ので、毎回描き直すと重い。
+       8フレームに1回だけ見に行く。表示が最大 0.13 秒遅れるだけで見た目は変わらない。 */
+    if ((frame_n & 7) == 0) {
+        for (i = 0; i < SCORE_DIGITS; i++) {
+            if (score_d[i] != h_score[i]) {
+                sc = 1;
+                break;
+            }
         }
     }
     if (sc)              { draw_score(); }

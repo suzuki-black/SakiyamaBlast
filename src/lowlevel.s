@@ -19,6 +19,7 @@
 	.globl	_vdp_wblock
 	.globl	_vdp_blklen		; 実体は vdp.c 側 (C の変数として置く)
 	.globl	_oam
+	.globl	_oam_len
 
 VDP_DATA	= 0x98			; VRAM データ
 VDP_ADDR	= 0x99			; レジスタ/アドレス設定・ステータス読み
@@ -101,9 +102,23 @@ vdp_cmd_lp:
 	; わずかに遅れがある。ここで待たずに次の vdp_wait_cmd を呼ぶと CE=0 を
 	; 見て「終わった」と誤判定し、実行中のコマンドの上から DY/NX/NY を
 	; 書き換えてしまう (エンジンがこの3つを作業用に更新するため暴走する)。
-	ld	b, #16
-vdp_cmd_dly:
-	djnz	vdp_cmd_dly
+	; 決め打ちで待つと毎回その時間を捨てることになるので、CE が立ったのを
+	; 確認できたら即抜ける。短すぎて立つ前に終わったコマンドのために上限も置く。
+	ld	a, #2
+	out	(VDP_ADDR), a
+	ld	a, #0x8F		; R#15 = 2
+	out	(VDP_ADDR), a
+	ld	b, #24
+vdp_cmd_rise:
+	in	a, (VDP_ADDR)
+	and	a, #0x01		; CE が立った?
+	jr	NZ, vdp_cmd_up
+	djnz	vdp_cmd_rise
+vdp_cmd_up:
+	xor	a
+	out	(VDP_ADDR), a
+	ld	a, #0x8F		; R#15 = 0 に戻す
+	out	(VDP_ADDR), a
 	ei
 	ret
 
@@ -154,7 +169,8 @@ _oam_flush::
 	out	(VDP_ADDR), a
 	ld	hl, #_oam
 	ld	c, #VDP_DATA
-	ld	b, #128
+	ld	a, (_oam_len)		; 使っている面のぶんだけ送る
+	ld	b, a
 	otir
 	xor	a			; R#14 を 0 に戻す
 	out	(VDP_ADDR), a
