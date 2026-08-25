@@ -129,6 +129,7 @@ static void rock_break(uint8_t i)
 {
     rock_state[i] = ROCK_NONE;
     spr_park((uint8_t)(SPR_ROCK + i));
+    bonus_rock_broken();               /* 2個割るとボーナスが出る */
 }
 
 void rock_destroy_at(int8_t cx, int8_t cy)

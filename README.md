@@ -74,6 +74,7 @@ SCREEN 5（GRAPHIC 4, 256x212, 16色/512パレット, 16x16 mode-2 スプライ�
 | `src/title.c` | タイトル1枚絵の展開（ROM の可変バンク → VRAM） |
 | `src/art.c` | 生成された絵データの置き場（他モジュールはここから参照する） |
 | `src/config.c` | 隠しコンフィグ（コマンド入力の判定と設定画面） |
+| `src/bonus.c` | ボーナスアイテム（出現条件・時間切れ・効果） |
 | `src/text.c` | 本体 BIOS の 8x8 フォントによる文字表示（ROM にフォントを持たない） |
 | `src/sound.c` | PSG (AY-3-8910) の音楽ドライバ（BGM・ファンファーレ・効果音） |
 | `src/music.c` | 曲データ（常磐炭坑節の採譜＋編曲、ファンファーレ）。**差し替えはここだけ** |
@@ -132,7 +133,7 @@ SCREEN 5（GRAPHIC 4, 256x212, 16色/512パレット, 16x16 mode-2 スプライ�
 |---|---|---|
 | `assets/title.png` | タイトル1枚絵 | `tools/png2sc5.py` → 16色 SC5 画像（ROM のバンク4〜7へ） |
 | `assets/sprites.png` | スプライト5枚（左から 丹野3時／ダイナマイト／岩／ネズミ／コウモリ） | `tools/png2art.py --mode sprite` |
-| `assets/tiles.png` | 背景タイル3枚（左から 火薬／風呂／ダイヤ） | `tools/png2art.py --mode tile` |
+| `assets/tiles.png` | 背景タイル6枚（左から 火薬／風呂／金塊／水滴／ヘルメット／ダイヤ） | `tools/png2art.py --mode tile` |
 
 守ってほしい約束事は次のとおり。
 

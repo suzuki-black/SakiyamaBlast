@@ -18,6 +18,8 @@
 #define ST_CLEAR 3        /* クリア。自機も敵もその場で停止しファンファーレ */
 #define ST_CONFIG 4       /* 隠しコンフィグ (タイトルで 上上下下左右左右BA) */
 #define ST_ENDING 5       /* エンディング */
+#define ST_MISS   6       /* ミス。短いジングルの間、画面をその場で止める */
+#define ST_OVER   7       /* ゲームオーバー */
 
 #define START_HOLD  60    /* 開始表示を出しておくフレーム数 (1秒) */
 #define MSG_ROW     5     /* 開始表示を出すセル行 */
@@ -76,22 +78,25 @@ static void set_game_palette(void)
     vdp_set_palette(COL_DIA,    3, 6, 7);
 }
 
-/* "STAGE n START" を面の上に出す。フォントは本体 BIOS のものを使う。 */
+/* 面の中央に文字を出す。フォントは本体 BIOS のものを使う。 */
+static void show_msg(const char *t, uint8_t n, uint8_t col)
+{
+    uint16_t x = (uint16_t)((256 - (uint16_t)n * 16) >> 1) & 0xFFFE;
+    text_draw(x, MSG_ROW * CELL, t, col, COL_TUNNEL, 2);
+    msg_c0 = (uint8_t)(x >> 4);
+    msg_c1 = (uint8_t)((x + (uint16_t)n * 16 - 1) >> 4);
+}
+
 static void show_stage_msg(void)
 {
     uint8_t n = 0, i;
-    uint16_t x;
     const char *a = "STAGE ";
     const char *b = " START";
     for (i = 0; a[i]; i++) { msg[n++] = a[i]; }
     n = (uint8_t)(n + text_u8(&msg[n], stage));
     for (i = 0; b[i]; i++) { msg[n++] = b[i]; }
     msg[n] = 0;
-
-    x = (uint16_t)((256 - (uint16_t)n * 16) >> 1) & 0xFFFE;
-    text_draw(x, MSG_ROW * CELL, msg, COL_WHITE, COL_TUNNEL, 2);
-    msg_c0 = (uint8_t)(x >> 4);
-    msg_c1 = (uint8_t)((x + (uint16_t)n * 16 - 1) >> 4);
+    show_msg(msg, n, COL_WHITE);
 }
 
 static void hide_stage_msg(void)
@@ -110,6 +115,7 @@ static void start_stage(void)
     bomb_clear();
     player_start();
     enemy_stage_reset();
+    bonus_stage_reset();
     hud_reset();
     hud_draw();
     show_stage_msg();        /* 面を描き切ってから開始表示を出す */
@@ -148,6 +154,15 @@ static void draw_actors(void)
 }
 
 /* エンディング。中身は仮。15面クリア後は裏面へ、コンフィグから見た場合はタイトルへ戻る。 */
+/* ゲームオーバー。コンティニューが ON なら、その面から続きを遊べる。 */
+static void goto_gameover(void)
+{
+    snd_stop();
+    dead = 0;
+    show_msg("GAME OVER", 9, COL_RED);
+    state = ST_OVER;
+}
+
 static void goto_ending(uint8_t to_ura)
 {
     snd_stop();
@@ -239,6 +254,38 @@ void main(void)
             continue;
         }
 
+        if (state == ST_MISS) {
+            /* ミスした瞬間はその場で止め、短いジングルを鳴らし切る */
+            draw_actors();
+            if (!snd_busy()) {
+                hide_stage_msg();
+                if (lives <= 1) {
+                    lives = 0;
+                    hud_draw();
+                    goto_gameover();
+                } else {
+                    player_respawn();
+                    hud_draw();
+                    snd_play_bgm();
+                    state = ST_PLAY;
+                }
+            }
+            continue;
+        }
+
+        if (state == ST_OVER) {
+            if (fire_pressed()) {
+                if (cfg_continue) {
+                    lives = cfg_lives;      /* その面から続きを遊ぶ */
+                    score_reset();
+                    start_stage();
+                } else {
+                    goto_title();
+                }
+            }
+            continue;
+        }
+
         if (state == ST_START) {
             timer--;
             if (timer == 0) {
@@ -274,6 +321,7 @@ void main(void)
         bomb_update();
         rock_update();
         enemy_update();
+        bonus_update();
 
         if (dead && cfg_invincible) {
             dead = 0;                /* 無敵設定 (動作確認用) */
@@ -286,14 +334,15 @@ void main(void)
             /* 自爆の場合は爆風の閃光を見せ切ってからミス処理する。
                閃光中に片付けると finish_blast() が走らず黄色が残ってしまう。 */
             if (bomb_state != 2) {
-                snd_sfx(SFX_MISS);
-                if (lives <= 1) {
-                    lives = 0;
-                    goto_title();       /* 残機が尽きたらタイトルへ戻る */
-                    continue;
+                snd_stop();
+                snd_play_miss();
+                if (dead_cause == DEAD_HEAT) {
+                    show_msg("HEATSTROKE", 10, COL_RED);
                 } else {
-                    player_respawn();
+                    msg_c0 = 1;         /* 表示は無いので消す範囲も空に */
+                    msg_c1 = 0;
                 }
+                state = ST_MISS;
             }
         } else if (dug_pct >= WIN_PCT) {
             snd_stop();

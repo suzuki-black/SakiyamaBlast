@@ -129,6 +129,7 @@ void    draw_cell_dirt(int8_t cx, int8_t cy);
 void    draw_powder(uint8_t cx, uint8_t cy);
 void    draw_bath(uint8_t cx, uint8_t cy);
 void    draw_diamond(uint8_t cx, uint8_t cy);
+void    draw_bonus(uint8_t cx, uint8_t cy, uint8_t kind);
 uint8_t cell_diamond(int8_t cx, int8_t cy);
 void    diamond_blast(int8_t cx, int8_t cy);     /* 爆風で壊す。採掘%に加算される */
 void    bath_destroy_at(int8_t cx, int8_t cy);   /* 岩・爆風で壊れる (敵では壊れない) */
@@ -139,6 +140,8 @@ void    build_stage(void);
 extern uint8_t px, py;
 extern uint8_t lives;
 extern uint8_t dead;
+extern uint8_t dead_cause;    /* 0=接触や潰し 1=オーバーヒート */
+#define DEAD_HEAT 1
 extern uint8_t invuln;
 extern uint8_t temp;          /* 体温 0..TEMP_MAX */
 
@@ -193,6 +196,23 @@ extern uint16_t frame_n;      /* 実フレーム数 (速度計測用) */
 
 /* --- title.c --- */
 void title_draw(void);
+
+/* --- bonus.c --- */
+/* 岩を2個割ると一定時間だけ出現し、上を通過すると取れる。効果は3種類。 */
+#define ROCKS_PER_BONUS 2
+#define BONUS_FRAMES  600      /* 出ている時間 (10秒) */
+#define BONUS_SCORE 0
+#define BONUS_COOL  1
+#define BONUS_LIFE  2
+
+extern uint8_t bonus_on;
+extern uint8_t bonus_c, bonus_r;
+extern uint8_t bonus_kind;
+
+void bonus_stage_reset(void);
+void bonus_rock_broken(void);
+void bonus_update(void);
+void bonus_take(void);
 
 /* --- hud.c --- */
 #define SCORE_DIGITS 6

@@ -7,6 +7,7 @@
 uint8_t px, py;
 uint8_t lives;
 uint8_t dead;
+uint8_t dead_cause;
 uint8_t invuln;
 uint8_t temp;                 /* 体温 */
 
@@ -59,6 +60,7 @@ static void update_temp(void)
         temp++;
         if (temp >= TEMP_MAX && !invuln) {
             dead = 1;               /* オーバーヒート */
+            dead_cause = DEAD_HEAT;
         }
     }
 }
@@ -74,6 +76,10 @@ static void collect(void)
     c = (uint8_t)(px >> 4);
     r = (uint8_t)(py >> 4);
     i = (uint16_t)r * COLS + c;
+    if (bonus_on && c == bonus_c && r == bonus_r) {
+        bonus_take();
+        snd_sfx(SFX_PICK);
+    }
     if (powder[i]) {
         powder[i] = 0;
         draw_dug_cell((int8_t)c, (int8_t)r);   /* 火薬の絵を消して坑道へ戻す */
@@ -177,6 +183,7 @@ void player_start(void)
     chewing = 0;
     acc = 0;
     dead = 0;
+    dead_cause = 0;
     invuln = INVULN_FRAMES;
     temp = 0;
     temp_acc = 0;

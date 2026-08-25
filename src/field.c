@@ -117,6 +117,11 @@ void draw_bath(uint8_t cx, uint8_t cy)
     draw_tile(cx, cy, art_tile_of(TILE_BATH), 2);
 }
 
+void draw_bonus(uint8_t cx, uint8_t cy, uint8_t kind)
+{
+    draw_tile(cx, cy, art_tile_of((uint8_t)(TILE_BSCORE + kind)), 2);
+}
+
 void bath_destroy_at(int8_t cx, int8_t cy)
 {
     if (!bath_on) {
@@ -148,6 +153,9 @@ void field_redraw_cell(int8_t cx, int8_t cy)
     }
     if (bath_on && (uint8_t)cx == bath_c && (uint8_t)cy == bath_r) {
         draw_bath((uint8_t)cx, (uint8_t)cy);
+    }
+    if (bonus_on && (uint8_t)cx == bonus_c && (uint8_t)cy == bonus_r) {
+        draw_bonus((uint8_t)cx, (uint8_t)cy, bonus_kind);
     }
 }
 

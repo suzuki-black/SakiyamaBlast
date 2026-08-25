@@ -173,16 +173,28 @@ void snd_play_bgm(void)
     snd_start(bgm_a, bgm_b, bgm_c, SND_BGM);
 }
 
-void snd_play_fanfare(void)
+/* ファンファーレやミスのジングル。BGM を止めてトーン3声で鳴らす。 */
+static void play_jingle(const uint8_t *a, const uint8_t *b, const uint8_t *c,
+                        uint8_t v0, uint8_t v1, uint8_t v2)
 {
-    ch_vol0[0] = 14;
-    ch_vol0[1] = 11;
-    ch_vol0[2] = 11;
+    ch_vol0[0] = v0;
+    ch_vol0[1] = v1;
+    ch_vol0[2] = v2;
     ch_dec[0] = ch_dec[1] = ch_dec[2] = 3;
     drum_on = 0;
-    sfx_on = 0;                        /* ファンファーレ中は効果音を止める */
+    sfx_on = 0;                        /* 鳴っている間は効果音を止める */
     set_mixer(0);                      /* トーン3声 */
-    snd_start(fan_a, fan_b, fan_c, SND_SFX);
+    snd_start(a, b, c, SND_SFX);
+}
+
+void snd_play_fanfare(void)
+{
+    play_jingle(fan_a, fan_b, fan_c, 14, 11, 11);
+}
+
+void snd_play_miss(void)
+{
+    play_jingle(miss_a, miss_b, miss_c, 14, 11, 11);
 }
 
 void snd_stop(void)

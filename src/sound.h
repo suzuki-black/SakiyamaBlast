@@ -8,6 +8,7 @@ void    snd_init(void);
 void    snd_tick(void);          /* 毎フレーム1回呼ぶ */
 void    snd_play_bgm(void);
 void    snd_play_fanfare(void);
+void    snd_play_miss(void);
 void    snd_stop(void);
 uint8_t snd_busy(void);          /* ファンファーレが鳴っている間だけ 1 */
 
@@ -24,6 +25,7 @@ void snd_sfx(uint8_t id);
    音程 0=休符 / 0xFE=終わり / 0xFF=先頭へ戻る。長さはフレーム数。 */
 extern const uint8_t bgm_a[], bgm_b[], bgm_c[];
 extern const uint8_t fan_a[], fan_b[], fan_c[];
+extern const uint8_t miss_a[], miss_b[], miss_c[];
 extern const uint8_t sfx_dig[], sfx_pick[], sfx_set[], sfx_boom[], sfx_miss[];
 
 #endif
