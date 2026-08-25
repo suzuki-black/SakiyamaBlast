@@ -35,8 +35,9 @@ A_BATHON=$(addr bath_on); A_BATHC=$(addr bath_c); A_BATHR=$(addr bath_r)
 A_POWDER=$(addr powder); A_DIA=$(addr diamond); A_DUG=$(addr dug)
 A_PCT=$(addr dug_pct)
 
-# 面1は掘り抜きが数字の「1」(15升)。自機は巣から一番遠い升目、巣は画面中央付近。
-# 火薬・岩・ダイヤの位置は乱数なので、位置ではなく個数で検査する。
+# 面1は掘り抜きが数字の「1」(15升) ＋ 敵の湧き出し口1升 = 16升。
+# 自機は掘り抜きの上端、湧き出し口は土の中の独立した1ブロック (位置は乱数)。
+# 火薬・岩・ダイヤ・湧き出し口の位置は乱数なので、位置ではなく性質で検査する。
 openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
     -command "set renderer none; set throttle off; \
         after time 6 {keymatrixdown 8 0x01}; after time 6.2 {keymatrixup 8 0x01}; \
@@ -45,13 +46,15 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
             puts \$f \"R0 [debug read {VDP regs} 0]\"; \
             puts \$f \"R1 [debug read {VDP regs} 1]\"; \
             puts \$f \"DIRT [debug read VRAM 0]\"; \
-            puts \$f \"NESTCELL [debug read VRAM 11322]\"; \
+            puts \$f \"TUNNELCELL [debug read VRAM 13370]\"; \
             puts \$f \"PX [debug read memory $A_PX]\"; \
             puts \$f \"PY [debug read memory $A_PY]\"; \
             puts \$f \"STARTC [debug read memory $A_STARTC]\"; \
             puts \$f \"STARTR [debug read memory $A_STARTR]\"; \
-            puts \$f \"NESTC [debug read memory $A_NESTC]\"; \
-            puts \$f \"NESTR [debug read memory $A_NESTR]\"; \
+            set nc [debug read memory $A_NESTC]; set nr [debug read memory $A_NESTR]; \
+            set sc [debug read memory $A_STARTC]; set sr [debug read memory $A_STARTR]; \
+            puts \$f \"NESTDUG [debug read memory [expr {$A_DUG+\$nr*16+\$nc}]]\"; \
+            puts \$f \"NESTFAR [expr {(abs(\$nc-\$sc)+abs(\$nr-\$sr)) >= 6}]\"; \
             puts \$f \"BATHON [debug read memory $A_BATHON]\"; \
             set p 0; set d 0; set g 0; \
             for {set i 0} {\$i<176} {incr i} { \
@@ -77,17 +80,17 @@ echo "smoketest: $ROM on $MACHINE"
 check R0       6   "SCREEN 5 (GRAPHIC 4) になっている"
 check R1       98  "表示ON・垂直帰線割り込みON・16x16スプライト"
 check DIRT     102 "盤面が土で塗られている (0x66)"
-check NESTCELL 17  "掘り抜きの縦線が掘られている (0x11)"
-check DUGN     15  "面1の掘り抜きが数字の「1」の形 (15升)"
-check PCT      8   "開始時の採掘率"
+check TUNNELCELL 17 "掘り抜きの縦線が掘られている (0x11)"
+check DUGN     16  "掘り抜き「1」(15升) ＋ 湧き出し口(1升)"
+check PCT      9   "開始時の採掘率"
 check POWDERN  10  "火薬が10個置かれている"
 check DIAN     0   "面1のダイヤは0個 ((面-1)x2% = 0%)"
-check STARTC   5   "自機の出発点の列 (巣から一番遠い升目)"
-check STARTR   9   "自機の出発点の行"
-check NESTC    7   "敵の巣の列 (画面中央に一番近い掘り抜き)"
-check NESTR    5   "敵の巣の行"
-check PX       80  "自機のX (= 出発点の列 x16)"
-check PY       144 "自機のY (= 出発点の行 x16)"
+check STARTC   7   "自機の出発点の列 (掘り抜きの上端)"
+check STARTR   1   "自機の出発点の行"
+check NESTDUG  1   "敵の湧き出し口が1ブロック開いている"
+check NESTFAR  1   "湧き出し口が自機の出発点から6升以上離れている"
+check PX       112 "自機のX (= 出発点の列 x16)"
+check PY       16  "自機のY (= 出発点の行 x16)"
 check BATHON   1   "風呂が健在"
 
 [ $fail -eq 0 ] && echo "smoketest: PASS" || echo "smoketest: FAIL"

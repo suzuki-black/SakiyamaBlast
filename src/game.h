@@ -130,6 +130,7 @@ void    draw_powder(uint8_t cx, uint8_t cy);
 void    draw_bath(uint8_t cx, uint8_t cy);
 void    draw_diamond(uint8_t cx, uint8_t cy);
 void    draw_bonus(uint8_t cx, uint8_t cy, uint8_t kind);
+void    draw_cave(uint8_t cx, uint8_t cy);
 uint8_t cell_diamond(int8_t cx, int8_t cy);
 void    diamond_blast(int8_t cx, int8_t cy);     /* 爆風で壊す。採掘%に加算される */
 void    bath_destroy_at(int8_t cx, int8_t cy);   /* 岩・爆風で壊れる (敵では壊れない) */

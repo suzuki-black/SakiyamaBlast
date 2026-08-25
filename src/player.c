@@ -19,10 +19,26 @@ static uint8_t temp_acc;  /* 体温上昇の分子 */
 uint8_t player_cell_c(void) { return (uint8_t)((px + 8) >> 4); }
 uint8_t player_cell_r(void) { return (uint8_t)((py + 8) >> 4); }
 
-/* 掘り跡は自機幅より内側2px。セル幅いっぱいに抜くと膜が消えるので必ず内側で。 */
+/* 掘り跡は自機幅より内側2px。セル幅いっぱいに抜くと膜が消えるので必ず内側で。
+   掘り跡の黒は風呂や湧き出し口の絵の上にも乗ってしまうので、重なった升目は描き直す。
+   風呂は何度でも入れる (絵が消えると使えなくなったように見えるため、ここが重要)。 */
 void player_carve(void)
 {
+    uint8_t c0 = (uint8_t)(px >> 4), c1 = (uint8_t)((px + PW) >> 4);
+    uint8_t r0 = (uint8_t)(py >> 4), r1 = (uint8_t)((py + PW) >> 4);
+    uint8_t c, r;
+
     vdp_fill((uint16_t)(px + 2), (uint16_t)(py + 2), 12, 12, COL_TUNNEL);
+
+    for (r = r0; r <= r1 && r < ROWS; r++) {
+        for (c = c0; c <= c1 && c < COLS; c++) {
+            if (bath_on && c == bath_c && r == bath_r) {
+                draw_bath(c, r);
+            } else if (c == nest_c && r == nest_r) {
+                draw_cave(c, r);
+            }
+        }
+    }
 }
 
 /* 入力を4方向へ落とす。上を最優先 (プロトの READINPUT と同じ順序)。 */

@@ -9,6 +9,7 @@
  *    Until such time, he can wait underneath the rock for as long as he likes."
  *  - 自機が真下から離れた瞬間に揺れ始め、揺れ切ると落下する。
  *  - 押しは横方向のみ。押し先が開いている(掘り済み)セルの時だけ。土へは押し込めない。
+ *    **押し込んだ先に居る敵は潰れる**（落とさなくても岩を武器にできる）。押した岩は割れない。
  *  - 自身の高さ超 (2セル以上) 落ちるか、何かを潰すと割れて消える。1セルなら割れず存続。
  */
 #include "game.h"
@@ -122,6 +123,18 @@ uint8_t rock_push(int8_t i, int8_t dx)
     rock_x[i] = (uint8_t)((uint8_t)nc << 4);
     rock_state[i] = ROCK_WAIT;          /* 支えの有無は次の更新で見る */
     jig_t[i] = 0;
+    /* 横へ押し込んだ先に居るものは潰れる。落とさなくても岩を武器にできるので、
+       ダイナマイトを温存できる。押した岩は割れずに残る (何度でも押して使える)。 */
+    {
+        uint8_t killed = enemy_kill_at(nc, r);
+        if (killed) {
+            score_kills(killed, 1);
+        }
+    }
+    if (!invuln && !dead
+        && (int8_t)player_cell_c() == nc && (int8_t)player_cell_r() == r) {
+        dead = 1;                       /* 敵が押した岩に潰されることもある */
+    }
     return 1;
 }
 

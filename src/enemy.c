@@ -234,6 +234,16 @@ static void decide_dir(uint8_t i)
     }
 }
 
+/* 四方を土で塞がれているか。湧き出し口は1ブロックの穴なので、湧いた敵はここに当たる。 */
+static uint8_t boxed_in(uint8_t i)
+{
+    if (((en_x[i] & 15) != 0) || ((en_y[i] & 15) != 0)) {
+        return 0;                        /* 升目の途中では判定しない */
+    }
+    return (uint8_t)(!can_go(i, DIR_UP) && !can_go(i, DIR_DOWN)
+                     && !can_go(i, DIR_LEFT) && !can_go(i, DIR_RIGHT));
+}
+
 static void enemy_step(uint8_t i)
 {
     uint8_t at_node = (uint8_t)(((en_x[i] & 15) == 0) && ((en_y[i] & 15) == 0));
@@ -333,8 +343,12 @@ void enemy_update(void)
             if (en_ghost[i]) {
                 ghost_step(i);
             } else {
-                en_morph[i]--;
-                if (en_morph[i] == 0) {
+                if (en_morph[i]) {
+                    en_morph[i]--;
+                }
+                /* 湧き出し口から出られない敵は、待たずに透明になってすり抜ける。
+                   そうしないと穴の中で渋滞する。 */
+                if (en_morph[i] == 0 || boxed_in(i)) {
                     en_ghost[i] = 1;     /* 透明になって土をすり抜ける */
                     en_pause[i] = GHOST_PAUSE;
                     en_gdirt[i] = 0;

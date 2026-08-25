@@ -117,6 +117,12 @@ void draw_bath(uint8_t cx, uint8_t cy)
     draw_tile(cx, cy, art_tile_of(TILE_BATH), 2);
 }
 
+/* 敵の湧き出し口。数字の掘り抜きとは別に、独立した1ブロックの横穴として置く。 */
+void draw_cave(uint8_t cx, uint8_t cy)
+{
+    draw_tile(cx, cy, art_tile_of(TILE_CAVE), 0);
+}
+
 void draw_bonus(uint8_t cx, uint8_t cy, uint8_t kind)
 {
     draw_tile(cx, cy, art_tile_of((uint8_t)(TILE_BSCORE + kind)), 2);
@@ -144,6 +150,10 @@ void field_redraw_cell(int8_t cx, int8_t cy)
     }
     if (diamond[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
         draw_diamond((uint8_t)cx, (uint8_t)cy);
+        return;
+    }
+    if ((uint8_t)cx == nest_c && (uint8_t)cy == nest_r) {
+        draw_cave((uint8_t)cx, (uint8_t)cy);
         return;
     }
     draw_cell_dirt(cx, cy);
@@ -431,6 +441,53 @@ static void place_rocks(void)
     }
 }
 
+/* 湧き出し口を1ブロックだけ土に開ける。自機の出発点から離れた場所を選ぶ。 */
+static void place_cave(void)
+{
+    uint16_t i, n = 0, hit;
+    uint8_t c, r;
+    int8_t dc, dr;
+
+    for (i = 0; i < NCELL; i++) {
+        if (dug[i]) {
+            continue;
+        }
+        c = (uint8_t)(i % COLS);
+        r = (uint8_t)(i / COLS);
+        dc = (int8_t)(c - start_c); if (dc < 0) { dc = (int8_t)-dc; }
+        dr = (int8_t)(r - start_r); if (dr < 0) { dr = (int8_t)-dr; }
+        if (dc + dr >= 6) {
+            n++;
+        }
+    }
+    if (n == 0) {
+        nest_c = start_c;                /* 保険 */
+        nest_r = start_r;
+        return;
+    }
+    hit = (uint16_t)(((uint16_t)rnd8() << 8 | rnd8()) % n);
+    for (i = 0; i < NCELL; i++) {
+        if (dug[i]) {
+            continue;
+        }
+        c = (uint8_t)(i % COLS);
+        r = (uint8_t)(i / COLS);
+        dc = (int8_t)(c - start_c); if (dc < 0) { dc = (int8_t)-dc; }
+        dr = (int8_t)(r - start_r); if (dr < 0) { dr = (int8_t)-dr; }
+        if (dc + dr < 6) {
+            continue;
+        }
+        if (hit == 0) {
+            nest_c = c;
+            nest_r = r;
+            dug[i] = 1;                  /* 1ブロックだけ開ける */
+            used[i] = 1;
+            return;
+        }
+        hit--;
+    }
+}
+
 static void set_stage_layout(void)
 {
     uint16_t i;
@@ -449,21 +506,20 @@ static void set_stage_layout(void)
 
     carve_stage_number();
 
-    /* 敵の巣: 画面の真ん中に一番近い掘り抜き (仕様どおり中央) */
-    i = nearest_dug(8, 5);
-    nest_c = (uint8_t)(i % COLS);
-    nest_r = (uint8_t)(i / COLS);
-    used[i] = 1;
-
-    /* 自機の出発点: 巣から一番遠い掘り抜き。開始と同時に捕まるのを避ける。 */
-    i = farthest_dug(nest_c, nest_r);
+    /* 自機の出発点: 掘り抜きの一番上に近いところ (坑口から降りてくる感じ) */
+    i = nearest_dug(8, 0);
     start_c = (uint8_t)(i % COLS);
     start_r = (uint8_t)(i / COLS);
     used[i] = 1;
 
-    /* 風呂: 掘ってある箇所の重心に近く、かつ巣の隣にはならないところ */
+    /* 敵の湧き出し口: 数字の掘り抜きとは別に、土の中へ独立した1ブロックの穴を開ける。
+       掘り抜きの上に置くと、掘り進めた先から敵が飛び出してきて理不尽な死に方になる。
+       自機の出発点からは十分に離す。 */
+    place_cave();
+
+    /* 風呂: 掘ってある箇所の重心に近く、かつ自機の出発点の隣にはならないところ */
     dug_centre(&cc, &cr);
-    i = nearest_dug_away(cc, cr, nest_c, nest_r, 3);
+    i = nearest_dug_away(cc, cr, start_c, start_r, 3);
     bath_c = (uint8_t)(i % COLS);
     bath_r = (uint8_t)(i / COLS);
     bath_on = 1;
@@ -501,6 +557,10 @@ void build_stage(void)
         for (c = 0; c < COLS; c++) {
             if (diamond[(uint16_t)r * COLS + c]) {
                 draw_diamond(c, r);
+                continue;
+            }
+            if (c == nest_c && r == nest_r) {
+                draw_cave(c, r);
                 continue;
             }
             draw_dug_cell((int8_t)c, (int8_t)r);
