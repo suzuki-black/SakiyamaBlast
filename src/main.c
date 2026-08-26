@@ -184,6 +184,7 @@ static void goto_title(void)
     vdp_display(0);              /* 1枚絵のパレットに切り替わるところを見せない */
     title_draw();
     vdp_display(1);
+    snd_play_title();
     state = ST_TITLE;
 }
 

@@ -77,6 +77,78 @@ const uint8_t bgm_c[] = {
     0xFF
 };
 
+/*
+ * タイトル BGM = **Down in a Coal Mine** (J. B. Geoghegan 作曲 / 詞 H.E.K.、1872年)。
+ * 作曲者は1889年に没しており著作権は切れている。他人の編曲は写さず、公開されている
+ * 譜面 (ハ長調・6/8・16小節) から旋律を読み取って自前で PSG 用に編曲した。
+ *
+ * 八分音符 = 12フレーム = 0.2秒 (付点四分 100 BPM)。16小節で約19秒のループ。
+ *   ch A = 旋律 (譜面そのまま)
+ *   ch B = ベース (小節ごとに根音3つ + 5度3つ)
+ *   ch C = ノイズドラム (6/8 の 太鼓・スネア・ハイハット)
+ */
+
+/* ハ長調。音名 -> 音程テーブル番号 (MIDI - 35) */
+#define C2t   1
+#define F2t   6
+#define G2t   8
+#define C3t  13
+#define D3t  15
+#define G3t  20
+#define C4t  25
+#define D4t  27
+#define E4t  29
+#define F4t  30
+#define G4t  32
+#define A4t  34
+#define B4t  36
+#define C5t  37
+#define D5t  39
+
+#define T   12      /* 八分音符 */
+
+/* 旋律。1行 = 1小節 (八分音符6つ分)。 */
+const uint8_t title_a[] = {
+    C5t,T*3, C5t,T,   B4t,T,   A4t,T,          /* Down     in__ a       */
+    G4t,T*3, E4t,T*3,                          /* coal     mine         */
+    F4t,T*2, F4t,T,   F4t,T*2, G4t,T,          /* un-der-neath the      */
+    E4t,T*5, 0,  T,                            /* ground,               */
+    A4t,T*2, A4t,T,   C5t,T,   B4t,T,   A4t,T, /* Where a  gleam of     */
+    G4t,T*3, E4t,T*3,                          /* sun-shine             */
+    A4t,T*2, G4t,T,   E4t,T*2, C4t,T,          /* nev-er   can be       */
+    D4t,T*5, 0,  T,                            /* found,                */
+    E4t,T*2, D4t,T,   C4t,T*2, E4t,T,          /* Dig-ging dus-ky       */
+    G4t,T*3, G4t,T*3,                          /* dia-monds             */
+    A4t,T,   B4t,T,   C5t,T,   D5t,T*2, C5t,T, /* all__ the sea-son     */
+    B4t,T*5, 0,  T,                            /* round,                */
+    C5t,T*3, C5t,T,   B4t,T,   A4t,T,          /* Down     in__ a       */
+    G4t,T*3, C5t,T*3,                          /* coal     mine         */
+    D5t,T*2, A4t,T,   B4t,T*2, A4t,T,          /* un-der-neath the      */
+    C5t,T*5, 0,  T,                            /* ground.               */
+    0xFF
+};
+
+/* ベース: 小節ごとに (根音 x3, 5度下 x3)。和音は C - C - F - C - F - C - C - G -
+   C - C - G - G - C - C - G - C。 */
+#define BC  C3t,T*3, G2t,T*3      /* C */
+#define BF  F2t,T*3, C3t,T*3      /* F */
+#define BG  G2t,T*3, D3t,T*3      /* G */
+const uint8_t title_b[] = {
+    BC, BC, BF, BC,
+    BF, BC, BC, BG,
+    BC, BC, BG, BG,
+    BC, BC, BG, BC,
+    0xFF
+};
+
+/* ドラム: 6/8 の 太鼓 - ハイハット - ハイハット - スネア - ハイハット - ハイハット */
+#define DR  1,T, 3,T, 3,T, 2,T, 3,T, 3,T
+const uint8_t title_c[] = {
+    DR, DR, DR, DR,  DR, DR, DR, DR,
+    DR, DR, DR, DR,  DR, DR, DR, DR,
+    0xFF
+};
+
 /* ステージクリアのファンファーレ (約1.7秒)。曲と同じ B マイナーで、トーン3声。 */
 const uint8_t fan_a[] = {
     B3,8, D4,8, Fs4,8, B4,16, 0,4, Fs4,8, B4,8, D5,40, 0xFE

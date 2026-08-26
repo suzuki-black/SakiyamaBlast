@@ -157,7 +157,8 @@ static void snd_start(const uint8_t *a, const uint8_t *b, const uint8_t *c, uint
     mode = m;
 }
 
-void snd_play_bgm(void)
+/* 旋律 + ベース + ノイズドラムの3声で曲を鳴らす。坑内の曲もタイトルの曲も同じ形。 */
+static void play_song(const uint8_t *a, const uint8_t *b, const uint8_t *c)
 {
     ch_vol0[0] = 13;      /* 主旋律 */
     ch_vol0[1] = 11;      /* ベース */
@@ -170,7 +171,17 @@ void snd_play_bgm(void)
         set_mixer(1);                  /* トーン A/B のみ、ノイズは C のみ */
         PSG_W(6, drum_period[DRUM_BD]);
     }
-    snd_start(bgm_a, bgm_b, bgm_c, SND_BGM);
+    snd_start(a, b, c, SND_BGM);
+}
+
+void snd_play_bgm(void)
+{
+    play_song(bgm_a, bgm_b, bgm_c);
+}
+
+void snd_play_title(void)
+{
+    play_song(title_a, title_b, title_c);
 }
 
 /* ファンファーレやミスのジングル。BGM を止めてトーン3声で鳴らす。 */
