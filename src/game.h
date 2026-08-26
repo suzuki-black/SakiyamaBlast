@@ -19,10 +19,11 @@
 
 /* 速度は分子加算式。毎フレーム加算し SPD_UNIT に達するごとに 1px 進む。
    Mr. Do! は既掘の坑道は等速・未掘の土を食い進む間は減速する (EATWALL の速度ペナルティ)。
-   60fps で 坑道 60px/s / 掘削 40px/s。 */
-#define SPD_UNIT    3
-#define SPD_TUNNEL  3
-#define SPD_DIG     2
+   60fps で 坑道 60px/s / 掘削 40px/s。
+   分母を 12 にしてあるのは、敵の速度を 5px/s 刻みで調整できるようにするため。 */
+#define SPD_UNIT   12
+#define SPD_TUNNEL 12         /* 60px/s */
+#define SPD_DIG     8         /* 40px/s */
 
 /* 岩。押し・落下距離での割れ・潰しは Mr. Do! の apple 準拠だが、**支え判定は Dig Dug 準拠**で、
    真下の升目に自機が居る間は揺れも落下もしない (好きなだけ待てる)。自機が離れた瞬間に
@@ -48,11 +49,21 @@
 #define SPAWN_BASE    300     /* 次の湧きまでのフレーム数 (面1 = 5秒) */
 #define SPAWN_STEP    15      /* 面が進むごとに速くなる */
 #define SPAWN_MIN     120
-#define SPD_ENEMY     2       /* 坑道 40px/s (自機の 60px/s より遅い) */
-#define SPD_ENEMY_GHOST 1     /* 透明ですり抜けている間 20px/s (遅い) */
-#define GHOST_BASE    480     /* 透明化までのフレーム数 (面1 = 8秒) */
-#define GHOST_STEP    30      /* 面が進むごとに早くなる */
-#define GHOST_MIN     180     /* 高次面での下限 (3秒) */
+/* 敵の速さと性格。Dig Dug の Pooka / Fygar の違い (Pooka は執拗で速い、Fygar は
+   気紛れで遅い) に倣って2種類に分けた。ただし**速さは原作より落としてある**:
+   原作の Pooka は自機よりわずかに速いが、本作は敵の総数が多くポンプのような
+   飛び道具も無いので、そのままでは追い詰められるだけになる。
+   自機は掘削中 40px/s まで落ちるので、敵はそれより遅くしないと振り切れない。 */
+#define EN_RAT        0       /* ネズミ: 執拗に追う */
+#define EN_BAT        1       /* コウモリ: 気紛れ */
+#define SPD_RAT       7       /* 35px/s */
+#define SPD_BAT       5       /* 25px/s */
+#define WANDER_RAT    7       /* rnd8() & これ が 0 のとき進路を選び直す (1/8) */
+#define WANDER_BAT    1       /* コウモリは 1/2 の節点で気紛れに選び直す */
+#define SPD_ENEMY_GHOST 4     /* 透明ですり抜けている間 20px/s */
+#define GHOST_BASE    600     /* 透明化までのフレーム数 (面1 = 10秒) */
+#define GHOST_STEP    20      /* 面が進むごとに早くなる */
+#define GHOST_MIN     300     /* 高次面での下限 (5秒) */
 #define GHOST_PAUSE   20      /* 透明になる瞬間は一拍止まる */
 
 /* 体温オーバーヒートと風呂。常磐炭鉱は地熱約40度＋湧水で過酷 (史実) という設定。

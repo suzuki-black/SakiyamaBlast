@@ -20,6 +20,7 @@ uint8_t en_x[ENEMY_MAX], en_y[ENEMY_MAX];
 
 static uint8_t  en_dir[ENEMY_MAX];
 static uint8_t  en_ghost[ENEMY_MAX];      /* 1 = 透明で土をすり抜けている */
+static uint8_t  en_kind[ENEMY_MAX];       /* EN_RAT / EN_BAT */
 static uint8_t  en_gdirt[ENEMY_MAX];      /* 透明化してから一度でも土の中へ入ったか */
 static uint8_t  en_acc[ENEMY_MAX];
 static uint8_t  en_pause[ENEMY_MAX];
@@ -105,6 +106,7 @@ static void enemy_spawn(void)
         en_y[i] = (uint8_t)(nest_r << 4);
         en_state[i] = 1;
         en_dir[i] = (uint8_t)(DIR_UP + (rnd8() & 3));   /* 出た向きは適当に散らす */
+        en_kind[i] = (uint8_t)((rnd8() & 1) ? EN_BAT : EN_RAT);
         en_ghost[i] = 0;
         en_acc[i] = 0;
         en_pause[i] = 0;
@@ -216,8 +218,10 @@ static void decide_dir(uint8_t i)
     uint8_t rev = dir_rev(en_dir[i]);
     uint8_t k;
 
-    /* 通れるなら現在の向きを維持。ただし約1/8の確率で強制的に選び直す。 */
-    if (can_go(i, en_dir[i]) && (rnd8() & 7)) {
+    /* 通れるなら現在の向きを維持。ただし一定の確率で強制的に選び直す。
+       ネズミは 1/8、コウモリは 1/2 なので、コウモリは目に見えてふらつく。 */
+    uint8_t wander = (uint8_t)(en_kind[i] == EN_BAT ? WANDER_BAT : WANDER_RAT);
+    if (can_go(i, en_dir[i]) && (rnd8() & wander)) {
         return;
     }
     chase_order(i, order);
@@ -272,7 +276,7 @@ static void enemy_step(uint8_t i)
         }
     }
 
-    en_acc[i] = (uint8_t)(en_acc[i] + SPD_ENEMY);
+    en_acc[i] = (uint8_t)(en_acc[i] + (en_kind[i] == EN_BAT ? SPD_BAT : SPD_RAT));
     if (en_acc[i] < SPD_UNIT) {
         return;
     }
@@ -364,20 +368,28 @@ void enemy_update(void)
     }
 }
 
+/* 透明化中の色。16行ぜんぶ同じ淡い色にして、輪郭だけが見える状態にする。 */
+static const uint8_t ghost_colours[16] = {
+    COL_BATH, COL_BATH, COL_BATH, COL_BATH, COL_BATH, COL_BATH, COL_BATH, COL_BATH,
+    COL_BATH, COL_BATH, COL_BATH, COL_BATH, COL_BATH, COL_BATH, COL_BATH, COL_BATH
+};
+
 void enemy_draw(void)
 {
-    uint8_t i, col;
+    uint8_t i, col, pat;
     for (i = 0; i < ENEMY_MAX; i++) {
         if (!en_state[i]) {
             spr_park((uint8_t)(SPR_ENEMY + i));
             continue;
         }
-        col = (uint8_t)(en_ghost[i] ? PAT_BAT : PAT_RAT);
+        pat = (uint8_t)(en_kind[i] == EN_BAT ? PAT_BAT : PAT_RAT);
+        /* 透明化中は絵はそのままで色だけ抜く (土をすり抜けている状態) */
+        col = (uint8_t)(en_ghost[i] ? 0xFF : pat);
         if (col != en_col[i]) {
             en_col[i] = col;
-            spr_color_lines((uint8_t)(SPR_ENEMY + i), art_colours(col));
+            spr_color_lines((uint8_t)(SPR_ENEMY + i),
+                            (col == 0xFF) ? ghost_colours : art_colours(pat));
         }
-        spr_set((uint8_t)(SPR_ENEMY + i), en_x[i], (uint8_t)(en_y[i] - 1),
-                (uint8_t)(en_ghost[i] ? PAT_BAT : PAT_RAT));
+        spr_set((uint8_t)(SPR_ENEMY + i), en_x[i], (uint8_t)(en_y[i] - 1), pat);
     }
 }
