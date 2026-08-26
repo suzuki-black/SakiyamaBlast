@@ -89,63 +89,78 @@ const uint8_t bgm_c[] = {
  */
 
 /* ハ長調。音名 -> 音程テーブル番号 (MIDI - 35) */
-#define C2t   1
 #define F2t   6
 #define G2t   8
+#define A2t  10
+#define B2t  12
 #define C3t  13
 #define D3t  15
-#define G3t  20
-#define C4t  25
-#define D4t  27
-#define E4t  29
-#define F4t  30
-#define G4t  32
-#define A4t  34
-#define B4t  36
-#define C5t  37
-#define D5t  39
+#define E3t  17
+/* 旋律。名前は譜面の音名だが、値は**1オクターブ上**の音程番号にしてある。
+   ベース (C3t = 約65Hz) と2オクターブ離さないと低音が濁るため。 */
+#define mC4  37
+#define mD4  39
+#define mE4  41
+#define mF4  42
+#define mG4  44
+#define mA4  46
+#define mB4  48
+#define mC5  49
+#define mD5  51
 
 #define T   12      /* 八分音符 */
 
 /* 旋律。1行 = 1小節 (八分音符6つ分)。 */
 const uint8_t title_a[] = {
-    C5t,T*3, C5t,T,   B4t,T,   A4t,T,          /* Down     in__ a       */
-    G4t,T*3, E4t,T*3,                          /* coal     mine         */
-    F4t,T*2, F4t,T,   F4t,T*2, G4t,T,          /* un-der-neath the      */
-    E4t,T*5, 0,  T,                            /* ground,               */
-    A4t,T*2, A4t,T,   C5t,T,   B4t,T,   A4t,T, /* Where a  gleam of     */
-    G4t,T*3, E4t,T*3,                          /* sun-shine             */
-    A4t,T*2, G4t,T,   E4t,T*2, C4t,T,          /* nev-er   can be       */
-    D4t,T*5, 0,  T,                            /* found,                */
-    E4t,T*2, D4t,T,   C4t,T*2, E4t,T,          /* Dig-ging dus-ky       */
-    G4t,T*3, G4t,T*3,                          /* dia-monds             */
-    A4t,T,   B4t,T,   C5t,T,   D5t,T*2, C5t,T, /* all__ the sea-son     */
-    B4t,T*5, 0,  T,                            /* round,                */
-    C5t,T*3, C5t,T,   B4t,T,   A4t,T,          /* Down     in__ a       */
-    G4t,T*3, C5t,T*3,                          /* coal     mine         */
-    D5t,T*2, A4t,T,   B4t,T*2, A4t,T,          /* un-der-neath the      */
-    C5t,T*5, 0,  T,                            /* ground.               */
+    mC5,T*3, mC5,T,   mB4,T,   mA4,T,          /* Down     in__ a       */
+    mG4,T*3, mE4,T*3,                          /* coal     mine         */
+    mF4,T*2, mF4,T,   mF4,T*2, mG4,T,          /* un-der-neath the      */
+    mE4,T*5, 0,  T,                            /* ground,               */
+    mA4,T*2, mA4,T,   mC5,T,   mB4,T,   mA4,T, /* Where a  gleam of     */
+    mG4,T*3, mE4,T*3,                          /* sun-shine             */
+    mA4,T*2, mG4,T,   mE4,T*2, mC4,T,          /* nev-er   can be       */
+    mD4,T*5, 0,  T,                            /* found,                */
+    mE4,T*2, mD4,T,   mC4,T*2, mE4,T,          /* Dig-ging dus-ky       */
+    mG4,T*3, mG4,T*3,                          /* dia-monds             */
+    mA4,T,   mB4,T,   mC5,T,   mD5,T*2, mC5,T, /* all__ the sea-son     */
+    mB4,T*5, 0,  T,                            /* round,                */
+    mC5,T*3, mC5,T,   mB4,T,   mA4,T,          /* Down     in__ a       */
+    mG4,T*3, mC5,T*3,                          /* coal     mine         */
+    mD5,T*2, mA4,T,   mB4,T*2, mA4,T,          /* un-der-neath the      */
+    mC5,T*5, 0,  T,                            /* ground.               */
     0xFF
 };
 
-/* ベース: 小節ごとに (根音 x3, 5度下 x3)。和音は C - C - F - C - F - C - C - G -
-   C - C - G - G - C - C - G - C。 */
-#define BC  C3t,T*3, G2t,T*3      /* C */
-#define BF  F2t,T*3, C3t,T*3      /* F */
-#define BG  G2t,T*3, D3t,T*3      /* G */
+/*
+ * ベース: 6/8 が跳ねるように、1拍を「根音(2) + 5度(1)」で刻む。
+ * 2拍目の裏は3度にして動きを出す。和音は
+ *   C C F C / F C C G / C C G G / C C G C
+ * 4小節ごとの区切り (8/12/15小節目) は次の和音へ歩いて入る。
+ */
+#define BC   C3t,T*2, G2t,T,  C3t,T*2, E3t,T          /* C */
+#define BF   F2t,T*2, C3t,T,  F2t,T*2, A2t,T          /* F */
+#define BG   G2t,T*2, D3t,T,  G2t,T*2, B2t,T          /* G */
+#define BGw  G2t,T*2, D3t,T,  G2t,T,   A2t,T, B2t,T   /* G -> C へ歩く */
 const uint8_t title_b[] = {
-    BC, BC, BF, BC,
-    BF, BC, BC, BG,
-    BC, BC, BG, BG,
-    BC, BC, BG, BC,
+    BC,  BC,  BF,  BC,
+    BF,  BC,  BC,  BGw,
+    BC,  BC,  BG,  BGw,
+    BC,  BC,  BGw, BC,
     0xFF
 };
 
-/* ドラム: 6/8 の 太鼓 - ハイハット - ハイハット - スネア - ハイハット - ハイハット */
-#define DR  1,T, 3,T, 3,T, 2,T, 3,T, 3,T
+/*
+ * ドラム: 基本は 6/8 の 太鼓-ハット-ハット-スネア-ハット-ハット。
+ * 4小節ごとの終わりはスネアのフィルにして、16小節目はループ頭へ向けて大きく入れる。
+ */
+#define DR   1,T, 3,T, 3,T, 2,T, 3,T, 3,T      /* 基本 */
+#define DF   1,T, 3,T, 3,T, 2,T, 2,T, 2,T      /* 4小節ごとの切れ目 */
+#define DFE  1,T, 2,T, 2,T, 2,T, 2,T, 2,T      /* ループ直前 */
 const uint8_t title_c[] = {
-    DR, DR, DR, DR,  DR, DR, DR, DR,
-    DR, DR, DR, DR,  DR, DR, DR, DR,
+    DR, DR, DR, DF,
+    DR, DR, DR, DF,
+    DR, DR, DR, DF,
+    DR, DR, DR, DFE,
     0xFF
 };
 
