@@ -117,6 +117,10 @@ static void start_stage(void)
     state = ST_START;
 }
 
+/* 面クリア時に得点を入れた本数。ストックは次の面へ持ち越すので、これを憶えて
+   おかないと同じ1本に毎面ボーナスが入ってしまう。1本につき1回だけ入れる。 */
+static uint8_t scored_stock;
+
 static void new_game(void)
 {
     rnd_seed((uint16_t)((uint16_t)JIFFY << 8 | (uint16_t)JIFFY));
@@ -124,12 +128,17 @@ static void new_game(void)
     stage = cfg_start_stage;
     score_reset();
     stock = 0;              /* 開始ストックは0。火薬を拾って貯める。 */
+    scored_stock = 0;
     start_stage();
 }
 
 static void next_stage(void)
 {
-    score_add((uint16_t)stock * PTS_LEFTOVER_DYN);   /* 残ダイナマイトを得点に */
+    if (scored_stock > stock) {
+        scored_stock = stock;        /* 使った分は勘定から外す */
+    }
+    score_add((uint16_t)(stock - scored_stock) * PTS_LEFTOVER_DYN);
+    scored_stock = stock;
     stage++;                /* ストックは持ち越す (リセットしない) */
     start_stage();
 }
