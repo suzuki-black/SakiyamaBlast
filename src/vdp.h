@@ -25,6 +25,7 @@ void vdp_wblock(const uint8_t *src) __z88dk_fastcall;
 
 /* --- 高レベル (vdp.c) --- */
 void vdp_screen5(void);
+void vdp_display(uint8_t on);   /* 0 で画面を消す (幕を下ろす) */
 void vdp_set_palette(uint8_t idx, uint8_t r, uint8_t g, uint8_t b);
 void vdp_upload(uint16_t addr, const uint8_t *src, uint16_t len);
 void vdp_memset(uint16_t addr, uint8_t val, uint16_t len);

@@ -101,6 +101,8 @@ static void hide_stage_msg(void)
 
 static void start_stage(void)
 {
+    /* パレットの差し替えと面の描き起こしは見せない。描き切ってから幕を上げる。 */
+    vdp_display(0);
     set_game_palette();
     build_stage();
     bomb_clear();
@@ -110,6 +112,7 @@ static void start_stage(void)
     hud_reset();
     hud_draw();
     show_stage_msg();        /* 面を描き切ってから開始表示を出す */
+    vdp_display(1);
     timer = START_HOLD;
     state = ST_START;
 }
@@ -159,6 +162,7 @@ static void goto_ending(uint8_t to_ura)
     snd_stop();
     spr_park_all();
     oam_flush();
+    vdp_display(0);
     set_game_palette();          /* タイトル1枚絵のパレットから戻す */
     vdp_fill(0, 0, 256, SCR_H, COL_TUNNEL);
     text_draw(48, 40, "CONGRATULATIONS", COL_FUSE, COL_TUNNEL, 1);
@@ -166,6 +170,7 @@ static void goto_ending(uint8_t to_ura)
     text_draw(24, 88, "ALL THE BLACK DIAMONDS.", COL_WHITE, COL_TUNNEL, 1);
     text_draw(96, 128, "THE END", COL_WHITE, COL_TUNNEL, 2);
     text_draw(56, 176, "PUSH SPACE KEY", COL_DIA, COL_TUNNEL, 1);
+    vdp_display(1);
     snd_play_fanfare();
     ending_to_ura = to_ura;
     state = ST_ENDING;
@@ -176,7 +181,9 @@ static void goto_title(void)
     snd_stop();
     spr_park_all();         /* 1枚絵の上にスプライトが残らないように */
     oam_flush();
+    vdp_display(0);              /* 1枚絵のパレットに切り替わるところを見せない */
     title_draw();
+    vdp_display(1);
     state = ST_TITLE;
 }
 
@@ -211,8 +218,10 @@ void main(void)
 
         if (state == ST_TITLE) {
             if (konami_check()) {
+                vdp_display(0);
                 set_game_palette();      /* タイトル1枚絵のパレットから戻す */
                 config_enter();
+                vdp_display(1);
                 state = ST_CONFIG;
             } else if (fire_pressed()) {
                 loop_n = 0;

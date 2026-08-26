@@ -1,12 +1,25 @@
 /* SakiyamaBlast - SCREEN 5 初期化と描画プリミティブ */
 #include "vdp.h"
 
+/* R#1 は書き込み専用なので、いま入れている値を憶えておく */
+static uint8_t reg1 = 0x62;
+
+/* 画面の表示 ON/OFF (R#1 bit6)。OFF の間は R#7 の色 (黒) だけになる。
+   パレットの差し替えや面の描き起こしを見せないための幕。
+   垂直帰線割り込み (bit5) は落とさないので JIFFY は進み続ける。 */
+void vdp_display(uint8_t on)
+{
+    reg1 = on ? (uint8_t)(reg1 | 0x40) : (uint8_t)(reg1 & 0xBF);
+    VDP_REG(1, reg1);
+}
+
 void vdp_screen5(void)
 {
     /* GRAPHIC 4 (M3=1, M4=1) */
     VDP_REG(0, 0x06);
     /* 表示ON + 垂直帰線割り込みON + 16x16スプライト */
-    VDP_REG(1, 0x62);
+    reg1 = 0x62;
+    VDP_REG(1, reg1);
     VDP_REG(2, 0x1F);            /* ビットマップ = 0x00000 (ページ0) */
     VDP_REG(3, 0xFF);
     VDP_REG(4, 0x03);
