@@ -56,6 +56,7 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
             set sc [debug read memory $A_STARTC]; set sr [debug read memory $A_STARTR]; \
             puts \$f \"NESTDUG [debug read memory [expr {$A_DUG+\$nr*16+\$nc}]]\"; \
             puts \$f \"NESTFAR [expr {(abs(\$nc-\$sc)+abs(\$nr-\$sr)) >= 6}]\"; \
+            puts \$f \"NESTOPEN [expr {[debug read memory [expr {$A_DUG+(\$nr-1)*16+\$nc}]] || [debug read memory [expr {$A_DUG+(\$nr+1)*16+\$nc}]] || [debug read memory [expr {$A_DUG+\$nr*16+\$nc-1}]] || [debug read memory [expr {$A_DUG+\$nr*16+\$nc+1}]]}]\"; \
             puts \$f \"BATHON [debug read memory $A_BATHON]\"; \
             set p 0; set d 0; set g 0; \
             for {set i 0} {\$i<176} {incr i} { \
@@ -91,6 +92,7 @@ check STARTC   7   "自機の出発点の列 (掘り抜きの上端)"
 check STARTR   1   "自機の出発点の行"
 check NESTDUG  1   "敵の湧き出し口が1ブロック開いている"
 check NESTFAR  1   "湧き出し口が自機の出発点から6升以上離れている"
+check NESTOPEN 1   "湧き出し口が坑道に面している (敵が歩いて出てこられる)"
 check PX       112 "自機のX (= 出発点の列 x16)"
 check PY       16  "自機のY (= 出発点の行 x16)"
 check BATHON   1   "風呂が健在"

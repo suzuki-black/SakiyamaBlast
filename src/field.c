@@ -491,44 +491,66 @@ static void place_rocks(void)
 }
 
 /* 湧き出し口を1ブロックだけ土に開ける。自機の出発点から離れた場所を選ぶ。 */
+/*
+ * 敵の湧き出し口。数字の掘り抜きとは別の1ブロックの横穴。
+ *
+ * **既掘の坑道に face する升を選ぶ**のが肝。ここを孤立した穴にすると、湧いた敵が
+ * 四方を土に囲まれて boxed_in になり、その場で透明化して土を斜めに突っ切ってしまう。
+ * すると穴から出てくるように見えず、盤面のどこからともなく現れる形になる。
+ * 坑道に面していれば、敵は実体のまま横穴から歩いて出てくる。
+ */
+static uint8_t cave_ok(uint16_t i, uint8_t need_open)
+{
+    uint8_t c = (uint8_t)(i % COLS), r = (uint8_t)(i / COLS);
+    int8_t dc, dr;
+    if (dug[i]) {
+        return 0;
+    }
+    dc = (int8_t)(c - start_c); if (dc < 0) { dc = (int8_t)-dc; }
+    dr = (int8_t)(r - start_r); if (dr < 0) { dr = (int8_t)-dr; }
+    if (dc + dr < 6) {
+        return 0;                        /* 出発点の近くには置かない */
+    }
+    if (!need_open) {
+        return 1;
+    }
+    return (uint8_t)(cell_dug((int8_t)c, (int8_t)(r - 1))
+                     || cell_dug((int8_t)c, (int8_t)(r + 1))
+                     || cell_dug((int8_t)(c - 1), (int8_t)r)
+                     || cell_dug((int8_t)(c + 1), (int8_t)r));
+}
+
 static void place_cave(void)
 {
-    uint16_t i, n = 0, hit;
-    uint8_t c, r;
-    int8_t dc, dr;
+    uint16_t i, n, hit;
+    uint8_t need_open;
 
-    for (i = 0; i < NCELL; i++) {
-        if (dug[i]) {
-            continue;
+    /* まず坑道に面した升から探し、見つからなければ条件を落とす */
+    for (need_open = 1; ; need_open = 0) {
+        n = 0;
+        for (i = 0; i < NCELL; i++) {
+            if (cave_ok(i, need_open)) {
+                n++;
+            }
         }
-        c = (uint8_t)(i % COLS);
-        r = (uint8_t)(i / COLS);
-        dc = (int8_t)(c - start_c); if (dc < 0) { dc = (int8_t)-dc; }
-        dr = (int8_t)(r - start_r); if (dr < 0) { dr = (int8_t)-dr; }
-        if (dc + dr >= 6) {
-            n++;
+        if (n) {
+            break;
+        }
+        if (!need_open) {
+            nest_c = start_c;            /* 保険 */
+            nest_r = start_r;
+            return;
         }
     }
-    if (n == 0) {
-        nest_c = start_c;                /* 保険 */
-        nest_r = start_r;
-        return;
-    }
+
     hit = (uint16_t)(((uint16_t)rnd8() << 8 | rnd8()) % n);
     for (i = 0; i < NCELL; i++) {
-        if (dug[i]) {
-            continue;
-        }
-        c = (uint8_t)(i % COLS);
-        r = (uint8_t)(i / COLS);
-        dc = (int8_t)(c - start_c); if (dc < 0) { dc = (int8_t)-dc; }
-        dr = (int8_t)(r - start_r); if (dr < 0) { dr = (int8_t)-dr; }
-        if (dc + dr < 6) {
+        if (!cave_ok(i, need_open)) {
             continue;
         }
         if (hit == 0) {
-            nest_c = c;
-            nest_r = r;
+            nest_c = (uint8_t)(i % COLS);
+            nest_r = (uint8_t)(i / COLS);
             dug[i] = 1;                  /* 1ブロックだけ開ける */
             used[i] = 1;
             return;
