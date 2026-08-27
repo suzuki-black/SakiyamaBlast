@@ -31,9 +31,51 @@ void bomb_clear(void)
     spr_park(SPR_BOMB);
 }
 
+/* その升へ飛び込めるか。敵は「当たり」なので別に見る。 */
+static uint8_t flyable(int8_t cx, int8_t cy)
+{
+    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
+        return 0;
+    }
+    if (!cell_dug(cx, cy)) {
+        return 0;                   /* 未掘の土は抜けられない */
+    }
+    if (cell_coal(cx, cy)) {
+        return 0;                   /* 黒ダイヤは硬い */
+    }
+    if (rock_at(cx, cy) >= 0) {
+        return 0;
+    }
+    if (bath_on && (uint8_t)cx == bath_c && (uint8_t)cy == bath_r) {
+        return 0;                   /* 風呂は壊したくないので手前で止まる */
+    }
+    return 1;
+}
+
 void bomb_throw(uint8_t dir)
 {
-    if (bomb_state != 0 || stock == 0 || dir == DIR_NONE) {
+    int8_t nc, nr;
+    if (bomb_state != 0 || dir == DIR_NONE) {
+        return;
+    }
+    if (stock == 0) {
+        snd_sfx(SFX_NOPE);          /* 持っていない。無反応だと壊れて見える */
+        return;
+    }
+    /* 投げる先が塞がっているなら投げない。**そのまま投げると足元に落ちて即座に
+       拾い直すだけ**になり、押しても何も起きていないように見える。
+       掘っている間は常に土を向いているので、これが無いと B が死んでいると感じる。
+       ただし隣に敵が居るときは、ゼロ距離で当てられるように投げさせる。 */
+    nc = (int8_t)player_cell_c();
+    nr = (int8_t)player_cell_r();
+    switch (dir) {
+    case DIR_UP:    nr--; break;
+    case DIR_DOWN:  nr++; break;
+    case DIR_LEFT:  nc--; break;
+    default:        nc++; break;
+    }
+    if (!enemy_at(nc, nr) && !flyable(nc, nr)) {
+        snd_sfx(SFX_NOPE);          /* 向いている先が土や岩。投げる隙間が無い */
         return;
     }
     stock--;
@@ -80,26 +122,6 @@ static void finish_blast(void)
     player_carve();
 }
 
-/* その升へ飛び込めるか。敵は「当たり」なので別に見る。 */
-static uint8_t flyable(int8_t cx, int8_t cy)
-{
-    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
-        return 0;
-    }
-    if (!cell_dug(cx, cy)) {
-        return 0;                   /* 未掘の土は抜けられない */
-    }
-    if (cell_coal(cx, cy)) {
-        return 0;                   /* 黒ダイヤは硬い */
-    }
-    if (rock_at(cx, cy) >= 0) {
-        return 0;
-    }
-    if (bath_on && (uint8_t)cx == bath_c && (uint8_t)cy == bath_r) {
-        return 0;                   /* 風呂は壊したくないので手前で止まる */
-    }
-    return 1;
-}
 
 /* 飛べなくなったので、いまの升へ落として拾えるようにする。 */
 static void bomb_land(void)

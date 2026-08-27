@@ -188,6 +188,10 @@ const uint8_t sfx_dig[]  = { 14,3, 8,4, 0xFE };                     /* 掘る: �
 const uint8_t sfx_pick[] = { B4,4, D5,4, Fs5,8, 0xFE };             /* 拾う: 上がる3音 */
 const uint8_t sfx_set[]  = { B2,5, Fs2,6, 0xFE };                   /* 置く: 低い2音 */
 const uint8_t sfx_boom[] = { 6,4, 12,5, 18,6, 24,8, 30,14, 0xFE };  /* 爆発: 低く落ちる轟音 */
+/* 投げられないとき: 低く短い「コツン」。押しても何も起きないと
+   ボタンが効いていないように見えるので、必ず何か鳴らす。 */
+const uint8_t sfx_nope[] = { 13,3, 0xFE };
+
 /* つるはし: 高い音を2つ、短く硬く。金属が石を叩く「キンキン」。 */
 const uint8_t sfx_mine[] = { 55,2, 0,1, 57,3, 0xFE };
 const uint8_t sfx_miss[] = { B4,5, A4,5, Fs4,5, D4,5, B3,7, Fs3,16, 0xFE };  /* ミス: 下降 */
