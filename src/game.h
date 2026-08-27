@@ -60,6 +60,15 @@
 #define SPD_BAT       5       /* 25px/s */
 #define WANDER_RAT    7       /* rnd8() & これ が 0 のとき進路を選び直す (1/8) */
 #define WANDER_BAT    1       /* コウモリは 1/2 の節点で気紛れに選び直す */
+/* 追跡の「遊び」。毎回いちばん自機へ近づく方向を選ぶと坑道をなぞって一直線に
+   詰めてくるだけになり、つるはしを振る余裕が無くなる。節点ごとに:
+     STRAY_x の確率で自機を無視して通れる方向から適当に選ぶ (気まぐれ)
+     そうでなくても SWAP_x の確率で主軸と副軸を入れ替える (回り込むように見える)
+   値は rnd8() & 値 == 0 の確率なので、3 なら 1/4、1 なら 1/2。 */
+#define STRAY_RAT     3       /* ネズミ 1/4 */
+#define STRAY_BAT     1       /* コウモリ 1/2 */
+#define SWAP_RAT      1       /* ネズミ 1/2 */
+#define SWAP_BAT      1       /* コウモリ 1/2 */
 #define SPD_ENEMY_GHOST 4     /* 透明ですり抜けている間 20px/s */
 #define GHOST_BASE    600     /* 透明化までのフレーム数 (面1 = 10秒) */
 #define GHOST_STEP    20      /* 面が進むごとに早くなる */

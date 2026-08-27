@@ -2,6 +2,7 @@
 #include "game.h"
 #include "vdp.h"
 #include "art.h"
+#include "text.h"
 
 uint8_t  dug[NCELL];
 uint8_t  powder[NCELL];
@@ -44,11 +45,13 @@ uint8_t coal_hit(int8_t cx, int8_t cy)
     }
     i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
     coal[i]--;
-    if (coal[i] != 0) {
+    if (coal[i] == 0) {
+        coal[i] = COAL_CRACKED;
+    }
+    draw_coal((uint8_t)cx, (uint8_t)cy);   /* 残り耐久度の数字も描き直す */
+    if (coal[i] != COAL_CRACKED) {
         return 0;
     }
-    coal[i] = COAL_CRACKED;
-    draw_coal((uint8_t)cx, (uint8_t)cy);
     score_add(PTS_COAL_CRACK);
     return 1;
 }
@@ -138,15 +141,27 @@ void draw_bombdrop(uint8_t cx, uint8_t cy)
 }
 
 /* 黒ダイヤ (石炭)。立ちはだかっている間は 16x16 全部を使い、
-   割れたら坑道の上に破片だけを重ねる (通れるようになったことが見て分かる)。 */
+   割れたら坑道の上に破片だけを重ねる (通れるようになったことが見て分かる)。
+   立ちはだかっている間は**右上に残りの耐久度**を出す。あと何回叩けばよいかが
+   見えないと、敵に追われながら叩き続けるのが苦しいため。 */
 void draw_coal(uint8_t cx, uint8_t cy)
 {
-    if (coal[(uint16_t)cy * COLS + cx] == COAL_CRACKED) {
+    uint8_t hp = coal[(uint16_t)cy * COLS + cx];
+    char buf[4];
+
+    if (hp == COAL_CRACKED) {
         draw_dug_cell((int8_t)cx, (int8_t)cy);
         draw_tile(cx, cy, art_tile_of(TILE_DIACRK), 2);
         return;
     }
     draw_tile(cx, cy, art_tile_of(TILE_DIA), 0);
+    if (hp == 0 || hp > 9) {
+        return;                      /* 2桁は右上に収まらない */
+    }
+    text_u8(buf, hp);
+    buf[1] = 0;
+    text_draw((uint16_t)((uint16_t)cx << 4) + 8, (uint16_t)((uint16_t)cy << 4) + 1,
+              buf, COL_TUNNEL, COL_DIA, 1);
 }
 
 /* 風呂 (温泉)。触れると体温が一気に下がる。 */

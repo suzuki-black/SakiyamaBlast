@@ -231,16 +231,40 @@ static void chase_order(uint8_t i, uint8_t *out)
 static void decide_dir(uint8_t i)
 {
     uint8_t order[4];
+    uint8_t cand[4];
     uint8_t rev = dir_rev(en_dir[i]);
-    uint8_t k;
+    uint8_t bat = (uint8_t)(en_kind[i] == EN_BAT);
+    uint8_t k, n, d, t;
+
+    /* 気まぐれ: 自機を無視して、通れる方向から適当に選ぶ。
+       **進路の選び直しより先に、節点ごとに独立して判定する。**
+       選び直しの中に入れると実効確率が (1/8)x(1/4) まで落ちて効かなくなる。
+       これが無いと常に最短で詰めてくるので、遊ぶ側に一切の余裕が無くなる。 */
+    if ((rnd8() & (bat ? STRAY_BAT : STRAY_RAT)) == 0) {
+        n = 0;
+        for (k = 0; k < 4; k++) {
+            d = (uint8_t)(DIR_UP + k);
+            if (d != rev && can_go(i, d)) {
+                cand[n++] = d;
+            }
+        }
+        if (n) {
+            en_dir[i] = cand[rnd8() % n];
+            return;
+        }
+    }
 
     /* 通れるなら現在の向きを維持。ただし一定の確率で強制的に選び直す。
        ネズミは 1/8、コウモリは 1/2 なので、コウモリは目に見えてふらつく。 */
-    uint8_t wander = (uint8_t)(en_kind[i] == EN_BAT ? WANDER_BAT : WANDER_RAT);
-    if (can_go(i, en_dir[i]) && (rnd8() & wander)) {
+    if (can_go(i, en_dir[i]) && (rnd8() & (bat ? WANDER_BAT : WANDER_RAT))) {
         return;
     }
+
     chase_order(i, order);
+    /* 回り込み: 主軸と副軸を入れ替える。まっすぐ詰めずに斜めに寄ってくる形になる。 */
+    if ((rnd8() & (bat ? SWAP_BAT : SWAP_RAT)) == 0) {
+        t = order[0]; order[0] = order[1]; order[1] = t;
+    }
     /* まず引き返さない方向から、自機に近づく順に選ぶ */
     for (k = 0; k < 4; k++) {
         if (order[k] != rev && can_go(i, order[k])) {
