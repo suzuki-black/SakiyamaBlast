@@ -69,7 +69,10 @@
 #define STRAY_BAT     1       /* コウモリ 1/2 */
 #define SWAP_RAT      1       /* ネズミ 1/2 */
 #define SWAP_BAT      1       /* コウモリ 1/2 */
-#define SPD_ENEMY_GHOST 4     /* 透明ですり抜けている間 20px/s */
+/* 透明化して未掘の土をすり抜けている間は、**素の速さの半分以下**に落とす
+   (Dig Dug 準拠)。土の中を突っ切るほうが速いと、坑道を掘る意味が薄れるため。 */
+#define SPD_RAT_GHOST 3       /* 15px/s (素の 35px/s の 43%) */
+#define SPD_BAT_GHOST 2       /* 10px/s (素の 25px/s の 40%) */
 #define GHOST_BASE    600     /* 透明化までのフレーム数 (面1 = 10秒) */
 #define GHOST_STEP    20      /* 面が進むごとに早くなる */
 #define GHOST_MIN     300     /* 高次面での下限 (5秒) */

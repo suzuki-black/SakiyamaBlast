@@ -147,16 +147,36 @@ static void spawn_tick(void)
 
 /* 透明でも「トンネルの中に居る間」は倒せる (Dig Dug 準拠:
    "once a ghost enters a tunnel, it can be killed")。土の中に居る間だけ無敵。 */
+/*
+ * 敵 i がその升に掛かっているか。
+ *
+ * **中心の升が一致するかで見てはいけない。** 敵は升の途中にも居るので、
+ * 半分はみ出している敵をダイナマイトがすり抜けてしまう。16x16 同士の
+ * 重なりで見て、4px 以上重なっていれば当たりとする。
+ */
+static uint8_t hits_cell(uint8_t i, int8_t cx, int8_t cy)
+{
+    int16_t dx, dy;
+    if (!en_state[i] || (en_ghost[i] && !cell_dug(cx, cy))) {
+        return 0;
+    }
+    dx = (int16_t)((int16_t)en_x[i] - ((int16_t)cx << 4));
+    dy = (int16_t)((int16_t)en_y[i] - ((int16_t)cy << 4));
+    if (dx < 0) { dx = (int16_t)-dx; }
+    if (dy < 0) { dy = (int16_t)-dy; }
+    return (uint8_t)((dx < 12 && dy < 12) ? 1 : 0);
+}
+
 /* その升に敵が居るか。投げたダイナマイトが当たるかどうかの判定に使う。
    飛んでいるのは坑道の中だけなので、土をすり抜けている敵はそもそも当たらない。 */
 uint8_t enemy_at(int8_t cx, int8_t cy)
 {
     uint8_t i;
+    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
+        return 0;
+    }
     for (i = 0; i < ENEMY_MAX; i++) {
-        if (!en_state[i] || (en_ghost[i] && !cell_dug(cx, cy))) {
-            continue;
-        }
-        if ((int8_t)((en_x[i] + 8) >> 4) == cx && (int8_t)((en_y[i] + 8) >> 4) == cy) {
+        if (hits_cell(i, cx, cy)) {
             return 1;
         }
     }
@@ -166,13 +186,14 @@ uint8_t enemy_at(int8_t cx, int8_t cy)
 uint8_t enemy_kill_at(int8_t cx, int8_t cy)
 {
     uint8_t i, killed = 0;
+    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
+        return 0;
+    }
     for (i = 0; i < ENEMY_MAX; i++) {
-        if (en_state[i] && !(en_ghost[i] && !cell_dug(cx, cy))) {
-            if ((int8_t)((en_x[i] + 8) >> 4) == cx && (int8_t)((en_y[i] + 8) >> 4) == cy) {
-                en_state[i] = 0;
-                spr_park((uint8_t)(SPR_ENEMY + i));
-                killed++;
-            }
+        if (hits_cell(i, cx, cy)) {
+            en_state[i] = 0;
+            spr_park((uint8_t)(SPR_ENEMY + i));
+            killed++;
         }
     }
     return killed;
@@ -336,7 +357,7 @@ static void ghost_step(uint8_t i)
 {
     uint8_t c, r;
 
-    en_acc[i] = (uint8_t)(en_acc[i] + SPD_ENEMY_GHOST);
+    en_acc[i] = (uint8_t)(en_acc[i] + (en_kind[i] == EN_BAT ? SPD_BAT_GHOST : SPD_RAT_GHOST));
     if (en_acc[i] < SPD_UNIT) {
         return;
     }
