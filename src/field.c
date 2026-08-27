@@ -5,7 +5,9 @@
 
 uint8_t  dug[NCELL];
 uint8_t  powder[NCELL];
-uint8_t  diamond[NCELL];
+uint8_t  bombdrop[NCELL];
+uint8_t  coal[NCELL];
+uint8_t  coal_left;
 uint16_t dug_n;
 uint8_t  dug_pct;
 uint8_t  stage;
@@ -22,22 +24,46 @@ uint8_t cell_dug(int8_t cx, int8_t cy)
     return dug[(uint8_t)cy * COLS + (uint8_t)cx];
 }
 
-uint8_t cell_diamond(int8_t cx, int8_t cy)
+/* 立ちはだかっている黒ダイヤなら1。割れたもの (COAL_CRACKED) は通れるので0。 */
+uint8_t cell_coal(int8_t cx, int8_t cy)
 {
+    uint8_t v;
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
         return 0;
     }
-    return diamond[(uint8_t)cy * COLS + (uint8_t)cx];
+    v = coal[(uint8_t)cy * COLS + (uint8_t)cx];
+    return (uint8_t)((v != 0 && v != COAL_CRACKED) ? 1 : 0);
 }
 
-/* ダイヤは自機の掘りでは壊れない。ダイナマイトの爆風だけが壊し、壊した分は採掘%に入る。 */
-void diamond_blast(int8_t cx, int8_t cy)
+/* つるはし1回ぶん。耐久度が0になったら割れた絵へ差し替えて1を返す。 */
+uint8_t coal_hit(int8_t cx, int8_t cy)
 {
-    if (!cell_diamond(cx, cy)) {
+    uint16_t i;
+    if (!cell_coal(cx, cy)) {
+        return 0;
+    }
+    i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
+    coal[i]--;
+    if (coal[i] != 0) {
+        return 0;
+    }
+    coal[i] = COAL_CRACKED;
+    draw_coal((uint8_t)cx, (uint8_t)cy);
+    score_add(PTS_COAL_CRACK);
+    return 1;
+}
+
+/* 割れた黒ダイヤの升に入ったときの採掘。ここで初めて coal_left が減る。 */
+void coal_take(uint8_t cx, uint8_t cy)
+{
+    uint16_t i = (uint16_t)cy * COLS + cx;
+    if (coal[i] != COAL_CRACKED) {
         return;
     }
-    diamond[(uint8_t)cy * COLS + (uint8_t)cx] = 0;
-    score_add(PTS_DIAMOND);
+    coal[i] = 0;
+    coal_left--;
+    draw_dug_cell((int8_t)cx, (int8_t)cy);
+    score_add(PTS_COAL);
 }
 
 void dig_sweep(uint8_t cx, uint8_t cy)
@@ -47,8 +73,8 @@ void dig_sweep(uint8_t cx, uint8_t cy)
         return;
     }
     i = (uint16_t)cy * COLS + cx;
-    if (dug[i] || diamond[i]) {
-        return;                     /* ダイヤは掘れない (爆風は先に diamond_blast で消す) */
+    if (dug[i] || cell_coal((int8_t)cx, (int8_t)cy)) {
+        return;                     /* 黒ダイヤは掘れない。つるはしで割るしかない */
     }
     dug[i] = 1;
     dug_n++;
@@ -105,9 +131,21 @@ void draw_powder(uint8_t cx, uint8_t cy)
     draw_tile(cx, cy, art_tile_of(TILE_POWDER), 2);
 }
 
-/* ダイヤモンドブロック。硬い鉱脈。ダイナマイトでしか砕けない。 */
-void draw_diamond(uint8_t cx, uint8_t cy)
+/* 投げて落ちたダイナマイト。坑道の上に重ねるので外周2pxは残す。 */
+void draw_bombdrop(uint8_t cx, uint8_t cy)
 {
+    draw_tile(cx, cy, art_tile_of(TILE_DYNA), 2);
+}
+
+/* 黒ダイヤ (石炭)。立ちはだかっている間は 16x16 全部を使い、
+   割れたら坑道の上に破片だけを重ねる (通れるようになったことが見て分かる)。 */
+void draw_coal(uint8_t cx, uint8_t cy)
+{
+    if (coal[(uint16_t)cy * COLS + cx] == COAL_CRACKED) {
+        draw_dug_cell((int8_t)cx, (int8_t)cy);
+        draw_tile(cx, cy, art_tile_of(TILE_DIACRK), 2);
+        return;
+    }
     draw_tile(cx, cy, art_tile_of(TILE_DIA), 0);
 }
 
@@ -148,8 +186,8 @@ void field_redraw_cell(int8_t cx, int8_t cy)
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
         return;
     }
-    if (diamond[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
-        draw_diamond((uint8_t)cx, (uint8_t)cy);
+    if (coal[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
+        draw_coal((uint8_t)cx, (uint8_t)cy);
         return;
     }
     if ((uint8_t)cx == nest_c && (uint8_t)cy == nest_r) {
@@ -166,6 +204,9 @@ void field_redraw_cell(int8_t cx, int8_t cy)
     }
     if (bonus_on && (uint8_t)cx == bonus_c && (uint8_t)cy == bonus_r) {
         draw_bonus((uint8_t)cx, (uint8_t)cy, bonus_kind);
+    }
+    if (bombdrop[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
+        draw_bombdrop((uint8_t)cx, (uint8_t)cy);
     }
 }
 
@@ -234,7 +275,7 @@ static uint8_t cell_ok(uint16_t i, uint8_t kind)
     if (kind == 0) {
         return (uint8_t)(dug[i] && !used[i]);
     }
-    if (dug[i] || diamond[i] || rock_at((int8_t)c, (int8_t)r) >= 0) {
+    if (dug[i] || coal[i] || rock_at((int8_t)c, (int8_t)r) >= 0) {
         return 0;
     }
     if (near_key_cell(i)) {
@@ -244,7 +285,7 @@ static uint8_t cell_ok(uint16_t i, uint8_t kind)
         if (r + 1 >= ROWS) {
             return 0;
         }
-        if (dug[i + COLS] || diamond[i + COLS]) {
+        if (dug[i + COLS] || coal[i + COLS]) {
             return 0;                                /* 岩の真下は土でなければならない */
         }
     }
@@ -398,27 +439,35 @@ static void place_powder(uint8_t n)
     }
 }
 
-/* ダイヤモンドブロックを土の中へ。割合は「土の面積」に対する (面-1)*2%、
-   ブロック単位で切り上げる (何%であっても必ずブロック数として増える)。 */
-static void place_diamonds(void)
-{
-    uint16_t dirt = 0, i, want, placed = 0;
-    uint8_t pct = (uint8_t)((stage - 1) * 2);
+/*
+ * 黒ダイヤ (石炭) の面ごとの配置。**ここがステージ難度の主な調整箇所。**
+ * 個数 x 耐久度 が、そのままつるはしを振る回数になる。
+ * 面15 は 11個 x 耐久4 = 44回。1回 PICK_FRAMES (0.3秒) なので振るだけで約13秒。
+ */
+static const uint8_t coal_n_tbl[MAX_STAGE] = {
+    4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11
+};
+static const uint8_t coal_hp_tbl[MAX_STAGE] = {
+    1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4
+};
+/* TODO: 絵が異なり耐久度がさらに高い「特殊な黒ダイヤ」。coal[] の値域はまだ余っている
+   (1..COAL_HP_MAX と COAL_CRACKED しか使っていない) ので、種別は別配列か上位ビットで持つ。 */
 
-    for (i = 0; i < NCELL; i++) {
-        if (!dug[i]) {
-            dirt++;
-        }
-    }
-    want = (uint16_t)((dirt * pct + 99) / 100);      /* 切り上げ */
+static void place_coal(void)
+{
+    uint8_t want = coal_n_tbl[stage - 1];
+    uint8_t hp   = coal_hp_tbl[stage - 1];
+    uint16_t i;
+
+    coal_left = 0;
     build_candidates(1);
-    while (placed < want) {
+    while (coal_left < want) {
         i = take_candidate();
         if (i == 0xFFFF) {
-            return;
+            return;                 /* 置ける升が尽きた (通常は起きない) */
         }
-        diamond[i] = 1;
-        placed++;
+        coal[i] = hp;
+        coal_left++;
     }
 }
 
@@ -527,7 +576,7 @@ static void set_stage_layout(void)
 
     place_powder(POWDER_PER_STAGE);
     place_rocks();
-    place_diamonds();
+    place_coal();
 }
 
 void build_stage(void)
@@ -538,7 +587,8 @@ void build_stage(void)
     for (i = 0; i < NCELL; i++) {
         dug[i] = 0;
         powder[i] = 0;
-        diamond[i] = 0;
+        bombdrop[i] = 0;
+        coal[i] = 0;
     }
     rock_clear();
     set_stage_layout();
@@ -555,8 +605,8 @@ void build_stage(void)
     vdp_fill(0, 0, 256, FIELD_H, COL_DIRT);
     for (r = 0; r < ROWS; r++) {
         for (c = 0; c < COLS; c++) {
-            if (diamond[(uint16_t)r * COLS + c]) {
-                draw_diamond(c, r);
+            if (coal[(uint16_t)r * COLS + c]) {
+                draw_coal(c, r);
                 continue;
             }
             if (c == nest_c && r == nest_r) {
@@ -566,6 +616,9 @@ void build_stage(void)
             draw_dug_cell((int8_t)c, (int8_t)r);
             if (powder[(uint16_t)r * COLS + c]) {
                 draw_powder(c, r);
+            }
+            if (bombdrop[(uint16_t)r * COLS + c]) {
+                draw_bombdrop(c, r);
             }
         }
     }

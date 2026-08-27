@@ -77,7 +77,21 @@
 #define FUSE_FRAMES   120     /* ダイナマイトの導火 = 約2秒 */
 #define FLASH_FRAMES  8       /* 爆風の閃光 */
 #define INVULN_FRAMES 90      /* ミス後の無敵 */
-#define WIN_PCT       90      /* 採掘率がこれ以上でステージクリア */
+/* ステージクリア = 盤面の黒ダイヤを全部採掘する (coal_left == 0)。
+   掘削率はクリア条件ではなく、クリア時の得点ボーナスに使う。 */
+#define PTS_DUG_PCT   20      /* クリア時、採掘率1%あたりの得点 */
+
+/* つるはし。黒ダイヤに接触した状態で振ると耐久度を1削る。
+   振っている間は動けないので、そこへ敵が寄ってくるのが駆け引きになる。 */
+#define PICK_FRAMES   18      /* 1回振り切るまで (0.3秒) */
+#define COAL_CRACKED  255     /* coal[] のこの値は「割れて採掘待ち」 */
+#define COAL_HP_MAX   8
+
+/* ダイナマイトは投げる武器。向いている方向へ最大5升飛ぶ。
+   飛んだ先に敵が居ればそこで爆発 (爆風は1升だけ・地形は掘らない)、
+   障害物があれば手前に落ち、何も無ければ5升先に落ちて拾い直せる。 */
+#define BOMB_RANGE     5      /* 飛距離 (升) */
+#define BOMB_FLY_FRAMES 4     /* 1升進むのに掛けるフレーム数 */
 #define LIVES_INIT    3
 #define MAX_STAGE     15      /* 全15面。掘り抜きが面番号の形になる */
 #define POWDER_PER_STAGE 10   /* 盤面に置く火薬の数 (面によらず一定) */
@@ -123,8 +137,13 @@
 /* --- field.c --- */
 extern uint8_t  dug[NCELL];      /* 掘り済みフラグ */
 extern uint8_t  powder[NCELL];   /* 火薬 (ダイナマイトの弾薬) */
-extern uint8_t  diamond[NCELL];  /* ダイヤモンドブロック。自機は掘れず通れず、
-                                    ダイナマイトだけが壊せる。壊すと採掘%に入る。 */
+extern uint8_t  bombdrop[NCELL]; /* 投げて落ちたダイナマイト。拾い直せる */
+/* 黒ダイヤ (石炭)。土と違って自機の掘りでは進めず、障害物として立ちはだかる。
+   つるはしで1回叩くごとに耐久度が1減り、0になると COAL_CRACKED (割れた状態) になる。
+   割れると通れるようになり、その升に入ると採掘できる。
+   値: 0=無し / 1..COAL_HP_MAX=残り耐久度 / COAL_CRACKED=割れて採掘待ち */
+extern uint8_t  coal[NCELL];
+extern uint8_t  coal_left;       /* まだ採掘していない黒ダイヤの数。0 でステージクリア */
 extern uint16_t dug_n;           /* 掘ったセル数 */
 extern uint8_t  dug_pct;         /* 採掘率 % */
 extern uint8_t  stage;
@@ -138,12 +157,14 @@ void    dig_sweep(uint8_t cx, uint8_t cy);
 void    draw_dug_cell(int8_t cx, int8_t cy);
 void    draw_cell_dirt(int8_t cx, int8_t cy);
 void    draw_powder(uint8_t cx, uint8_t cy);
+void    draw_bombdrop(uint8_t cx, uint8_t cy);
 void    draw_bath(uint8_t cx, uint8_t cy);
-void    draw_diamond(uint8_t cx, uint8_t cy);
+void    draw_coal(uint8_t cx, uint8_t cy);       /* 耐久度に応じて絵を選ぶ */
 void    draw_bonus(uint8_t cx, uint8_t cy, uint8_t kind);
 void    draw_cave(uint8_t cx, uint8_t cy);
-uint8_t cell_diamond(int8_t cx, int8_t cy);
-void    diamond_blast(int8_t cx, int8_t cy);     /* 爆風で壊す。採掘%に加算される */
+uint8_t cell_coal(int8_t cx, int8_t cy);         /* 立ちはだかる黒ダイヤなら1 (割れたものは0) */
+uint8_t coal_hit(int8_t cx, int8_t cy);          /* つるはし1回。割れたら1を返す */
+void    coal_take(uint8_t cx, uint8_t cy);       /* 割れた黒ダイヤを採掘する */
 void    bath_destroy_at(int8_t cx, int8_t cy);   /* 岩・爆風で壊れる (敵では壊れない) */
 void    field_redraw_cell(int8_t cx, int8_t cy);
 void    build_stage(void);
@@ -161,6 +182,8 @@ void player_start(void);
 void player_update(void);
 void player_respawn(void);
 void player_carve(void);
+void player_pick(void);          /* つるはしを振る (向いている先の黒ダイヤを削る) */
+uint8_t player_dir(void);       /* いま向いている方向 */
 uint8_t player_cell_c(void);
 uint8_t player_cell_r(void);
 
@@ -194,14 +217,15 @@ void    enemy_stage_reset(void);      /* 面開始時に出現数と湧きタイ
 void    enemy_update(void);
 void    enemy_draw(void);
 uint8_t enemy_kill_at(int8_t cx, int8_t cy);   /* 爆風・落下岩で倒す。倒した数を返す */
+uint8_t enemy_at(int8_t cx, int8_t cy);        /* その升に敵が居るか (投げたダイナマイトの判定) */
 
 /* --- bomb.c --- */
 extern uint8_t stock;        /* ダイナマイトのストック (次ステージへ持ち越し) */
-extern uint8_t bomb_state;   /* 0=無 1=導火中 2=爆風閃光中 */
+extern uint8_t bomb_state;   /* 0=無 1=飛行中 2=爆風閃光中 */
 extern uint8_t bomb_c, bomb_r;
 
 void bomb_clear(void);
-void bomb_fire(void);
+void bomb_throw(uint8_t dir);   /* 向いている方向へ投げる */
 void bomb_update(void);
 
 extern uint16_t frame_n;      /* 実フレーム数 (速度計測用) */
@@ -238,7 +262,8 @@ void score_kills(uint8_t n, uint8_t by_rock);   /* 同時に倒した数で倍�
 
 /* 得点表 */
 #define PTS_POWDER  10
-#define PTS_DIAMOND 50
+#define PTS_COAL   200            /* 黒ダイヤ1個を採掘 */
+#define PTS_COAL_CRACK 50         /* 割った瞬間 */
 #define PTS_DIG      5
 #define PTS_BONUS 1000
 #define PTS_LEFTOVER_DYN 100            /* 面クリア時に残ダイナマイト1本あたり */

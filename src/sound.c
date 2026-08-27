@@ -54,11 +54,11 @@ static const uint8_t *sfx_p;
 static uint8_t sfx_left, sfx_t, sfx_vol0, sfx_dec, sfx_noise, sfx_pri, sfx_on;
 
 /* 効果音の定義: データ / ノイズか / 音量 / 減衰 / 優先度 */
-static const uint8_t *const sfx_data[5] = { sfx_dig, sfx_pick, sfx_set, sfx_boom, sfx_miss };
-static const uint8_t sfx_isnoise[5]     = {       1,        0,       0,        1,        0 };
-static const uint8_t sfx_volume[5]      = {       8,       13,      11,       15,       14 };
-static const uint8_t sfx_decay[5]       = {       1,        3,       2,        3,        3 };
-static const uint8_t sfx_prio[5]        = {       0,        1,       1,        2,        2 };
+static const uint8_t *const sfx_data[6] = { sfx_dig, sfx_pick, sfx_set, sfx_boom, sfx_miss, sfx_mine };
+static const uint8_t sfx_isnoise[6]     = {       1,        0,       0,        1,        0,        0 };
+static const uint8_t sfx_volume[6]      = {       8,       13,      11,       15,       14,       13 };
+static const uint8_t sfx_decay[6]       = {       1,        3,       2,        3,        3,        4 };
+static const uint8_t sfx_prio[6]        = {       0,        1,       1,        2,        2,        1 };
 
 /* ノイズドラム。PSG のノイズ周期を変えて太鼓・スネア・ハイハットを作り分ける。 */
 #define DRUM_BD 1
@@ -91,7 +91,7 @@ void snd_init(void)
 
 void snd_sfx(uint8_t id)
 {
-    if (id > SFX_MISS) {
+    if (id > SFX_MINE) {
         return;
     }
     if (sfx_on && sfx_prio[id] < sfx_pri) {

@@ -32,12 +32,13 @@ A_PX=$(addr px);        A_PY=$(addr py)
 A_STARTC=$(addr start_c); A_STARTR=$(addr start_r)
 A_NESTC=$(addr nest_c); A_NESTR=$(addr nest_r)
 A_BATHON=$(addr bath_on); A_BATHC=$(addr bath_c); A_BATHR=$(addr bath_r)
-A_POWDER=$(addr powder); A_DIA=$(addr diamond); A_DUG=$(addr dug)
+A_POWDER=$(addr powder); A_COAL=$(addr coal); A_DUG=$(addr dug)
+A_COALLEFT=$(addr coal_left)
 A_PCT=$(addr dug_pct)
 
 # 面1は掘り抜きが数字の「1」(15升) ＋ 敵の湧き出し口1升 = 16升。
 # 自機は掘り抜きの上端、湧き出し口は土の中の独立した1ブロック (位置は乱数)。
-# 火薬・岩・ダイヤ・湧き出し口の位置は乱数なので、位置ではなく性質で検査する。
+# 火薬・岩・黒ダイヤ・湧き出し口の位置は乱数なので、位置ではなく性質で検査する。
 openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
     -command "set renderer none; set throttle off; \
         after time 6 {keymatrixdown 8 0x01}; after time 6.2 {keymatrixup 8 0x01}; \
@@ -59,9 +60,9 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
             set p 0; set d 0; set g 0; \
             for {set i 0} {\$i<176} {incr i} { \
                 incr p [debug read memory [expr {$A_POWDER+\$i}]]; \
-                incr d [debug read memory [expr {$A_DIA+\$i}]]; \
+                if {[debug read memory [expr {$A_COAL+\$i}]]} {incr d}; \
                 incr g [debug read memory [expr {$A_DUG+\$i}]] }; \
-            puts \$f \"POWDERN \$p\"; puts \$f \"DIAN \$d\"; puts \$f \"DUGN \$g\"; \
+            puts \$f \"POWDERN \$p\"; puts \$f \"COALN \$d\"; puts \$f \"COALLEFT [debug read memory $A_COALLEFT]\"; puts \$f \"DUGN \$g\"; \
             puts \$f \"PCT [debug read memory $A_PCT]\"; \
             close \$f; exit }" >/dev/null 2>&1
 
@@ -84,7 +85,8 @@ check TUNNELCELL 17 "掘り抜きの縦線が掘られている (0x11)"
 check DUGN     16  "掘り抜き「1」(15升) ＋ 湧き出し口(1升)"
 check PCT      9   "開始時の採掘率"
 check POWDERN  10  "火薬が10個置かれている"
-check DIAN     0   "面1のダイヤは0個 ((面-1)x2% = 0%)"
+check COALN    4   "面1の黒ダイヤは4個 (coal_n_tbl[0])"
+check COALLEFT 4   "残りの黒ダイヤ数が一致している"
 check STARTC   7   "自機の出発点の列 (掘り抜きの上端)"
 check STARTR   1   "自機の出発点の行"
 check NESTDUG  1   "敵の湧き出し口が1ブロック開いている"

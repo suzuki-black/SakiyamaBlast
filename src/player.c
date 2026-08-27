@@ -11,13 +11,45 @@ uint8_t dead_cause;
 uint8_t invuln;
 uint8_t temp;                 /* 体温 */
 
-static uint8_t cdir;      /* 現在の向き */
+static uint8_t cdir;      /* 移動中の向き。キーを離すと DIR_NONE に戻る */
+static uint8_t face;      /* 最後に向いた方向。**止まっていても保持する**。
+                             つるはしも投擲もこちらを見る (静止中に使えないと困るため) */
 static uint8_t chewing;   /* 未掘の土を食い進んでいるか (減速する) */
 static uint8_t acc;       /* 速度の分子 */
 static uint8_t temp_acc;  /* 体温上昇の分子 */
+static uint8_t swing;     /* つるはしを振っている残りフレーム。0以外の間は動けない */
 
 uint8_t player_cell_c(void) { return (uint8_t)((px + 8) >> 4); }
 uint8_t player_cell_r(void) { return (uint8_t)((py + 8) >> 4); }
+uint8_t player_dir(void)    { return face; }
+
+/*
+ * つるはしを振る。向いている先の升が黒ダイヤなら耐久度を1削る。
+ * 振り切るまで PICK_FRAMES のあいだ動けないので、そこへ敵が寄ってくる。
+ * 使用回数は無制限 (回数制限やアイテムでの回数増加は今後の調整で入れるかもしれない)。
+ */
+void player_pick(void)
+{
+    int8_t cx, cy;
+    if (swing) {
+        return;                     /* 振っている最中は次を受け付けない */
+    }
+    cx = (int8_t)player_cell_c();
+    cy = (int8_t)player_cell_r();
+    switch (face) {
+    case DIR_UP:    cy--; break;
+    case DIR_DOWN:  cy++; break;
+    case DIR_LEFT:  cx--; break;
+    case DIR_RIGHT: cx++; break;
+    default: return;                /* 向きが決まっていなければ振れない */
+    }
+    if (!cell_coal(cx, cy)) {
+        return;                     /* 黒ダイヤに接していないと振れない */
+    }
+    swing = PICK_FRAMES;
+    coal_hit(cx, cy);
+    snd_sfx(SFX_MINE);
+}
 
 /* 掘り跡は自機幅より内側2px。セル幅いっぱいに抜くと膜が消えるので必ず内側で。
    掘り跡の黒は風呂や湧き出し口の絵の上にも乗ってしまうので、重なった升目は描き直す。
@@ -104,6 +136,18 @@ static void collect(void)
         score_add(PTS_POWDER);
         snd_sfx(SFX_PICK);
     }
+    if (bombdrop[i]) {                         /* 投げて落ちたダイナマイトを拾い直す */
+        bombdrop[i] = 0;
+        draw_dug_cell((int8_t)c, (int8_t)r);
+        player_carve();
+        stock++;
+        snd_sfx(SFX_PICK);
+    }
+    if (coal[i] == COAL_CRACKED) {             /* 割れた黒ダイヤの上を通ると採掘 */
+        coal_take(c, r);
+        player_carve();
+        snd_sfx(SFX_PICK);
+    }
 }
 
 /* 進行先セルが未掘なら食い進み中 = 減速。節点でだけ判定を更新する。 */
@@ -124,6 +168,11 @@ static void update_chewing(void)
         chewing = 0;          /* 場外へは進めないので減速させない */
         return;
     }
+    /* 割れた黒ダイヤの升は掘る手間なく通れる (もう砕けているため) */
+    if (coal[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx] == COAL_CRACKED) {
+        chewing = 0;
+        return;
+    }
     chewing = cell_dug(cx, cy) ? 0 : 1;
 }
 
@@ -140,7 +189,7 @@ static uint8_t blocked_ahead(void)
     case DIR_LEFT:  cx--; break;
     default:        cx++; break;
     }
-    if (cell_diamond(cx, cy)) {
+    if (cell_coal(cx, cy)) {
         return 1;
     }
     i = rock_at(cx, cy);
@@ -165,7 +214,7 @@ static void snap_x(void)
     }
     if ((uint8_t)(nx >> 4) != (uint8_t)(px >> 4)) {
         int8_t c = (int8_t)(nx >> 4), r = (int8_t)(py >> 4);
-        if (cell_diamond(c, r) || rock_at(c, r) >= 0) {
+        if (cell_coal(c, r) || rock_at(c, r) >= 0) {
             nx = (uint16_t)(px & 0xF0);          /* 前が塞がっていれば手前へ */
         }
     }
@@ -182,7 +231,7 @@ static void snap_y(void)
     }
     if ((uint8_t)(ny >> 4) != (uint8_t)(py >> 4)) {
         int8_t c = (int8_t)(px >> 4), r = (int8_t)(ny >> 4);
-        if (cell_diamond(c, r) || rock_at(c, r) >= 0) {
+        if (cell_coal(c, r) || rock_at(c, r) >= 0) {
             ny = (uint16_t)(py & 0xF0);
         }
     }
@@ -196,7 +245,9 @@ void player_start(void)
     px = (uint8_t)(start_c << 4);
     py = (uint8_t)(start_r << 4);
     cdir = DIR_NONE;
+    face = DIR_DOWN;            /* 坑口から降りてくるので、初期は下向き */
     chewing = 0;
+    swing = 0;
     acc = 0;
     dead = 0;
     dead_cause = 0;
@@ -229,6 +280,17 @@ void player_update(void)
     update_temp();
     collect();
 
+    /* つるはしを振り切るまでは動けない。ここが敵に迫られる緊張感になる。
+       向きだけは受け付けて、次に振る方向を決められるようにしておく。 */
+    if (swing) {
+        swing--;
+        q = read_dir();
+        if (q != DIR_NONE) {
+            face = q;               /* 振っている間も向きだけは変えられる */
+        }
+        return;
+    }
+
     q = read_dir();
     /* Dig Dug 式の方向転換。曲がれるのはグリッドの節点だけだが、半歩ずれた位置で
        直交方向を押したときは**最寄りの節点へ寄せてから**曲がる。
@@ -247,6 +309,7 @@ void player_update(void)
             }
         }
         cdir = q;
+        face = q;
     }
     if (cdir == DIR_NONE) {
         return;

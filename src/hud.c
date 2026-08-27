@@ -74,12 +74,10 @@ void score_kills(uint8_t n, uint8_t by_rock)
 #define TEMP_H    10
 #define LIFE_X    4
 #define DYN_X     60
-#define BAR_X     112                  /* 採掘率バー */
-#define BAR_Y     (ROW_B + 1)
-#define BAR_W     128
-#define BAR_H     10
+#define COAL_X    112                  /* 残りの黒ダイヤ */
+#define COAL_Y    (ROW_B + 1)
 
-static uint8_t h_lives, h_stock, h_pct, h_stage, h_temp;
+static uint8_t h_lives, h_stock, h_coal, h_stage, h_temp;
 static uint8_t h_score[SCORE_DIGITS];
 
 void hud_reset(void)
@@ -87,7 +85,7 @@ void hud_reset(void)
     uint8_t i;
     h_lives = 0xFF;
     h_stock = 0xFF;
-    h_pct   = 0xFF;
+    h_coal  = 0xFF;
     h_stage = 0xFF;
     h_temp  = 0xFF;
     for (i = 0; i < SCORE_DIGITS; i++) {
@@ -159,15 +157,21 @@ static void draw_stock(void)
     h_stock = stock;
 }
 
-static void draw_bar(void)
+/* 残りの黒ダイヤ。これが0になるとステージクリアなので、いちばん見たい数字。 */
+static void draw_coal_left(void)
 {
-    uint16_t w = (uint16_t)(((uint16_t)dug_pct * BAR_W) / 100u);
-    vdp_fill(BAR_X, BAR_Y, BAR_W, BAR_H, COL_TUNNEL);
-    if (w) {
-        vdp_fill(BAR_X, BAR_Y, w, BAR_H, COL_WHITE);
-    }
-    vdp_fill(BAR_X + ((WIN_PCT * BAR_W) / 100u), BAR_Y - 2, 2, BAR_H + 4, COL_RED);
-    h_pct = dug_pct;
+    char buf[16];
+    uint8_t n;
+    vdp_fill(COAL_X, ROW_B, 140, 14, COL_HUD);
+    /* 黒ダイヤの目印 (石炭の塊) */
+    vdp_fill(COAL_X + 1, COAL_Y + 1, 10, 8, COL_DIA);
+    vdp_fill(COAL_X + 3, COAL_Y + 2, 3, 2, COL_WHITE);
+    buf[0] = 'C'; buf[1] = 'O'; buf[2] = 'A'; buf[3] = 'L'; buf[4] = ' ';
+    n = (uint8_t)(5 + text_u8(&buf[5], coal_left));
+    buf[n] = 0;
+    text_draw(COAL_X + 16, ROW_B + 2, buf,
+              (uint8_t)(coal_left ? COL_WHITE : COL_FUSE), COL_HUD, 1);
+    h_coal = coal_left;
 }
 
 void hud_draw(void)
@@ -190,5 +194,5 @@ void hud_draw(void)
     if (blocks != h_temp) { draw_temp(blocks); }
     if (lives != h_lives) { draw_lives(); }
     if (stock != h_stock) { draw_stock(); }
-    if (dug_pct != h_pct) { draw_bar(); }
+    if (coal_left != h_coal) { draw_coal_left(); }
 }

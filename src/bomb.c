@@ -1,11 +1,13 @@
 /*
- * SakiyamaBlast - ダイナマイト (武器) と火薬 (弾薬)
+ * SakiyamaBlast - ダイナマイト (投げる武器) と火薬 (弾薬)
  *
- * DESIGN.md より:
+ * 仕様:
  *  - 弾薬制。開始ストック0。火薬を拾うとストック+1、次ステージへ持ち越す。
- *  - 設置はストック>0のとき足元セルに1個 (1消費)。v1 は同時1個・連鎖なし。
- *  - 静止・重量無関係。約2秒で十字 (中心＋上下左右1マス) に爆発。
- *  - 爆風は未掘の土を掘り、敵も自機も殺す (自爆で1ミス)。
+ *  - B ボタンで、自機が向いている方向へ投げる。最大 BOMB_RANGE 升飛ぶ。
+ *  - 飛んでいる途中に敵が居ればそこで爆発。**爆風は1升だけで、地形は掘らない。**
+ *  - 敵以外の障害物 (未掘の土・黒ダイヤ・岩・風呂) があればその手前に落ちる。
+ *  - 何にも当たらなければ BOMB_RANGE 升先に落ちる。
+ *  - 落ちたダイナマイトはアイテム。拾い直せる。障害物にはならず、敵は素通りする。
  */
 #include "game.h"
 #include "vdp.h"
@@ -17,82 +19,56 @@ uint8_t stock;
 uint8_t bomb_state;
 uint8_t bomb_c, bomb_r;
 
-static uint16_t fuse;
-static uint8_t  flash;
-static uint8_t  blink_col;
+static uint8_t bomb_dir;
+static uint8_t bomb_left;      /* あと何升飛べるか */
+static uint8_t fly;            /* 次の升へ移るまでのフレーム数 */
+static uint8_t flash;
 
-/* ステージ構築時とミス時の後始末。導火中のダイナマイトはミスと同時に取り除く
-   (リスポーン直後に見えない爆風で即死するのを避けるため。ストックは戻さない)。 */
+/* ステージ構築時とミス時の後始末。飛行中のダイナマイトは消える (ストックは戻さない)。 */
 void bomb_clear(void)
 {
     bomb_state = 0;
     spr_park(SPR_BOMB);
 }
 
-void bomb_fire(void)
+void bomb_throw(uint8_t dir)
 {
-    if (bomb_state != 0) {      /* v1: 爆発するまで次を置けない */
-        return;
-    }
-    if (stock == 0) {
+    if (bomb_state != 0 || stock == 0 || dir == DIR_NONE) {
         return;
     }
     stock--;
     bomb_c = player_cell_c();
     bomb_r = player_cell_r();
+    bomb_dir = dir;
+    bomb_left = BOMB_RANGE;
+    fly = BOMB_FLY_FRAMES;
     bomb_state = 1;
-    fuse = FUSE_FRAMES;
+    spr_color_lines(SPR_BOMB, art_colours(PAT_BOMB));
     snd_sfx(SFX_SET);
 }
 
-/* 爆風1セル: 掘って閃光を出し、そこに居る自機を殺す。倒した敵の数を返す。 */
-static uint8_t blast_one(int8_t cx, int8_t cy)
+/* 敵に当たった1升だけの爆発。地形は掘らず、岩も風呂も壊さない。 */
+static void explode_on_enemy(void)
 {
-    uint8_t killed;
-    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
-        return 0;
+    uint8_t killed = enemy_kill_at((int8_t)bomb_c, (int8_t)bomb_r);
+    score_kills(killed, 0);
+    vdp_fill((uint16_t)((uint16_t)bomb_c << 4), (uint16_t)((uint16_t)bomb_r << 4),
+             16, 16, COL_BLAST);
+    if (!invuln && player_cell_c() == bomb_c && player_cell_r() == bomb_r) {
+        dead = 1;                   /* 自分の升で爆発したら巻き添え */
     }
-    diamond_blast(cx, cy);          /* ダイヤはダイナマイトだけが壊せる */
-    dig_sweep((uint8_t)cx, (uint8_t)cy);
-    rock_destroy_at(cx, cy);        /* 爆風にかかった岩は吹き飛ぶ */
-    killed = enemy_kill_at(cx, cy); /* 爆風は敵も倒す */
-    bath_destroy_at(cx, cy);        /* 風呂は爆風で壊れる (敵には壊されない) */
-    vdp_fill((uint16_t)((uint8_t)cx << 4), (uint16_t)((uint8_t)cy << 4), 16, 16, COL_BLAST);
-    if (player_cell_c() == (uint8_t)cx && player_cell_r() == (uint8_t)cy) {
-        dead = 1;               /* 自爆も1ミス */
-    }
-    return killed;
-}
-
-static void explode(void)
-{
-    int8_t c = (int8_t)bomb_c;
-    int8_t r = (int8_t)bomb_r;
-    uint8_t killed = 0;
-    killed = (uint8_t)(killed + blast_one(c, r));
-    killed = (uint8_t)(killed + blast_one(c, (int8_t)(r - 1)));
-    killed = (uint8_t)(killed + blast_one(c, (int8_t)(r + 1)));
-    killed = (uint8_t)(killed + blast_one((int8_t)(c - 1), r));
-    killed = (uint8_t)(killed + blast_one((int8_t)(c + 1), r));
-    score_kills(killed, 0);         /* 同時に倒すほど得点が伸びる */
     bomb_state = 2;
     flash = FLASH_FRAMES;
     spr_park(SPR_BOMB);
     snd_sfx(SFX_BOOM);
 }
 
-/* 閃光の跡を正規のトンネル描画 (膜つき) へ差し替える。
-   十字の5セルは状態が変わり、その隣接セルは膜の形が変わるので、
-   |dc|+|dr| <= 2 の13セルを塗り直す。 */
+/* 閃光の跡を元の見た目へ戻す。膜の形は隣の升にも影響するので周囲も塗り直す。 */
 static void finish_blast(void)
 {
     int8_t dc, dr, c, r;
-    for (dr = -2; dr <= 2; dr++) {
-        for (dc = -2; dc <= 2; dc++) {
-            int8_t ad = (int8_t)((dc < 0 ? -dc : dc) + (dr < 0 ? -dr : dr));
-            if (ad > 2) {
-                continue;
-            }
+    for (dr = -1; dr <= 1; dr++) {
+        for (dc = -1; dc <= 1; dc++) {
             c = (int8_t)(bomb_c + dc);
             r = (int8_t)(bomb_r + dr);
             if (c < 0 || c >= COLS || r < 0 || r >= ROWS) {
@@ -101,27 +77,81 @@ static void finish_blast(void)
             field_redraw_cell(c, r);
         }
     }
-    player_carve();             /* 塗り直しで消えた自機の掘り跡を戻す */
+    player_carve();
+}
+
+/* その升へ飛び込めるか。敵は「当たり」なので別に見る。 */
+static uint8_t flyable(int8_t cx, int8_t cy)
+{
+    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
+        return 0;
+    }
+    if (!cell_dug(cx, cy)) {
+        return 0;                   /* 未掘の土は抜けられない */
+    }
+    if (cell_coal(cx, cy)) {
+        return 0;                   /* 黒ダイヤは硬い */
+    }
+    if (rock_at(cx, cy) >= 0) {
+        return 0;
+    }
+    if (bath_on && (uint8_t)cx == bath_c && (uint8_t)cy == bath_r) {
+        return 0;                   /* 風呂は壊したくないので手前で止まる */
+    }
+    return 1;
+}
+
+/* 飛べなくなったので、いまの升へ落として拾えるようにする。 */
+static void bomb_land(void)
+{
+    bombdrop[(uint16_t)bomb_r * COLS + bomb_c] = 1;
+    draw_bombdrop(bomb_c, bomb_r);
+    bomb_state = 0;
+    spr_park(SPR_BOMB);
+}
+
+static void fly_step(void)
+{
+    int8_t nc = (int8_t)bomb_c;
+    int8_t nr = (int8_t)bomb_r;
+
+    if (bomb_left == 0) {
+        bomb_land();
+        return;
+    }
+    switch (bomb_dir) {
+    case DIR_UP:    nr--; break;
+    case DIR_DOWN:  nr++; break;
+    case DIR_LEFT:  nc--; break;
+    default:        nc++; break;
+    }
+    if (enemy_at(nc, nr)) {         /* 敵が居たらそこで爆発 */
+        bomb_c = (uint8_t)nc;
+        bomb_r = (uint8_t)nr;
+        explode_on_enemy();
+        return;
+    }
+    if (!flyable(nc, nr)) {         /* 障害物: いまの升に落ちる */
+        bomb_land();
+        return;
+    }
+    bomb_c = (uint8_t)nc;
+    bomb_r = (uint8_t)nr;
+    bomb_left--;
+    if (bomb_left == 0) {           /* 飛距離を使い切った先に落ちる */
+        bomb_land();
+    }
 }
 
 void bomb_update(void)
 {
     if (bomb_state == 1) {
-        fuse--;
-        if (fuse == 0) {
-            explode();
-            return;
-        }
-        /* 導火線が燃えている見た目: 8フレームごとに色を入れ替える */
-        {
-            uint8_t col = (uint8_t)((fuse & 8) ? 0 : 1);
-            if (col != blink_col) {
-                blink_col = col;
-                if (col) {
-                    spr_color(SPR_BOMB, COL_FUSE);          /* 導火線が燃える閃き */
-                } else {
-                    spr_color_lines(SPR_BOMB, art_colours(PAT_BOMB));
-                }
+        fly--;
+        if (fly == 0) {
+            fly = BOMB_FLY_FRAMES;
+            fly_step();
+            if (bomb_state != 1) {
+                return;
             }
         }
         spr_set(SPR_BOMB, (uint8_t)(bomb_c << 4), (uint8_t)((bomb_r << 4) - 1), PAT_BOMB);

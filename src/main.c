@@ -49,12 +49,24 @@ static void wait_vsync(void)
     last_j = JIFFY;
 }
 
-/* ボタンの立ち上がりだけを拾う (押しっぱなしで連射しない) */
+/* A ボタン (スペース / ジョイスティックのトリガA) の立ち上がり。
+   ゲーム中はつるはし、タイトルやコンフィグでは決定に使う。 */
 static uint8_t fire_pressed(void)
 {
     uint8_t t = (uint8_t)(gttrig(0) || gttrig(1));
     uint8_t edge = (uint8_t)(t && !prev_trig);
     prev_trig = t;
+    return edge;
+}
+
+/* B ボタン (キーボードの B / ジョイスティック1のトリガB) の立ち上がり。ダイナマイトを投げる。
+   キーマトリクスの行2は下位から : ` , . / _ A B なので、B はビット7。 */
+static uint8_t prev_trig_b;
+static uint8_t throw_pressed(void)
+{
+    uint8_t t = (uint8_t)(gttrig(3) || !(snsmat(2) & 0x80));
+    uint8_t edge = (uint8_t)(t && !prev_trig_b);
+    prev_trig_b = t;
     return edge;
 }
 
@@ -323,10 +335,14 @@ void main(void)
         if (!dead) {
             player_update();
             if (fire_pressed()) {
-                bomb_fire();
+                player_pick();          /* つるはしで黒ダイヤを削る */
+            }
+            if (throw_pressed()) {
+                bomb_throw(player_dir());
             }
         } else {
             fire_pressed();        /* 死亡中もエッジ検出の状態は進めておく */
+            throw_pressed();
         }
         bomb_update();
         rock_update();
@@ -354,7 +370,10 @@ void main(void)
                 }
                 state = ST_MISS;
             }
-        } else if (dug_pct >= WIN_PCT) {
+        } else if (coal_left == 0) {
+            /* 盤面の黒ダイヤを全部掘り出した = ステージクリア。
+               掘削率はクリア条件ではなく、ここで得点として加算する。 */
+            score_add((uint16_t)dug_pct * PTS_DUG_PCT);
             snd_stop();
             snd_play_fanfare();
             state = ST_CLEAR;

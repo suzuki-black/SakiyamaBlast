@@ -147,6 +147,22 @@ static void spawn_tick(void)
 
 /* 透明でも「トンネルの中に居る間」は倒せる (Dig Dug 準拠:
    "once a ghost enters a tunnel, it can be killed")。土の中に居る間だけ無敵。 */
+/* その升に敵が居るか。投げたダイナマイトが当たるかどうかの判定に使う。
+   飛んでいるのは坑道の中だけなので、土をすり抜けている敵はそもそも当たらない。 */
+uint8_t enemy_at(int8_t cx, int8_t cy)
+{
+    uint8_t i;
+    for (i = 0; i < ENEMY_MAX; i++) {
+        if (!en_state[i] || (en_ghost[i] && !cell_dug(cx, cy))) {
+            continue;
+        }
+        if ((int8_t)((en_x[i] + 8) >> 4) == cx && (int8_t)((en_y[i] + 8) >> 4) == cy) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 uint8_t enemy_kill_at(int8_t cx, int8_t cy)
 {
     uint8_t i, killed = 0;
@@ -184,7 +200,7 @@ static uint8_t can_go(uint8_t i, uint8_t d)
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
         return 0;
     }
-    if (cell_diamond(cx, cy)) {
+    if (cell_coal(cx, cy)) {
         return 0;                        /* ダイヤは掘り屋でも抜けられない */
     }
     ri = rock_at(cx, cy);
