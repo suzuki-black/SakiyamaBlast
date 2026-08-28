@@ -16,6 +16,7 @@ CFLAGS    := -mz80 --std-c99 --sdcccall 1 --opt-code-speed -I$(SRCDIR) -I$(BUILD
 LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000
 
 CSRC      := $(wildcard $(SRCDIR)/*.c)
+HEADERS   := $(wildcard $(SRCDIR)/*.h)
 ASRC      := $(SRCDIR)/crt0.s $(SRCDIR)/lowlevel.s $(SRCDIR)/bios.s
 COBJ      := $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.rel,$(CSRC))
 AOBJ      := $(patsubst $(SRCDIR)/%.s,$(BUILDDIR)/%.rel,$(ASRC))
@@ -65,7 +66,9 @@ $(ART_SPR): $(ART_SPR_SRC) tools/png2art.py tools/palette.py | $(BUILDDIR)
 $(ART_TILE): $(ART_TILE_SRC) tools/png2art.py tools/palette.py | $(BUILDDIR)
 	python3 tools/png2art.py $(ART_TILE_SRC) $@ --mode tile --names $(ART_TILE_NAMES)
 
-$(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(TITLE_PAL) $(ART_SPR) $(ART_TILE) $(PAL_H) | $(BUILDDIR)
+# ヘッダにも依存させる。これが無いと game.h の定数を変えても再ビルドされず、
+# 古い ROM のまま「直したつもり」になる。
+$(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(HEADERS) $(TITLE_PAL) $(ART_SPR) $(ART_TILE) $(PAL_H) | $(BUILDDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # crt0 が必ず先頭に来るようにリンク順を固定する
