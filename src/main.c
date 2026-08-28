@@ -113,6 +113,10 @@ static void hide_stage_msg(void)
 
 static void start_stage(void)
 {
+    /* **先に音を止める。** ここから面を描き切るまで約1.1秒ブロックする間は
+       snd_tick() が回らないので、鳴っていた音を PSG が保持し続けてしまう。
+       止めておかないと「ピー」と鳴りっぱなしになり、固まったように聞こえる。 */
+    snd_stop();
     /* パレットの差し替えと面の描き起こしは見せない。描き切ってから幕を上げる。 */
     vdp_display(0);
     set_game_palette();
