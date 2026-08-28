@@ -47,13 +47,17 @@ uint8_t coal_hit(int8_t cx, int8_t cy)
     coal[i]--;
     if (coal[i] == 0) {
         coal[i] = COAL_CRACKED;
+        dig_sweep((uint8_t)cx, (uint8_t)cy);   /* 砕けたので通れる升になる */
+        draw_coal((uint8_t)cx, (uint8_t)cy);
+        field_redraw_cell((int8_t)cx, (int8_t)(cy - 1));
+        field_redraw_cell((int8_t)cx, (int8_t)(cy + 1));
+        field_redraw_cell((int8_t)(cx - 1), (int8_t)cy);
+        field_redraw_cell((int8_t)(cx + 1), (int8_t)cy);
+        score_add(PTS_COAL_CRACK);
+        return 1;
     }
     draw_coal((uint8_t)cx, (uint8_t)cy);   /* 残り耐久度の数字も描き直す */
-    if (coal[i] != COAL_CRACKED) {
-        return 0;
-    }
-    score_add(PTS_COAL_CRACK);
-    return 1;
+    return 0;
 }
 
 /* 割れた黒ダイヤの升に入ったときの採掘。ここで初めて coal_left が減る。 */
@@ -65,7 +69,12 @@ void coal_take(uint8_t cx, uint8_t cy)
     }
     coal[i] = 0;
     coal_left--;
-    draw_dug_cell((int8_t)cx, (int8_t)cy);
+    /* 隣の升の「土の膜」の形も変わるので、周囲ごと描き直す。 */
+    field_redraw_cell((int8_t)cx, (int8_t)cy);
+    field_redraw_cell((int8_t)cx, (int8_t)(cy - 1));
+    field_redraw_cell((int8_t)cx, (int8_t)(cy + 1));
+    field_redraw_cell((int8_t)(cx - 1), (int8_t)cy);
+    field_redraw_cell((int8_t)(cx + 1), (int8_t)cy);
     score_add(PTS_COAL);
 }
 
@@ -150,6 +159,9 @@ void draw_coal(uint8_t cx, uint8_t cy)
     char buf[4];
 
     if (hp == COAL_CRACKED) {
+        /* **升を土から塗り直してから**坑道を描く。黒ダイヤは 16x16 全部を使う絵
+           なので、内側だけ塗る draw_dug_cell では外周2pxに黒ダイヤの枠が残る。 */
+        draw_cell_dirt((int8_t)cx, (int8_t)cy);
         draw_dug_cell((int8_t)cx, (int8_t)cy);
         draw_tile(cx, cy, art_tile_of(TILE_DIACRK), 2);
         return;

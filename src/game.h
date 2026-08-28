@@ -21,9 +21,9 @@
    Mr. Do! は既掘の坑道は等速・未掘の土を食い進む間は減速する (EATWALL の速度ペナルティ)。
    60fps で 坑道 60px/s / 掘削 40px/s。
    分母を 12 にしてあるのは、敵の速度を 5px/s 刻みで調整できるようにするため。 */
-#define SPD_UNIT   12
-#define SPD_TUNNEL 12         /* 60px/s */
-#define SPD_DIG     8         /* 40px/s */
+#define SPD_UNIT   24
+#define SPD_TUNNEL 24         /* 60px/s */
+#define SPD_DIG    16         /* 40px/s */
 
 /* 岩。押し・落下距離での割れ・潰しは Mr. Do! の apple 準拠だが、**支え判定は Dig Dug 準拠**で、
    真下の升目に自機が居る間は揺れも落下もしない (好きなだけ待てる)。自機が離れた瞬間に
@@ -56,8 +56,8 @@
    自機は掘削中 40px/s まで落ちるので、敵はそれより遅くしないと振り切れない。 */
 #define EN_RAT        0       /* ネズミ: 執拗に追う */
 #define EN_BAT        1       /* コウモリ: 気紛れ */
-#define SPD_RAT       7       /* 35px/s */
-#define SPD_BAT       5       /* 25px/s */
+#define SPD_RAT      14       /* 35px/s */
+#define SPD_BAT      10       /* 25px/s */
 #define WANDER_RAT    7       /* rnd8() & これ が 0 のとき進路を選び直す (1/8) */
 #define WANDER_BAT    1       /* コウモリは 1/2 の節点で気紛れに選び直す */
 /* 追跡の「遊び」。毎回いちばん自機へ近づく方向を選ぶと坑道をなぞって一直線に
@@ -71,12 +71,15 @@
 #define SWAP_BAT      1       /* コウモリ 1/2 */
 /* 透明化して未掘の土をすり抜けている間は、**素の速さの半分以下**に落とす
    (Dig Dug 準拠)。土の中を突っ切るほうが速いと、坑道を掘る意味が薄れるため。 */
-#define SPD_RAT_GHOST 3       /* 15px/s (素の 35px/s の 43%) */
-#define SPD_BAT_GHOST 2       /* 10px/s (素の 25px/s の 40%) */
+#define SPD_RAT_GHOST 3       /* 7.5px/s (素の 35px/s の 21%) */
+#define SPD_BAT_GHOST 2       /* 5px/s  (素の 25px/s の 20%) */
 #define GHOST_BASE    600     /* 透明化までのフレーム数 (面1 = 10秒) */
 #define GHOST_STEP    20      /* 面が進むごとに早くなる */
 #define GHOST_MIN     300     /* 高次面での下限 (5秒) */
 #define GHOST_PAUSE   20      /* 透明になる瞬間は一拍止まる */
+/* 湧いた直後は洞窟の口でこの間だけ点滅する。動かず、触れても当たらない。
+   いきなり実体で出てくると出会い頭の事故になるため。 */
+#define SPAWN_WARM   180      /* 3秒 */
 
 /* 体温オーバーヒートと風呂。常磐炭鉱は地熱約40度＋湧水で過酷 (史実) という設定。
    体温は毎フレーム少しずつ上がり、上限に達すると1ミス。各面に1つある風呂を通過すると

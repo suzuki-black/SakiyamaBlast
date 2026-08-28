@@ -25,6 +25,7 @@ static uint8_t  en_gdirt[ENEMY_MAX];      /* 透明化してから一度でも�
 static uint8_t  en_acc[ENEMY_MAX];
 static uint8_t  en_pause[ENEMY_MAX];
 static uint16_t en_morph[ENEMY_MAX];
+static uint8_t  en_warm[ENEMY_MAX];       /* 湧いた直後の点滅。0以外の間は動かず当たらない */
 static uint8_t  en_col[ENEMY_MAX];      /* 色テーブルへ焼いた色 (変化時だけ書く) */
 static uint8_t  en_quota;               /* この面で出す総数 */
 static uint8_t  en_spawned;             /* これまでに出した数 */
@@ -51,6 +52,7 @@ void enemy_clear(void)
     uint8_t i;
     for (i = 0; i < ENEMY_MAX; i++) {
         en_state[i] = 0;
+        en_warm[i] = 0;
         en_col[i] = 0xFF;
         spr_park((uint8_t)(SPR_ENEMY + i));
     }
@@ -111,6 +113,7 @@ static void enemy_spawn(void)
         en_acc[i] = 0;
         en_pause[i] = 0;
         en_morph[i] = ghost_frames();
+        en_warm[i] = SPAWN_WARM;         /* 洞窟の口で点滅してから実体化する */
         en_spawned++;
         return;
     }
@@ -402,6 +405,10 @@ void enemy_update(void)
         if (!en_state[i]) {
             continue;
         }
+        if (en_warm[i]) {
+            en_warm[i]--;                /* 湧き出し口で点滅中。動かないし当たらない */
+            continue;
+        }
         if (en_pause[i]) {
             en_pause[i]--;               /* 変異中は一瞬止まる */
         } else {
@@ -440,6 +447,12 @@ void enemy_draw(void)
     uint8_t i, col, pat;
     for (i = 0; i < ENEMY_MAX; i++) {
         if (!en_state[i]) {
+            spr_park((uint8_t)(SPR_ENEMY + i));
+            continue;
+        }
+        /* 湧き出し口で点滅している間は、8フレームおきに消す。
+           まだ実体化していない = 触れても当たらない、という合図。 */
+        if (en_warm[i] && (frame_n & 8)) {
             spr_park((uint8_t)(SPR_ENEMY + i));
             continue;
         }
