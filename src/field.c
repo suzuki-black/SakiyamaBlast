@@ -633,6 +633,88 @@ static void place_cave(void)
     }
 }
 
+/*
+ * 出発点・水風呂・湧き出し口が、掘り抜きだけで行き来できるようにする。
+ *
+ * 面番号の掘り抜きは数字の形なので、そのままでは**ばらばらの島に分かれる**
+ * (面2は7つ、面12は9つの島になる)。水風呂や洞窟がその島の一つに乗ると、
+ * 自分で掘らないと辿り着けない。そこで、届いていなければ最寄りの到達済みの升まで
+ * L字に掘って繋ぐ。最短である必要はないので、横→縦の単純な形でよい。
+ */
+static uint8_t reach[NCELL];
+
+/* 掘れていてまだ印を付けていなければ、印を付けて積む。 */
+static uint8_t push_if(uint8_t sp, uint8_t *stk, uint8_t k)
+{
+    if (dug[k] && !reach[k]) {
+        reach[k] = 1;
+        stk[sp++] = k;
+    }
+    return sp;
+}
+
+static void flood_from(uint8_t c, uint8_t r)
+{
+    static uint8_t stk[NCELL];
+    uint8_t sp = 0, k, kc, kr;
+    uint16_t i = (uint16_t)r * COLS + c;
+
+    for (k = 0; k < NCELL; k++) {
+        reach[k] = 0;
+    }
+    if (!dug[i]) {
+        return;
+    }
+    reach[i] = 1;
+    stk[sp++] = (uint8_t)i;
+    while (sp) {
+        k = stk[--sp];
+        kc = (uint8_t)(k % COLS);
+        kr = (uint8_t)(k / COLS);
+        if (kc > 0)        { sp = push_if(sp, stk, (uint8_t)(k - 1)); }
+        if (kc + 1 < COLS) { sp = push_if(sp, stk, (uint8_t)(k + 1)); }
+        if (kr > 0)        { sp = push_if(sp, stk, (uint8_t)(k - COLS)); }
+        if (kr + 1 < ROWS) { sp = push_if(sp, stk, (uint8_t)(k + COLS)); }
+    }
+}
+
+/* (c,r) から最寄りの到達済みの升まで L字に掘る。掘った升は坑道になる。 */
+static void connect_to_reach(uint8_t c, uint8_t r)
+{
+    uint16_t i, best = 0xFFFF;
+    uint8_t bd = 255, bc = 0, br = 0, cc, rr, d;
+
+    if (reach[(uint16_t)r * COLS + c]) {
+        return;                         /* すでに繋がっている */
+    }
+    for (i = 0; i < NCELL; i++) {
+        if (!reach[i]) {
+            continue;
+        }
+        cc = (uint8_t)(i % COLS);
+        rr = (uint8_t)(i / COLS);
+        d = (uint8_t)((cc > c ? cc - c : c - cc) + (rr > r ? rr - r : r - rr));
+        if (d < bd) {
+            bd = d; best = i; bc = cc; br = rr;
+        }
+    }
+    if (best == 0xFFFF) {
+        return;
+    }
+    /* まず横へ、次に縦へ */
+    cc = c;
+    while (cc != bc) {
+        cc = (uint8_t)((cc < bc) ? cc + 1 : cc - 1);
+        dug[(uint16_t)r * COLS + cc] = 1;
+    }
+    rr = r;
+    while (rr != br) {
+        rr = (uint8_t)((rr < br) ? rr + 1 : rr - 1);
+        dug[(uint16_t)rr * COLS + bc] = 1;
+    }
+    dug[(uint16_t)r * COLS + c] = 1;
+}
+
 static void set_stage_layout(void)
 {
     uint16_t i;
@@ -669,6 +751,13 @@ static void set_stage_layout(void)
     bath_r = (uint8_t)(i / COLS);
     bath_on = 1;
     used[i] = 1;
+
+    /* 出発点から水風呂と湧き出し口まで、掘らずに行けるようにする。
+       数字の掘り抜きは島に分かれるので、届いていなければ通路を掘って繋ぐ。 */
+    flood_from(start_c, start_r);
+    connect_to_reach(bath_c, bath_r);
+    flood_from(start_c, start_r);
+    connect_to_reach(nest_c, nest_r);
 
     place_powder(POWDER_PER_STAGE);
     place_rocks();
