@@ -233,7 +233,12 @@ static uint8_t can_go(uint8_t i, uint8_t d)
         if (d == DIR_RIGHT) { return rock_can_push(ri, 1); }
         return 0;                        /* 縦には押せない = 岩を避ける */
     }
-    return cell_dug(cx, cy);          /* 敵は自分では掘らない (Dig Dug 準拠) */
+    if (!cell_dug(cx, cy)) {
+        return 0;                        /* 敵は自分では掘らない (Dig Dug 準拠) */
+    }
+    /* 隣り合う坑道でも、間に土の膜が残っていれば歩いては抜けられない。
+       抜けたければ透明化するしかない (=遅くなる)。 */
+    return cell_linked((int8_t)(en_x[i] >> 4), (int8_t)(en_y[i] >> 4), d);
 }
 
 /* 自機に近づく向きを優先度順に並べる (プロトの CHASEDIR と同じ考え方)。 */

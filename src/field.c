@@ -9,6 +9,7 @@ uint8_t  powder[NCELL];
 uint8_t  bombdrop[NCELL];
 uint8_t  coal[NCELL];
 uint8_t  coal_left;
+uint8_t  cell_link[NCELL];
 uint16_t dug_n;
 uint8_t  dug_pct;
 uint8_t  stage;
@@ -16,6 +17,49 @@ uint8_t  start_c, start_r;
 uint8_t  nest_c, nest_r;
 uint8_t  bath_c, bath_r;
 uint8_t  bath_on;
+
+/* cx,cy から dir の向きへ、土の膜に邪魔されずに通れるか。
+   左/上は「隣の升から見た右/下」と同じ境目なので、そちらへ読み替えて1箇所で読む。 */
+uint8_t cell_linked(int8_t cx, int8_t cy, uint8_t dir)
+{
+    uint8_t mask = LINK_RIGHT;
+    if (dir == DIR_LEFT) {
+        cx = (int8_t)(cx - 1);
+    } else if (dir == DIR_UP) {
+        cy = (int8_t)(cy - 1);
+        mask = LINK_DOWN;
+    } else if (dir == DIR_DOWN) {
+        mask = LINK_DOWN;
+    }
+    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
+        return 0;
+    }
+    return (uint8_t)(cell_link[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx] & mask);
+}
+
+/*
+ * 自機の掘り跡が膜を抜いた分を記録する。掘り跡は px+2..px+13 の 12px なので、
+ * 升の境目 (16の倍数) を跨ぐのは端から3..13px 入ったときだけ。
+ */
+void link_carve(uint8_t px_, uint8_t py_)
+{
+    uint8_t m = (uint8_t)(px_ & 15), n = (uint8_t)(py_ & 15);
+    uint8_t c = (uint8_t)(px_ >> 4), r = (uint8_t)(py_ >> 4);
+    uint16_t k = (uint16_t)r * COLS + c;
+    /* px は XMAX、py は YMAX で頭打ちなので c<=15 / r<=10 は保証されている。
+       境目そのものが無い右端・下端だけ除く。 */
+    if (n == 0) {
+        if (m >= 3 && m <= 13 && c + 1 < COLS) {
+            cell_link[k] |= LINK_RIGHT;
+        }
+        return;
+    }
+    if (m == 0) {
+        if (n >= 3 && n <= 13 && r + 1 < ROWS) {
+            cell_link[k] |= LINK_DOWN;
+        }
+    }
+}
 
 uint8_t cell_dug(int8_t cx, int8_t cy)
 {
@@ -641,6 +685,7 @@ void build_stage(void)
         powder[i] = 0;
         bombdrop[i] = 0;
         coal[i] = 0;
+        cell_link[i] = 0;
     }
     rock_clear();
     set_stage_layout();
@@ -652,6 +697,19 @@ void build_stage(void)
         }
     }
     dug_pct = (uint8_t)((dug_n * 100u) / NCELL);
+
+    /* 面の最初から掘れている升どうしは、描画上も膜が無いので繋がっている扱いにする。
+       (膜が残るのは「片方が後から掘られた」ときだけ) */
+    for (r = 0; r < ROWS; r++) {
+        for (c = 0; c < COLS; c++) {
+            uint16_t k = (uint16_t)r * COLS + c;
+            if (!dug[k]) {
+                continue;
+            }
+            if (c + 1 < COLS && dug[k + 1])    { cell_link[k] |= LINK_RIGHT; }
+            if (r + 1 < ROWS && dug[k + COLS]) { cell_link[k] |= LINK_DOWN; }
+        }
+    }
 
     /* 全面を土で塗ってから既掘セルを彫り、最後に火薬を置く */
     vdp_fill(0, 0, 256, FIELD_H, COL_DIRT);

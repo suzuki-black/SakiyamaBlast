@@ -159,6 +159,11 @@ extern uint8_t  bombdrop[NCELL]; /* 投げて落ちたダイナマイト。拾�
    値: 0=無し / 1..COAL_HP_MAX=残り耐久度 / COAL_CRACKED=割れて採掘待ち */
 extern uint8_t  coal[NCELL];
 extern uint8_t  coal_left;       /* まだ採掘していない黒ダイヤの数。0 でステージクリア */
+/* 升と升の境目が抜けているか (薄皮一枚の土の膜が残っていないか)。
+   掘り跡は内側2pxだけを抜くので、**隣り合う升が両方 dug でも間に土の膜が残る**
+   ことがある。dug だけで判定すると、敵がその膜を実体のまますり抜けてしまう。
+   bit0 = 右隣との境目が抜けている / bit1 = 真下との境目が抜けている */
+extern uint8_t  cell_link[NCELL];
 extern uint16_t dug_n;           /* 掘ったセル数 */
 extern uint8_t  dug_pct;         /* 採掘率 % */
 extern uint8_t  stage;
@@ -168,6 +173,10 @@ extern uint8_t  bath_c, bath_r;   /* 風呂 = 自機の出現位置の近く (�
 extern uint8_t  bath_on;          /* 風呂が健在か */
 
 uint8_t cell_dug(int8_t cx, int8_t cy);
+#define LINK_RIGHT 1
+#define LINK_DOWN  2
+uint8_t cell_linked(int8_t cx, int8_t cy, uint8_t dir);   /* その向きへ膜なしで通れるか */
+void    link_carve(uint8_t px_, uint8_t py_);             /* 自機が膜を抜いた分を記録する */
 void    dig_sweep(uint8_t cx, uint8_t cy);
 void    draw_dug_cell(int8_t cx, int8_t cy);
 void    draw_cell_dirt(int8_t cx, int8_t cy);

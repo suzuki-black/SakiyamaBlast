@@ -61,6 +61,7 @@ void player_carve(void)
     uint8_t c, r;
 
     vdp_fill((uint16_t)(px + 2), (uint16_t)(py + 2), 12, 12, COL_TUNNEL);
+    link_carve(px, py);        /* 抜いた膜を記録する (敵の通行判定に効く) */
 
     for (r = r0; r <= r1 && r < ROWS; r++) {
         for (c = c0; c <= c1 && c < COLS; c++) {
