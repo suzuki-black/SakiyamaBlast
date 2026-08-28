@@ -108,7 +108,10 @@ static void draw_score(void)
 
 static void draw_stage(void)
 {
-    char buf[6];
+    /* "ST " + 2桁 + " " + 終端 = 7バイト。text_u8 は終端も書くので余裕を持たせる。
+       ここを char[6] にしていたため、面10以降で1バイトはみ出してスタックを壊し、
+       面の開始と同時にハングしていた。 */
+    char buf[8];
     uint8_t n;
     buf[0] = 'S'; buf[1] = 'T'; buf[2] = ' ';
     n = (uint8_t)(3 + text_u8(&buf[3], stage));
@@ -145,7 +148,7 @@ static void draw_lives(void)
 /* ダイナマイト所持数。上限が無いので絵1つ＋数字で出す。 */
 static void draw_stock(void)
 {
-    char buf[6];
+    char buf[8];
     uint8_t n = text_u8(buf, stock);
     buf[n++] = ' ';
     buf[n++] = ' ';
