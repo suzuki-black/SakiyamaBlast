@@ -54,25 +54,44 @@
    原作の Pooka は自機よりわずかに速いが、本作は敵の総数が多くポンプのような
    飛び道具も無いので、そのままでは追い詰められるだけになる。
    自機は掘削中 40px/s まで落ちるので、敵はそれより遅くしないと振り切れない。 */
-#define EN_RAT        0       /* ネズミ: 執拗に追う */
-#define EN_BAT        1       /* コウモリ: 気紛れ */
-#define SPD_RAT      14       /* 35px/s */
-#define SPD_BAT      10       /* 25px/s */
-#define WANDER_RAT    7       /* rnd8() & これ が 0 のとき進路を選び直す (1/8) */
-#define WANDER_BAT    1       /* コウモリは 1/2 の節点で気紛れに選び直す */
-/* 追跡の「遊び」。毎回いちばん自機へ近づく方向を選ぶと坑道をなぞって一直線に
-   詰めてくるだけになり、つるはしを振る余裕が無くなる。節点ごとに:
-     STRAY_x の確率で自機を無視して通れる方向から適当に選ぶ (気まぐれ)
-     そうでなくても SWAP_x の確率で主軸と副軸を入れ替える (回り込むように見える)
-   値は rnd8() & 値 == 0 の確率なので、3 なら 1/4、1 なら 1/2。 */
-#define STRAY_RAT     3       /* ネズミ 1/4 */
-#define STRAY_BAT     1       /* コウモリ 1/2 */
-#define SWAP_RAT      1       /* ネズミ 1/2 */
-#define SWAP_BAT      1       /* コウモリ 1/2 */
+/*
+ * 敵は4種。**色ごとに狙う升の決め方が違う**（パックマンのゴーストに倣った）。
+ * 姿は同じで色だけが違うので、色を見れば動きが読める。
+ *   赤   追いかけ … 自機の升をそのまま狙う (Blinky)
+ *   桃   待ち伏せ … 自機が向いている方向の4升先を狙う (Pinky)
+ *   水   気まぐれ … 自機の2升先を、赤の位置から見て倍に伸ばした升 (Inky)。
+ *                   **赤の位置に依存する = 敵同士の連携**
+ *   橙   お惚け  … 自機まで CLYDE_NEAR 升より遠ければ追い、近ければ自分の隅へ逃げる (Clyde)
+ * さらに全員が「散開」と「追跡」を一定間隔で切り替える。散開中は各自の隅を狙う。
+ */
+#define EN_RED        0
+#define EN_PINK       1
+#define EN_CYAN       2
+#define EN_ORANGE     3
+#define EN_KINDS      4
+
+#define PINK_AHEAD    4       /* 桃が読む先読み升数 */
+#define CYAN_AHEAD    2       /* 水が基準にする先読み升数 */
+#define CLYDE_NEAR    6       /* 橙がこれより近づくと隅へ逃げる (盤面16x11 に合わせた) */
+
+/* 散開と追跡の切り替え。散開の間は各自の隅へ向かうので、group で固まらずに散る。 */
+#define SCATTER_FRAMES 300    /* 5秒 */
+#define CHASE_FRAMES  1200    /* 20秒 */
+
+/* 色ごとの速さ。赤がいちばん速く、橙がいちばん遅い。 */
+#define SPD_RED      14       /* 35px/s */
+#define SPD_PINK     12       /* 30px/s */
+#define SPD_CYAN     12       /* 30px/s */
+#define SPD_ORANGE   10       /* 25px/s */
+
+/* 追跡の「遊び」。パックマンのゴーストは完全に決定的だが、本作は盤面が毎回違って
+   パターンを覚えられないので、少しだけ揺らして一直線になりすぎないようにする。
+   rnd8() & 値 == 0 の確率なので 15 なら 1/16。 */
+#define STRAY_ALL    15
+
 /* 透明化して未掘の土をすり抜けている間は、**素の速さの半分以下**に落とす
    (Dig Dug 準拠)。土の中を突っ切るほうが速いと、坑道を掘る意味が薄れるため。 */
-#define SPD_RAT_GHOST 3       /* 7.5px/s (素の 35px/s の 21%) */
-#define SPD_BAT_GHOST 2       /* 5px/s  (素の 25px/s の 20%) */
+#define SPD_GHOST     3       /* 7.5px/s */
 #define GHOST_BASE    600     /* 透明化までのフレーム数 (面1 = 10秒) */
 #define GHOST_STEP    20      /* 面が進むごとに早くなる */
 #define GHOST_MIN     300     /* 高次面での下限 (5秒) */
@@ -233,6 +252,7 @@ void    rock_draw(void);
 /* --- enemy.c --- */
 extern uint8_t en_state[ENEMY_MAX];
 extern uint8_t en_x[ENEMY_MAX], en_y[ENEMY_MAX];
+extern uint8_t en_kind[ENEMY_MAX];   /* EN_RED / EN_PINK / EN_CYAN / EN_ORANGE */
 
 uint8_t rnd8(void);
 void    rnd_seed(uint16_t s);

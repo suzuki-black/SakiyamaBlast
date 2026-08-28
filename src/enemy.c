@@ -20,11 +20,13 @@ uint8_t en_x[ENEMY_MAX], en_y[ENEMY_MAX];
 
 static uint8_t  en_dir[ENEMY_MAX];
 static uint8_t  en_ghost[ENEMY_MAX];      /* 1 = 透明で土をすり抜けている */
-static uint8_t  en_kind[ENEMY_MAX];       /* EN_RAT / EN_BAT */
+uint8_t  en_kind[ENEMY_MAX];       /* EN_RAT / EN_BAT */
 static uint8_t  en_gdirt[ENEMY_MAX];      /* 透明化してから一度でも土の中へ入ったか */
 static uint8_t  en_acc[ENEMY_MAX];
 static uint8_t  en_pause[ENEMY_MAX];
 static uint16_t en_morph[ENEMY_MAX];
+static uint16_t scatter_t;                /* 散開/追跡の切り替えタイマ */
+static uint8_t  scattering;               /* 1 = 散開中 (各自の隅へ向かう) */
 static uint8_t  en_warm[ENEMY_MAX];       /* 湧いた直後の点滅。0以外の間は動かず当たらない */
 static uint8_t  en_col[ENEMY_MAX];      /* 色テーブルへ焼いた色 (変化時だけ書く) */
 static uint8_t  en_quota;               /* この面で出す総数 */
@@ -93,6 +95,8 @@ void enemy_stage_reset(void)
     enemy_clear();
     en_quota = quota_for_stage();
     en_spawned = 0;
+    scattering = 1;                  /* 面の頭は散開から始める (いきなり詰めてこない) */
+    scatter_t = SCATTER_FRAMES;
     spawn_timer = spawn_interval();
 }
 
@@ -108,7 +112,7 @@ static void enemy_spawn(void)
         en_y[i] = (uint8_t)(nest_r << 4);
         en_state[i] = 1;
         en_dir[i] = (uint8_t)(DIR_UP + (rnd8() & 3));   /* 出た向きは適当に散らす */
-        en_kind[i] = (uint8_t)((rnd8() & 1) ? EN_BAT : EN_RAT);
+        en_kind[i] = (uint8_t)(en_spawned % EN_KINDS);   /* 赤→桃→水→橙 の順に配る */
         en_ghost[i] = 0;
         en_acc[i] = 0;
         en_pause[i] = 0;
@@ -242,69 +246,150 @@ static uint8_t can_go(uint8_t i, uint8_t d)
 }
 
 /* 自機に近づく向きを優先度順に並べる (プロトの CHASEDIR と同じ考え方)。 */
-static void chase_order(uint8_t i, uint8_t *out)
+/* --- 色ごとの狙う升 (パックマンのゴーストに倣う) --- */
+
+static const uint8_t kind_speed[EN_KINDS] = { SPD_RED, SPD_PINK, SPD_CYAN, SPD_ORANGE };
+
+/* 色ごとのスプライト色。mode 2 は1行1色なので、行ごとの色表を色数ぶん持つ。
+   **姿は4種とも同じで色だけが違う**ので、色を見れば動きの癖が分かる。
+   5〜6行目だけ白くして目に見せている。 */
+#define KCOL(c) { (c),(c),(c),(c), COL_WHITE, COL_WHITE, (c),(c),(c),(c),(c),(c),(c),(c),(c),(c) }
+static const uint8_t kind_colours[EN_KINDS][16] = {
+    KCOL(COL_RED),      /* 赤: 追いかけ */
+    KCOL(COL_BAT),      /* 桃: 待ち伏せ */
+    KCOL(COL_DIA),      /* 水: 気まぐれ (赤の位置に連動) */
+    KCOL(COL_RAT)       /* 橙: お惚け */
+};
+
+
+/* 各色の「自分の隅」。散開中と、橙が自機に近づきすぎたときに向かう。 */
+static const uint8_t corner_c[EN_KINDS] = { COLS - 1, 0, COLS - 1, 0 };
+static const uint8_t corner_r[EN_KINDS] = { 0,        0, ROWS - 1, ROWS - 1 };
+
+static void step_cell(int8_t *c, int8_t *r, uint8_t dir, int8_t n)
 {
-    int8_t dx = (int8_t)(((px + 8) >> 4) - (en_x[i] >> 4));
-    int8_t dy = (int8_t)(((py + 8) >> 4) - (en_y[i] >> 4));
-    uint8_t h = (uint8_t)((dx > 0) ? DIR_RIGHT : DIR_LEFT);
-    uint8_t v = (uint8_t)((dy > 0) ? DIR_DOWN : DIR_UP);
-    int8_t ax = (int8_t)((dx < 0) ? -dx : dx);
-    int8_t ay = (int8_t)((dy < 0) ? -dy : dy);
-    if (ax >= ay) {
-        out[0] = h; out[1] = v; out[2] = dir_rev(v); out[3] = dir_rev(h);
-    } else {
-        out[0] = v; out[1] = h; out[2] = dir_rev(h); out[3] = dir_rev(v);
+    switch (dir) {
+    case DIR_UP:    *r = (int8_t)(*r - n); break;
+    case DIR_DOWN:  *r = (int8_t)(*r + n); break;
+    case DIR_LEFT:  *c = (int8_t)(*c - n); break;
+    case DIR_RIGHT: *c = (int8_t)(*c + n); break;
+    default: break;
     }
 }
 
-static void decide_dir(uint8_t i)
+/* 赤の位置。水色が狙いを決めるのに使う (敵同士の連携)。居なければ 0 を返す。 */
+static uint8_t red_cell(int8_t *c, int8_t *r)
 {
-    uint8_t order[4];
-    uint8_t cand[4];
-    uint8_t rev = dir_rev(en_dir[i]);
-    uint8_t bat = (uint8_t)(en_kind[i] == EN_BAT);
-    uint8_t k, n, d, t;
-
-    /* 気まぐれ: 自機を無視して、通れる方向から適当に選ぶ。
-       **進路の選び直しより先に、節点ごとに独立して判定する。**
-       選び直しの中に入れると実効確率が (1/8)x(1/4) まで落ちて効かなくなる。
-       これが無いと常に最短で詰めてくるので、遊ぶ側に一切の余裕が無くなる。 */
-    if ((rnd8() & (bat ? STRAY_BAT : STRAY_RAT)) == 0) {
-        n = 0;
-        for (k = 0; k < 4; k++) {
-            d = (uint8_t)(DIR_UP + k);
-            if (d != rev && can_go(i, d)) {
-                cand[n++] = d;
-            }
-        }
-        if (n) {
-            en_dir[i] = cand[rnd8() % n];
-            return;
+    uint8_t k;
+    for (k = 0; k < ENEMY_MAX; k++) {
+        if (en_state[k] && en_kind[k] == EN_RED && !en_warm[k]) {
+            *c = (int8_t)((en_x[k] + 8) >> 4);
+            *r = (int8_t)((en_y[k] + 8) >> 4);
+            return 1;
         }
     }
+    return 0;
+}
 
-    /* 通れるなら現在の向きを維持。ただし一定の確率で強制的に選び直す。
-       ネズミは 1/8、コウモリは 1/2 なので、コウモリは目に見えてふらつく。 */
-    if (can_go(i, en_dir[i]) && (rnd8() & (bat ? WANDER_BAT : WANDER_RAT))) {
+static void target_cell(uint8_t i, int8_t *tc, int8_t *tr)
+{
+    uint8_t kind = en_kind[i];
+    int8_t pc = (int8_t)((px + 8) >> 4);
+    int8_t pr = (int8_t)((py + 8) >> 4);
+    int8_t rc, rr;
+
+    if (scattering) {
+        *tc = (int8_t)corner_c[kind];
+        *tr = (int8_t)corner_r[kind];
+        return;
+    }
+    switch (kind) {
+    case EN_PINK:                       /* 待ち伏せ: 向いている先の4升先 */
+        *tc = pc; *tr = pr;
+        step_cell(tc, tr, player_dir(), PINK_AHEAD);
+        return;
+    case EN_CYAN:                       /* 気まぐれ: 自機の2升先を赤から見て倍に伸ばす */
+        *tc = pc; *tr = pr;
+        step_cell(tc, tr, player_dir(), CYAN_AHEAD);
+        if (red_cell(&rc, &rr)) {
+            *tc = (int8_t)(*tc + (*tc - rc));
+            *tr = (int8_t)(*tr + (*tr - rr));
+        }
+        return;
+    case EN_ORANGE: {                   /* お惚け: 近づきすぎたら自分の隅へ引く */
+        int8_t dc = (int8_t)(pc - (int8_t)((en_x[i] + 8) >> 4));
+        int8_t dr = (int8_t)(pr - (int8_t)((en_y[i] + 8) >> 4));
+        if (dc < 0) { dc = (int8_t)-dc; }
+        if (dr < 0) { dr = (int8_t)-dr; }
+        if (dc + dr <= CLYDE_NEAR) {
+            *tc = (int8_t)corner_c[EN_ORANGE];
+            *tr = (int8_t)corner_r[EN_ORANGE];
+            return;
+        }
+        break;
+    }
+    default:                            /* 赤: 自機の升をそのまま */
+        break;
+    }
+    *tc = pc;
+    *tr = pr;
+}
+
+/* 狙う升までの距離の2乗。小さいほうへ曲がる (パックマンの交差点規則)。 */
+static uint16_t dist2_to(int8_t c, int8_t r, int8_t tc, int8_t tr)
+{
+    int16_t dc = (int16_t)(c - tc);
+    int16_t dr = (int16_t)(r - tr);
+    return (uint16_t)(dc * dc + dr * dr);
+}
+
+/*
+ * 進路を決める。パックマンの交差点規則に倣い、**引き返し以外で、狙う升までの
+ * 距離がいちばん短くなる方向**を選ぶ。同点のときは 上→左→下→右 の順。
+ * 本作は盤面が毎回違ってパターンを覚えられないので、ごく低い確率だけ揺らす。
+ */
+static void decide_dir(uint8_t i)
+{
+    static const uint8_t pref[4] = { DIR_UP, DIR_LEFT, DIR_DOWN, DIR_RIGHT };
+    uint8_t rev = dir_rev(en_dir[i]);
+    int8_t tc, tr;
+    int8_t cx = (int8_t)(en_x[i] >> 4);
+    int8_t cy = (int8_t)(en_y[i] >> 4);
+    uint8_t k, best = DIR_NONE, cand[4], n = 0;
+    uint16_t bestd = 0xFFFF;
+
+    for (k = 0; k < 4; k++) {
+        if (pref[k] != rev && can_go(i, pref[k])) {
+            cand[n++] = pref[k];
+        }
+    }
+    if (n == 0) {
+        if (can_go(i, rev)) {
+            en_dir[i] = rev;             /* 行き止まり: 引き返す */
+        }
+        return;
+    }
+    if (n == 1) {
+        en_dir[i] = cand[0];             /* 一本道: 選ぶ余地なし */
+        return;
+    }
+    if ((rnd8() & STRAY_ALL) == 0) {
+        en_dir[i] = cand[rnd8() % n];    /* たまに気まぐれ */
         return;
     }
 
-    chase_order(i, order);
-    /* 回り込み: 主軸と副軸を入れ替える。まっすぐ詰めずに斜めに寄ってくる形になる。 */
-    if ((rnd8() & (bat ? SWAP_BAT : SWAP_RAT)) == 0) {
-        t = order[0]; order[0] = order[1]; order[1] = t;
-    }
-    /* まず引き返さない方向から、自機に近づく順に選ぶ */
-    for (k = 0; k < 4; k++) {
-        if (order[k] != rev && can_go(i, order[k])) {
-            en_dir[i] = order[k];
-            return;
+    target_cell(i, &tc, &tr);
+    for (k = 0; k < n; k++) {
+        int8_t nc = cx, nr = cy;
+        uint16_t d;
+        step_cell(&nc, &nr, cand[k], 1);
+        d = dist2_to(nc, nr, tc, tr);
+        if (d < bestd) {
+            bestd = d;
+            best = cand[k];
         }
     }
-    /* 行き止まり: 引き返す */
-    if (can_go(i, rev)) {
-        en_dir[i] = rev;
-    }
+    en_dir[i] = best;
 }
 
 /* 四方を土で塞がれているか。湧き出し口は1ブロックの穴なので、湧いた敵はここに当たる。 */
@@ -345,7 +430,7 @@ static void enemy_step(uint8_t i)
         }
     }
 
-    en_acc[i] = (uint8_t)(en_acc[i] + (en_kind[i] == EN_BAT ? SPD_BAT : SPD_RAT));
+    en_acc[i] = (uint8_t)(en_acc[i] + kind_speed[en_kind[i]]);
     if (en_acc[i] < SPD_UNIT) {
         return;
     }
@@ -365,7 +450,7 @@ static void ghost_step(uint8_t i)
 {
     uint8_t c, r;
 
-    en_acc[i] = (uint8_t)(en_acc[i] + (en_kind[i] == EN_BAT ? SPD_BAT_GHOST : SPD_RAT_GHOST));
+    en_acc[i] = (uint8_t)(en_acc[i] + SPD_GHOST);
     if (en_acc[i] < SPD_UNIT) {
         return;
     }
@@ -406,6 +491,12 @@ void enemy_update(void)
 {
     uint8_t i;
     spawn_tick();
+    /* 散開と追跡を交互に切り替える。散開の間は各自の隅へ向かうので固まらない。 */
+    scatter_t--;
+    if (scatter_t == 0) {
+        scattering = (uint8_t)!scattering;
+        scatter_t = (uint16_t)(scattering ? SCATTER_FRAMES : CHASE_FRAMES);
+    }
     for (i = 0; i < ENEMY_MAX; i++) {
         if (!en_state[i]) {
             continue;
@@ -449,7 +540,7 @@ static const uint8_t ghost_colours[16] = {
 
 void enemy_draw(void)
 {
-    uint8_t i, col, pat;
+    uint8_t i, col;
     for (i = 0; i < ENEMY_MAX; i++) {
         if (!en_state[i]) {
             spr_park((uint8_t)(SPR_ENEMY + i));
@@ -461,14 +552,13 @@ void enemy_draw(void)
             spr_park((uint8_t)(SPR_ENEMY + i));
             continue;
         }
-        pat = (uint8_t)(en_kind[i] == EN_BAT ? PAT_BAT : PAT_RAT);
-        /* 透明化中は絵はそのままで色だけ抜く (土をすり抜けている状態) */
-        col = (uint8_t)(en_ghost[i] ? 0xFF : pat);
+        /* 透明化中は色を抜く。それ以外は色ごとの表を使う。 */
+        col = (uint8_t)(en_ghost[i] ? 0xFF : en_kind[i]);
         if (col != en_col[i]) {
             en_col[i] = col;
             spr_color_lines((uint8_t)(SPR_ENEMY + i),
-                            (col == 0xFF) ? ghost_colours : art_colours(pat));
+                            (col == 0xFF) ? ghost_colours : kind_colours[en_kind[i]]);
         }
-        spr_set((uint8_t)(SPR_ENEMY + i), en_x[i], (uint8_t)(en_y[i] - 1), pat);
+        spr_set((uint8_t)(SPR_ENEMY + i), en_x[i], (uint8_t)(en_y[i] - 1), PAT_RAT);
     }
 }
