@@ -63,12 +63,24 @@ void player_carve(void)
     vdp_fill((uint16_t)(px + 2), (uint16_t)(py + 2), 12, 12, COL_TUNNEL);
     link_carve(px, py);        /* 抜いた膜を記録する (敵の通行判定に効く) */
 
+    /* 掘り跡の 12x12 は**隣の升にもはみ出す**ので、そこに置いてある絵を消してしまう。
+       (自機が升の途中で止まると、隣の升の黒ダイヤが半分だけ黒く塗り潰される)
+       重なった升の絵はすべて描き直す。 */
     for (r = r0; r <= r1 && r < ROWS; r++) {
         for (c = c0; c <= c1 && c < COLS; c++) {
-            if (bath_on && c == bath_c && r == bath_r) {
+            uint16_t i = (uint16_t)r * COLS + c;
+            if (coal[i]) {
+                draw_coal(c, r);
+            } else if (bath_on && c == bath_c && r == bath_r) {
                 draw_bath(c, r);
             } else if (c == nest_c && r == nest_r) {
                 draw_cave(c, r);
+            } else if (powder[i]) {
+                draw_powder(c, r);
+            } else if (bombdrop[i]) {
+                draw_bombdrop(c, r);
+            } else if (bonus_on && c == bonus_c && r == bonus_r) {
+                draw_bonus(c, r, bonus_kind);
             }
         }
     }
