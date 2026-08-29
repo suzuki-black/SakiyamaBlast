@@ -48,3 +48,4 @@ _snsmat::
 	pop	ix
 	ld	l, a
 	ret
+
