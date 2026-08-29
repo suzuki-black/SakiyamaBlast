@@ -143,6 +143,14 @@ static void sfx_tick(void)
     }
     if (sfx_left == 0) {
         uint8_t val = *sfx_p++;
+        /* 0xFD = 出し方の切り替え。次の1バイトが 0=トーン 1=ノイズ 2=トーン+ノイズ。
+           打撃音は「低いノイズのアタック → 高いトーンの余韻」で作りたいので、
+           音の途中で切り替えられるようにしてある。 */
+        if (val == 0xFD) {
+            sfx_noise = *sfx_p++;
+            set_mixer(sfx_noise);
+            val = *sfx_p++;
+        }
         if (val == 0xFE) {
             sfx_on = 0;
             PSG_W(10, 0);
