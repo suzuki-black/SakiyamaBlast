@@ -291,7 +291,6 @@ void player_update(void)
         invuln--;
     }
     update_temp();
-    collect();
 
     /* つるはしを振り切るまでは動けない。ここが敵に迫られる緊張感になる。
        向きだけは受け付けて、次に振る方向を決められるようにしておく。 */
@@ -301,6 +300,7 @@ void player_update(void)
         if (q != DIR_NONE) {
             face = q;               /* 振っている間も向きだけは変えられる */
         }
+        collect();
         return;
     }
 
@@ -324,6 +324,14 @@ void player_update(void)
         cdir = q;
         face = q;
     }
+
+    /* **拾う判定は方向転換の後に行う。**
+       方向転換は snap_x()/snap_y() で升へ吸い寄せるが、吸い寄せた同じフレームに
+       もう新しい向きへ動き出すので、判定が前にあると「升にぴったり乗った瞬間」が
+       一度も見られないまま通り過ぎてしまう。
+       (黒ダイヤを上から砕いて、乗った瞬間に横へ切り返すと拾えなかった) */
+    collect();
+
     if (cdir == DIR_NONE) {
         return;
     }
