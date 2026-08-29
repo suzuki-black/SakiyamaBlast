@@ -43,27 +43,21 @@
    出典: "monsters can transform into ghostly forms to move through solid earth until they
    reach another tunnel" / "travel diagonally" / "rematerialize as soon as they get into a
    tunnel"。 */
-#define ENEMY_MAX     4       /* 同時に画面に出る上限 */
-#define EN_QUOTA_BASE 5       /* 面1の総出現数。以降 面ごとに+1 (面15で19) */
-#define EN_QUOTA_MAX  19
-#define SPAWN_BASE    300     /* 次の湧きまでのフレーム数 (面1 = 5秒) */
-#define SPAWN_STEP    15      /* 面が進むごとに速くなる */
-#define SPAWN_MIN     120
-/* 敵の速さと性格。Dig Dug の Pooka / Fygar の違い (Pooka は執拗で速い、Fygar は
-   気紛れで遅い) に倣って2種類に分けた。ただし**速さは原作より落としてある**:
-   原作の Pooka は自機よりわずかに速いが、本作は敵の総数が多くポンプのような
-   飛び道具も無いので、そのままでは追い詰められるだけになる。
-   自機は掘削中 40px/s まで落ちるので、敵はそれより遅くしないと振り切れない。 */
 /*
- * 敵は4種。**色ごとに狙う升の決め方が違う**（パックマンのゴーストに倣った）。
- * 姿は同じで色だけが違うので、色を見れば動きが読める。
- *   赤   追いかけ … 自機の升をそのまま狙う (Blinky)
- *   桃   待ち伏せ … 自機が向いている方向の4升先を狙う (Pinky)
- *   水   気まぐれ … 自機の2升先を、赤の位置から見て倍に伸ばした升 (Inky)。
- *                   **赤の位置に依存する = 敵同士の連携**
- *   橙   お惚け  … 自機まで CLYDE_NEAR 升より遠ければ追い、近ければ自分の隅へ逃げる (Clyde)
- * さらに全員が「散開」と「追跡」を一定間隔で切り替える。散開中は各自の隅を狙う。
+ * 敵は**プール制**（パックマン方式）。面ごとに決まった数の敵が居て、
+ * 倒しても消えてなくならず、洞窟でしばらく静養してからまた出てくる。
+ * 「合計 N 体を出し切ったら終わり」ではないので緊張感が途切れない。
+ *   - 面の頭は全員が洞窟に居て、SPAWN_GAP ごとに1体ずつ出てくる（短い間隔）
+ *   - 倒された敵はそのぶん長く洞窟にこもる（RESPAWN_*）。新規と再出現で間隔が違う
+ * 同時に画面へ出るのはプールの数まで。ENEMY_MAX はその上限。
  */
+#define ENEMY_MAX     6       /* プールの上限 = 同時に出る上限 */
+#define POOL_BASE     3       /* 面1のプール数 */
+#define POOL_STEP     3       /* 何面ごとに1体増やすか */
+#define SPAWN_GAP     90      /* 洞窟から次の1体が出るまで (1.5秒)。新規はこの間隔 */
+#define RESPAWN_BASE  600     /* 倒された敵の静養 (面1 = 10秒) */
+#define RESPAWN_STEP   30     /* 面が進むごとに短くなる */
+#define RESPAWN_MIN   240     /* 下限 (4秒) */
 #define EN_RED        0
 #define EN_PINK       1
 #define EN_CYAN       2
@@ -109,7 +103,7 @@
 #define TEMP_TICK     15      /* このフレーム数ごとに体温+1 (満タンまで約60秒) */
 /* つるはしを1振りするごとの発熱。時間経過だけだと面が短くなった今、
    風呂へ行く必要がほとんど無い。掘る量そのものを体温に効かせる。 */
-#define HEAT_PER_SWING 2
+#define HEAT_PER_SWING 3
 /* 風呂は**一瞬で全快させない**。1フレームにこれだけ下がる。
    風呂は出発点の近くの本通りに置かれるので、一瞬で全快だと通りすがりに
    踏むだけで体温が0に戻り、意識して入る必要がまったく無くなる
@@ -269,6 +263,7 @@ void    rock_draw(void);
 extern uint8_t en_state[ENEMY_MAX];
 extern uint8_t en_x[ENEMY_MAX], en_y[ENEMY_MAX];
 extern uint8_t en_kind[ENEMY_MAX];   /* EN_RED / EN_PINK / EN_CYAN / EN_ORANGE */
+extern uint16_t en_rest[ENEMY_MAX];  /* 倒された敵が洞窟にこもる残りフレーム */
 
 uint8_t rnd8(void);
 void    rnd_seed(uint16_t s);

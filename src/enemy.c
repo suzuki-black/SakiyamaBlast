@@ -27,10 +27,10 @@ static uint8_t  en_pause[ENEMY_MAX];
 static uint16_t en_morph[ENEMY_MAX];
 static uint16_t scatter_t;                /* 散開/追跡の切り替えタイマ */
 static uint8_t  scattering;               /* 1 = 散開中 (各自の隅へ向かう) */
+uint16_t en_rest[ENEMY_MAX];              /* 洞窟で静養している残りフレーム。0 で出られる */
+static uint8_t  en_pool;                  /* この面のプール数 (先頭から en_pool 体を使う) */
 static uint8_t  en_warm[ENEMY_MAX];       /* 湧いた直後の点滅。0以外の間は動かず当たらない */
 static uint8_t  en_col[ENEMY_MAX];      /* 色テーブルへ焼いた色 (変化時だけ書く) */
-static uint8_t  en_quota;               /* この面で出す総数 */
-static uint8_t  en_spawned;             /* これまでに出した数 */
 static uint16_t spawn_timer;
 
 /* 16bit LFSR。turbo R でも軽く、面ごとに種を振れば十分にばらける。 */
@@ -71,84 +71,83 @@ static uint16_t ghost_frames(void)
 }
 
 /* 面ごとの総出現数。面が進むほど増える。 */
-static uint8_t quota_for_stage(void)
+/* この面のプール数。面が進むと増える。 */
+static uint8_t pool_size(void)
 {
-    uint16_t q = (uint16_t)(EN_QUOTA_BASE + (stage - 1));
-    if (q > EN_QUOTA_MAX) {
-        q = EN_QUOTA_MAX;
+    uint16_t n = (uint16_t)(POOL_BASE + (stage - 1) / POOL_STEP);
+    if (n > ENEMY_MAX) {
+        n = ENEMY_MAX;
     }
-    return (uint8_t)q;
+    return (uint8_t)n;
 }
 
-static uint16_t spawn_interval(void)
+/* 倒された敵が洞窟にこもる時間。面が進むほど短い＝早く戻ってくる。 */
+static uint16_t respawn_frames(void)
 {
-    uint16_t t = SPAWN_BASE;
-    uint16_t d = (uint16_t)(stage - 1) * SPAWN_STEP;
-    if (d >= t || (uint16_t)(t - d) < SPAWN_MIN) {
-        return SPAWN_MIN;
+    uint16_t t = RESPAWN_BASE;
+    uint16_t d = (uint16_t)(stage - 1) * RESPAWN_STEP;
+    if (d >= t || (uint16_t)(t - d) < RESPAWN_MIN) {
+        return RESPAWN_MIN;
     }
     return (uint16_t)(t - d);
 }
 
 void enemy_stage_reset(void)
 {
+    uint8_t i;
     enemy_clear();
-    en_quota = quota_for_stage();
-    en_spawned = 0;
+    en_pool = pool_size();
+    for (i = 0; i < ENEMY_MAX; i++) {
+        en_rest[i] = 0;
+        en_kind[i] = (uint8_t)(i % EN_KINDS);   /* 赤→桃→水→橙 を順に配る */
+    }
     scattering = 1;                  /* 面の頭は散開から始める (いきなり詰めてこない) */
     scatter_t = SCATTER_FRAMES;
-    spawn_timer = spawn_interval();
+    spawn_timer = SPAWN_GAP;
 }
 
 /* 巣から1体出す。出せなければ何もしない。 */
-static void enemy_spawn(void)
+/* プールの i 番を洞窟から出す。色は面の頭で決めてあるので触らない。 */
+static void enemy_spawn(uint8_t i)
 {
-    uint8_t i;
-    for (i = 0; i < ENEMY_MAX; i++) {
-        if (en_state[i]) {
-            continue;
-        }
+    {
         en_x[i] = (uint8_t)(nest_c << 4);
         en_y[i] = (uint8_t)(nest_r << 4);
         en_state[i] = 1;
         en_dir[i] = (uint8_t)(DIR_UP + (rnd8() & 3));   /* 出た向きは適当に散らす */
-        en_kind[i] = (uint8_t)(en_spawned % EN_KINDS);   /* 赤→桃→水→橙 の順に配る */
         en_ghost[i] = 0;
         en_acc[i] = 0;
         en_pause[i] = 0;
         en_morph[i] = ghost_frames();
         en_warm[i] = SPAWN_WARM;         /* 洞窟の口で点滅してから実体化する */
-        en_spawned++;
-        return;
     }
 }
 
 /* 湧きの制御: 決められた総数まで、一定時間ごと、または全滅した瞬間に次を出す。 */
+/*
+ * 洞窟から1体ずつ出す。出られるのは「画面に居ない」かつ「静養が明けた」敵だけ。
+ * 面の頭は全員の静養が0なので、SPAWN_GAP ごとに次々と出てくる。
+ * 倒された敵は respawn_frames() ぶん洞窟にこもるので、戻ってくるまで間が空く。
+ */
 static void spawn_tick(void)
 {
-    uint8_t i, alive = 0;
-    if (en_spawned >= en_quota) {
-        return;                         /* 出し切ったらもう出ない */
-    }
-    for (i = 0; i < ENEMY_MAX; i++) {
-        if (en_state[i]) {
-            alive++;
+    uint8_t i;
+
+    for (i = 0; i < en_pool; i++) {
+        if (!en_state[i] && en_rest[i]) {
+            en_rest[i]--;               /* 洞窟で静養中 */
         }
     }
-    if (alive == 0 && en_spawned) {
-        /* 画面から敵が消えた瞬間に次を出す。ただし面の1体目はタイマで出す
-           (開始と同時に湧くと、自機が動く前に捕まってしまう)。 */
-        enemy_spawn();
-        spawn_timer = spawn_interval();
-        return;
+    if (spawn_timer) {
+        spawn_timer--;
+        return;                         /* 湧き口は1体ずつ。間隔を空ける */
     }
-    if (alive >= ENEMY_MAX) {
-        return;
-    }
-    spawn_timer--;
-    if (spawn_timer == 0) {
-        enemy_spawn();
-        spawn_timer = spawn_interval();
+    for (i = 0; i < en_pool; i++) {
+        if (!en_state[i] && !en_rest[i]) {
+            enemy_spawn(i);
+            spawn_timer = SPAWN_GAP;
+            return;
+        }
     }
 }
 
@@ -199,6 +198,7 @@ uint8_t enemy_kill_at(int8_t cx, int8_t cy)
     for (i = 0; i < ENEMY_MAX; i++) {
         if (hits_cell(i, cx, cy)) {
             en_state[i] = 0;
+            en_rest[i] = respawn_frames();   /* 倒された敵は洞窟で静養してから戻る */
             spr_park((uint8_t)(SPR_ENEMY + i));
             killed++;
         }
