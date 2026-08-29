@@ -19,5 +19,8 @@ uint8_t snsmat(uint8_t row) __z88dk_fastcall;   /* キーマトリクス1行 (0=
 /* ROM データ窓 (0xA000-0xBFFF) のセグメント切り替え */
 void bank_select(uint8_t seg) __z88dk_fastcall;
 #define BANK_WINDOW ((const uint8_t *)0xA000)
+/* 0xA000 の窓の既定の中身。絵 (art.c) と曲 (music.c) がここへリンクされている。
+   タイトル画像を読むときだけ一時的に切り替え、読み終わったら必ずここへ戻すこと。 */
+#define DATA_SEG 3
 
 #endif

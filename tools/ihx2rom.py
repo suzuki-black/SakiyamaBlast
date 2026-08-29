@@ -5,7 +5,8 @@ ROM 配置:
     seg0 -> 0x4000-0x5FFF  固定 (ROM ヘッダ + コード)
     seg1 -> 0x6000-0x7FFF  固定 (コード)
     seg2 -> 0x8000-0x9FFF  固定 (コード)
-    seg3 -> 0xA000-0xBFFF  可変データ窓 (bank_select で差し替え)
+    seg3 -> 0xA000-0xBFFF  絵と曲 (0xA000 へリンクしたもの。既定で選んでおく)
+    seg4以降 -> 0xA000 の窓へ bank_select() で差し替えて使う (タイトル画像など)
 
 固定コードは 0x4000-0x9FFF (24KB) に収まらなければならない。はみ出したら
 バンク切り替えなしでは届かないので、エラーにして気づけるようにする。
@@ -15,6 +16,7 @@ import sys
 ROM_BASE = 0x4000
 FIXED_END = 0xA000        # ここより後ろは可変窓なので固定コードは置けない
 WINDOW_END = 0xC000
+DATA_SEG = 3              # 0xA000 の窓へリンクしたデータを置くセグメント
 SEG_SIZE = 0x2000
 
 
@@ -62,10 +64,9 @@ def main(argv):
     if hi >= WINDOW_END:
         print(f"error: 0x{hi:04X} は ROM 領域 (-0xBFFF) を超えています", file=sys.stderr)
         return 1
-    if hi >= FIXED_END:
-        print(f"error: コード末尾 0x{hi:04X} が固定領域 0x4000-0x9FFF を超えました。"
-              f" データをバンク側へ移すか分割してください。", file=sys.stderr)
-        return 1
+    # 0xA000-0xBFFF は可変窓。ここへリンクされたもの (絵・曲) はセグメント3へ置く。
+    fixed_hi = max((a for a in mem if a < FIXED_END), default=ROM_BASE - 1)
+    banked = {a: v for a, v in mem.items() if a >= FIXED_END}
 
     total = size_kb * 1024
     if total % SEG_SIZE:
@@ -74,7 +75,11 @@ def main(argv):
 
     rom = bytearray(b"\xFF" * total)
     for addr, val in mem.items():
-        rom[addr - ROM_BASE] = val
+        if addr < FIXED_END:
+            rom[addr - ROM_BASE] = val
+        else:
+            # 窓 0xA000 の内容 = セグメント3 の中身
+            rom[DATA_SEG * SEG_SIZE + (addr - FIXED_END)] = val
 
     # 可変バンク側へ載せるデータ (タイトル画像など)。seg:file の形で指定する。
     for spec in blobs:
@@ -97,10 +102,14 @@ def main(argv):
     with open(out, "wb") as f:
         f.write(rom)
 
-    used = hi - ROM_BASE + 1
+    used = fixed_hi - ROM_BASE + 1
     print(f"{out}: {total // 1024}KB ({total // SEG_SIZE} segments) / "
-          f"code+data 0x{lo:04X}-0x{hi:04X} = {used} bytes, "
-          f"fixed area free {FIXED_END - hi - 1} bytes")
+          f"fixed 0x{lo:04X}-0x{fixed_hi:04X} = {used} bytes, "
+          f"free {FIXED_END - fixed_hi - 1} bytes")
+    if banked:
+        bhi = max(banked)
+        print(f"  seg{DATA_SEG}: 絵と曲 0xA000-0x{bhi:04X} = {bhi - FIXED_END + 1} バイト"
+              f" (窓 8192 バイト中)")
     return 0
 
 

@@ -13,10 +13,18 @@ BUILDDIR  := build
 CC        := sdcc
 AS        := sdasz80
 CFLAGS    := -mz80 --std-c99 --sdcccall 1 --opt-code-speed -I$(SRCDIR) -I$(BUILDDIR)
-LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000
+LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKDATA=0xA000
+
+# 固定領域 (0x4000-0x9FFF) は 24KB しかない。絵と曲は**ただのデータ**なので、
+# 0xA000 の窓へリンクして ROM のセグメント3へ置き、固定領域を空ける。
+# 実行時は bank_select(DATA_SEG) でこの窓を選んでおく。
+BANKED_SRC := $(SRCDIR)/art.c $(SRCDIR)/music.c
 
 CSRC      := $(wildcard $(SRCDIR)/*.c)
 HEADERS   := $(wildcard $(SRCDIR)/*.h)
+# Makefile 自身も依存に入れる。コンパイル指定やリンク位置を変えたのに
+# 作り直されず、古い ROM で「直したつもり」になるのを防ぐ。
+MAKEFILE  := $(lastword $(MAKEFILE_LIST))
 ASRC      := $(SRCDIR)/crt0.s $(SRCDIR)/lowlevel.s $(SRCDIR)/bios.s
 COBJ      := $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.rel,$(CSRC))
 AOBJ      := $(patsubst $(SRCDIR)/%.s,$(BUILDDIR)/%.rel,$(ASRC))
@@ -51,7 +59,7 @@ all: $(ROM)
 $(BUILDDIR):
 	@mkdir -p $(BUILDDIR)
 
-$(BUILDDIR)/%.rel: $(SRCDIR)/%.s | $(BUILDDIR)
+$(BUILDDIR)/%.rel: $(SRCDIR)/%.s $(MAKEFILE) | $(BUILDDIR)
 	$(AS) -g -o $@ $<
 
 $(TITLE_BIN) $(TITLE_PAL): $(TITLE_SRC) tools/png2sc5.py | $(BUILDDIR)
@@ -68,8 +76,8 @@ $(ART_TILE): $(ART_TILE_SRC) tools/png2art.py tools/palette.py | $(BUILDDIR)
 
 # ヘッダにも依存させる。これが無いと game.h の定数を変えても再ビルドされず、
 # 古い ROM のまま「直したつもり」になる。
-$(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(HEADERS) $(TITLE_PAL) $(ART_SPR) $(ART_TILE) $(PAL_H) | $(BUILDDIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
+$(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(HEADERS) $(MAKEFILE) $(TITLE_PAL) $(ART_SPR) $(ART_TILE) $(PAL_H) | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(if $(filter $<,$(BANKED_SRC)),--codeseg BANKDATA) -c -o $@ $<
 
 # crt0 が必ず先頭に来るようにリンク順を固定する
 $(IHX): $(BUILDDIR)/crt0.rel $(AOBJ) $(COBJ)

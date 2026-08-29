@@ -215,6 +215,7 @@ static void goto_title(void)
 
 void main(void)
 {
+    bank_select(DATA_SEG);      /* 0xA000 の窓を絵と曲へ向けておく */
     vdp_screen5();
     vdp_adjust_init();
     set_game_palette();

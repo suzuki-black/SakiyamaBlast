@@ -32,4 +32,5 @@ void title_draw(void)
         vdp_wblock(BANK_WINDOW);
         left = (uint16_t)(left - vdp_blklen);
     }
+    bank_select(DATA_SEG);      /* 窓を絵と曲へ戻す。戻し忘れると音も絵も壊れる */
 }
