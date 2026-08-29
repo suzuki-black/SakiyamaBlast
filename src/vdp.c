@@ -13,6 +13,26 @@ void vdp_display(uint8_t on)
     VDP_REG(1, reg1);
 }
 
+/*
+ * 表示位置ずらし (R#18)。上位4bitが縦、下位4bitが横で、どちらも中央が 0。
+ * **中立値は本体 BIOS の保存領域 (R#8..R#23 が 0xFFE7..0xFFF6) から読む。**
+ * 決め打ちで 0 を書くと、利用者が SET ADJUST で調整していた設定を壊してしまう。
+ */
+static uint8_t adj_neutral;
+
+void vdp_adjust_init(void)
+{
+    adj_neutral = *(volatile uint8_t *)0xFFF1;   /* R#18 の保存値 */
+}
+
+void vdp_adjust(int8_t dx, int8_t dy)
+{
+    uint8_t h = (uint8_t)(((uint8_t)(adj_neutral & 0x0F) + (uint8_t)dx) & 0x0F);
+    uint8_t v = (uint8_t)(((uint8_t)((adj_neutral >> 4) & 0x0F) + (uint8_t)dy) & 0x0F);
+    vdp_wait_cmd();                  /* コマンド実行中に触ると VRAM を壊す */
+    VDP_REG(18, (uint8_t)((v << 4) | h));
+}
+
 void vdp_screen5(void)
 {
     /* GRAPHIC 4 (M3=1, M4=1) */

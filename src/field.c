@@ -72,19 +72,23 @@ void set_dirt_palette(void)
     }
 }
 
-/* 黒ダイヤが割れた瞬間、土の色を白く飛ばす。2〜3フレームで戻す。
-   パレットレジスタを書くだけなので、盤面を描き直すより桁違いに安い。 */
-static uint8_t flash_t;
+/* 黒ダイヤが割れた瞬間、画面を縦へ揺らす。表示位置ずらし (R#18) を書くだけなので、
+   盤面を描き直すより桁違いに安い。振幅は 2 -> 1 と減衰させる。 */
+static uint8_t shake_t;
 
-void coal_flash_tick(void)
+void coal_shake_tick(void)
 {
-    if (!flash_t) {
+    int8_t amp;
+    if (!shake_t) {
         return;
     }
-    flash_t--;
-    if (!flash_t) {
-        set_dirt_palette();
+    shake_t--;
+    if (!shake_t) {
+        vdp_adjust(0, 0);            /* 元の位置へ戻す */
+        return;
     }
+    amp = (int8_t)((shake_t > (COAL_SHAKE_FRAMES / 2)) ? 2 : 1);
+    vdp_adjust(0, (int8_t)((shake_t & 1) ? amp : (int8_t)-amp));
 }
 
 uint8_t cell_dug(int8_t cx, int8_t cy)
@@ -117,8 +121,7 @@ uint8_t coal_hit(int8_t cx, int8_t cy)
     coal[i]--;
     if (coal[i] == 0) {
         coal[i] = COAL_CRACKED;
-        flash_t = COAL_FLASH_FRAMES;           /* 砕けた瞬間、画面の土を白く飛ばす */
-        vdp_set_palette(COL_DIRT, 7, 7, 7);
+        shake_t = COAL_SHAKE_FRAMES;           /* 砕けた瞬間、画面を揺らす */
         snd_sfx(SFX_BREAK);
         dig_sweep((uint8_t)cx, (uint8_t)cy);   /* 砕けたので通れる升になる */
         draw_coal((uint8_t)cx, (uint8_t)cy);

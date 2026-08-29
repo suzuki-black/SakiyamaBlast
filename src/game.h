@@ -123,8 +123,8 @@
 /* 黒ダイヤは1個ずつばらまかず、**繋がった炭層**として置く。掘って辿り着く距離が
    減り、鉱脈を掘り当てて一息に採る感じが出る。1本の長さは 1..COAL_VEIN_MAX。 */
 #define COAL_VEIN_MAX 4
-/* 割れた瞬間に土の色を白く飛ばす。パレットレジスタを書くだけなので安い。 */
-#define COAL_FLASH_FRAMES 4
+/* 割れた瞬間に画面を縦へ揺らす (R#18 = SET ADJUST)。 */
+#define COAL_SHAKE_FRAMES 10
 
 /* ダイナマイトは投げる武器。向いている方向へ最大5升飛ぶ。
    飛んだ先に敵が居ればそこで爆発 (爆風は1升だけ・地形は掘らない)、
@@ -217,7 +217,7 @@ void    bath_destroy_at(int8_t cx, int8_t cy);   /* 岩・爆風で壊れる (�
 void    field_redraw_cell(int8_t cx, int8_t cy);
 void    build_stage(void);
 void    set_dirt_palette(void);   /* 面ごとの土の色 */
-void    coal_flash_tick(void);   /* 割れた瞬間の閃光を戻す。毎フレーム呼ぶ */
+void    coal_shake_tick(void);   /* 割れた瞬間の画面揺れ。毎フレーム呼ぶ */
 
 /* --- player.c --- */
 extern uint8_t px, py;

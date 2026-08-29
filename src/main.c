@@ -216,6 +216,7 @@ static void goto_title(void)
 void main(void)
 {
     vdp_screen5();
+    vdp_adjust_init();
     set_game_palette();
     text_init();
     snd_init();
@@ -348,7 +349,7 @@ void main(void)
             fire_pressed();        /* 死亡中もエッジ検出の状態は進めておく */
             throw_pressed();
         }
-        coal_flash_tick();
+        coal_shake_tick();
         bomb_update();
         rock_update();
         enemy_update();

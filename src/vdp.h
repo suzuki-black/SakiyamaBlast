@@ -26,6 +26,10 @@ void vdp_wblock(const uint8_t *src) __z88dk_fastcall;
 /* --- 高レベル (vdp.c) --- */
 void vdp_screen5(void);
 void vdp_display(uint8_t on);   /* 0 で画面を消す (幕を下ろす) */
+/* 表示位置ずらし (R#18 = SET ADJUST)。画面を揺らす演出に使う。
+   中立値は BIOS の保存領域から取るので、本体側の調整設定を壊さない。 */
+void vdp_adjust_init(void);
+void vdp_adjust(int8_t dx, int8_t dy);
 void vdp_set_palette(uint8_t idx, uint8_t r, uint8_t g, uint8_t b);
 void vdp_upload(uint16_t addr, const uint8_t *src, uint16_t len);
 void vdp_memset(uint16_t addr, uint8_t val, uint16_t len);
