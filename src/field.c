@@ -75,10 +75,26 @@ void set_dirt_palette(void)
 /* 黒ダイヤが割れた瞬間、画面を縦へ揺らす。表示位置ずらし (R#18) を書くだけなので、
    盤面を描き直すより桁違いに安い。振幅は 2 -> 1 と減衰させる。 */
 static uint8_t shake_t;
+static uint8_t get_t;                   /* 採掘した升を光らせている残りフレーム */
+static uint8_t get_c, get_r;
 
 void coal_shake_tick(void)
 {
     int8_t amp;
+
+    /* 採掘した升の閃き。白 -> 黒ダイヤの色 と2段で光らせてから元へ戻す。
+       自機が升の上に乗っているので、周りがふちどられるように見える。 */
+    if (get_t) {
+        get_t--;
+        if (get_t == (COAL_GET_FRAMES * 2 / 3)) {
+            vdp_fill((uint16_t)((uint16_t)get_c << 4), (uint16_t)((uint16_t)get_r << 4),
+                     16, 16, COL_DIA);
+        } else if (get_t == 0) {
+            field_redraw_cell((int8_t)get_c, (int8_t)get_r);
+            player_carve();             /* 掘り跡を戻す */
+        }
+    }
+
     if (!shake_t) {
         return;
     }
@@ -151,6 +167,12 @@ void coal_take(uint8_t cx, uint8_t cy)
     field_redraw_cell((int8_t)cx, (int8_t)(cy + 1));
     field_redraw_cell((int8_t)(cx - 1), (int8_t)cy);
     field_redraw_cell((int8_t)(cx + 1), (int8_t)cy);
+    /* **描き直しのあとで**光らせる。先に塗ると、この直後の描き直しに消される。 */
+    get_t = COAL_GET_FRAMES;
+    get_c = cx;
+    get_r = cy;
+    vdp_fill((uint16_t)((uint16_t)cx << 4), (uint16_t)((uint16_t)cy << 4), 16, 16, COL_WHITE);
+    snd_sfx(SFX_COAL);
     score_add(PTS_COAL);
 }
 

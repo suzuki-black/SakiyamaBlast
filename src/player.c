@@ -169,9 +169,7 @@ static void collect(void)
         snd_sfx(SFX_PICK);
     }
     if (coal[i] == COAL_CRACKED) {             /* 割れた黒ダイヤの上を通ると採掘 */
-        coal_take(c, r);
-        player_carve();
-        snd_sfx(SFX_PICK);
+        coal_take(c, r);                       /* 音と閃きは coal_take() の中 */
     }
 }
 

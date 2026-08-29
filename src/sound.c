@@ -62,14 +62,15 @@ static const uint8_t *sfx_p;
 static uint8_t sfx_left, sfx_t, sfx_vol0, sfx_dec, sfx_noise, sfx_pri, sfx_on;
 
 /* 効果音の定義: データ / ノイズか / 音量 / 減衰 / 優先度 */
-static const uint8_t *const sfx_data[8] = { sfx_dig, sfx_pick, sfx_set, sfx_boom, sfx_miss, sfx_mine, sfx_nope, sfx_break };
+static const uint8_t *const sfx_data[9] = { sfx_dig, sfx_pick, sfx_set, sfx_boom, sfx_miss, sfx_mine, sfx_nope, sfx_break, sfx_coal };
 /* 0=トーン 1=ノイズ 2=トーン+ノイズ (金属音) */
-static const uint8_t sfx_isnoise[8]     = {       1,        0,       0,        1,        0,        2,        0,        1 };
-static const uint8_t sfx_volume[8]      = {       8,       13,      11,       15,       14,       13,        9,       15 };
-static const uint8_t sfx_decay[8]       = {       1,        3,       2,        3,        3,        4,        4,        2 };
+static const uint8_t sfx_isnoise[9]     = {       1,        0,       0,        1,        0,        2,        0,        1,        0 };
+static const uint8_t sfx_volume[9]      = {       8,       13,      11,       15,       14,       15,        9,       15,       15 };
+/* 大きいほど減衰が遅い。0 は1フレームに1ずつ落ちる = 打撃音向き。 */
+static const uint8_t sfx_decay[9]       = {       1,        3,       2,        3,        3,        0,        4,        2,        1 };
 /* トーンに重ねるノイズの粗さ (モード2 のときだけ使う)。小さいほど高い。 */
-static const uint8_t sfx_noisep[8]      = {       0,        0,       0,        0,        0,        2,        0,        0 };
-static const uint8_t sfx_prio[8]        = {       0,        1,       1,        2,        2,        1,        0,        2 };
+static const uint8_t sfx_noisep[9]      = {       0,        0,       0,        0,        0,        1,        0,        0,        0 };
+static const uint8_t sfx_prio[9]        = {       0,        1,       1,        2,        2,        1,        0,        2,        2 };
 
 /* ノイズドラム。PSG のノイズ周期を変えて太鼓・スネア・ハイハットを作り分ける。 */
 #define DRUM_BD 1
@@ -114,7 +115,7 @@ void snd_init(void)
 
 void snd_sfx(uint8_t id)
 {
-    if (id > SFX_BREAK) {
+    if (id > SFX_COAL) {
         return;
     }
     if (sfx_on && sfx_prio[id] < sfx_pri) {

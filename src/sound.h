@@ -23,6 +23,7 @@ uint8_t snd_busy(void);          /* ファンファーレが鳴っている間�
 #define SFX_MINE 5       /* つるはしで黒ダイヤを叩く (キンキン) */
 #define SFX_NOPE 6       /* 投げられないときの空振り (コツン) */
 #define SFX_BREAK 7      /* 黒ダイヤが砕けた (ガシャン) */
+#define SFX_COAL  8      /* 黒ダイヤを採掘した (チャリーン) */
 void snd_sfx(uint8_t id);
 
 /* 曲データ (music.c)。3チャンネルぶんの (音程, 長さ) の並び。
@@ -31,6 +32,6 @@ extern const uint8_t bgm_a[], bgm_b[], bgm_c[];
 extern const uint8_t title_a[], title_b[], title_c[];
 extern const uint8_t fan_a[], fan_b[], fan_c[];
 extern const uint8_t miss_a[], miss_b[], miss_c[];
-extern const uint8_t sfx_dig[], sfx_pick[], sfx_set[], sfx_boom[], sfx_miss[], sfx_mine[], sfx_nope[], sfx_break[];
+extern const uint8_t sfx_dig[], sfx_pick[], sfx_set[], sfx_boom[], sfx_miss[], sfx_mine[], sfx_nope[], sfx_break[], sfx_coal[];
 
 #endif

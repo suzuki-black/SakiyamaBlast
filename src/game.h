@@ -103,7 +103,7 @@
 #define TEMP_TICK     15      /* このフレーム数ごとに体温+1 (満タンまで約60秒) */
 /* つるはしを1振りするごとの発熱。時間経過だけだと面が短くなった今、
    風呂へ行く必要がほとんど無い。掘る量そのものを体温に効かせる。 */
-#define HEAT_PER_SWING 3
+#define HEAT_PER_SWING 4
 /* 風呂は**一瞬で全快させない**。1フレームにこれだけ下がる。
    風呂は出発点の近くの本通りに置かれるので、一瞬で全快だと通りすがりに
    踏むだけで体温が0に戻り、意識して入る必要がまったく無くなる
@@ -128,6 +128,9 @@
 #define COAL_VEIN_MAX 4
 /* 割れた瞬間に画面を縦へ揺らす (R#18 = SET ADJUST)。 */
 #define COAL_SHAKE_FRAMES 10
+/* 採掘した瞬間、その升を光らせる。割ったとき (画面揺れ) とは別の演出で、
+   「割る」と「手に入れる」を分けて見せる。 */
+#define COAL_GET_FRAMES 9
 
 /* ダイナマイトは投げる武器。向いている方向へ最大5升飛ぶ。
    飛んだ先に敵が居ればそこで爆発 (爆風は1升だけ・地形は掘らない)、
@@ -220,7 +223,7 @@ void    bath_destroy_at(int8_t cx, int8_t cy);   /* 岩・爆風で壊れる (�
 void    field_redraw_cell(int8_t cx, int8_t cy);
 void    build_stage(void);
 void    set_dirt_palette(void);   /* 面ごとの土の色 */
-void    coal_shake_tick(void);   /* 割れた瞬間の画面揺れ。毎フレーム呼ぶ */
+void    coal_shake_tick(void);   /* 割れた瞬間の画面揺れと、採掘した升の閃き。毎フレーム呼ぶ */
 
 /* --- player.c --- */
 extern uint8_t px, py;
