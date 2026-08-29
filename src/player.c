@@ -106,8 +106,8 @@ static uint8_t read_dir(void)
    風呂の升目を通過すると一瞬で下がる (仕様は後で調整するかもしれない)。 */
 static void update_temp(void)
 {
-    /* 風呂も同じ。整列していないと入れない判定にすると、乗っているのに冷えない。 */
-    if (bath_on && player_cell_c() == bath_c && player_cell_r() == bath_r) {
+    if (bath_on && ((px & 15) == 0) && ((py & 15) == 0)
+        && ((uint8_t)(px >> 4) == bath_c) && ((uint8_t)(py >> 4) == bath_r)) {
         temp = 0;
         temp_acc = 0;
         return;
@@ -127,22 +127,15 @@ static void update_temp(void)
 }
 
 /* 火薬を拾う。節点に乗った時だけ判定する。 */
-/*
- * 足元の升にあるものを拾う。
- *
- * **升にぴったり整列しているときだけ、という判定にしてはいけない。**
- * 自機はキーを離した位置でそのまま止まる (節点へ吸い寄せない) ので、
- * 升の途中で止まると、見た目は乗っているのに1pxのずれで拾えなくなる。
- * 中心がどの升にあるかで見る。
- */
 static void collect(void)
 {
     uint16_t i;
-    uint8_t c = player_cell_c();
-    uint8_t r = player_cell_r();
-    if (c >= COLS || r >= ROWS) {
+    uint8_t c, r;
+    if ((px & 15) || (py & 15)) {
         return;
     }
+    c = (uint8_t)(px >> 4);
+    r = (uint8_t)(py >> 4);
     i = (uint16_t)r * COLS + c;
     if (bonus_on && c == bonus_c && r == bonus_r) {
         bonus_take();
