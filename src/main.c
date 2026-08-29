@@ -348,6 +348,7 @@ void main(void)
             fire_pressed();        /* 死亡中もエッジ検出の状態は進めておく */
             throw_pressed();
         }
+        coal_flash_tick();
         bomb_update();
         rock_update();
         enemy_update();

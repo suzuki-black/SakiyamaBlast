@@ -3,6 +3,7 @@
 #include "vdp.h"
 #include "art.h"
 #include "text.h"
+#include "sound.h"
 
 uint8_t  dug[NCELL];
 uint8_t  powder[NCELL];
@@ -61,6 +62,31 @@ void link_carve(uint8_t px_, uint8_t py_)
     }
 }
 
+/* 面ごとに土の色を変える。閃光から戻すときにも使う。 */
+void set_dirt_palette(void)
+{
+    switch ((stage - 1) % 3) {
+    case 0:  vdp_set_palette(COL_DIRT, 4, 2, 1); break;   /* 炭層まじりの茶 */
+    case 1:  vdp_set_palette(COL_DIRT, 3, 3, 2); break;   /* 硬い岩盤の灰 */
+    default: vdp_set_palette(COL_DIRT, 2, 2, 4); break;   /* 湧水を含む青みの層 */
+    }
+}
+
+/* 黒ダイヤが割れた瞬間、土の色を白く飛ばす。2〜3フレームで戻す。
+   パレットレジスタを書くだけなので、盤面を描き直すより桁違いに安い。 */
+static uint8_t flash_t;
+
+void coal_flash_tick(void)
+{
+    if (!flash_t) {
+        return;
+    }
+    flash_t--;
+    if (!flash_t) {
+        set_dirt_palette();
+    }
+}
+
 uint8_t cell_dug(int8_t cx, int8_t cy)
 {
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
@@ -91,6 +117,9 @@ uint8_t coal_hit(int8_t cx, int8_t cy)
     coal[i]--;
     if (coal[i] == 0) {
         coal[i] = COAL_CRACKED;
+        flash_t = COAL_FLASH_FRAMES;           /* 砕けた瞬間、画面の土を白く飛ばす */
+        vdp_set_palette(COL_DIRT, 7, 7, 7);
+        snd_sfx(SFX_BREAK);
         dig_sweep((uint8_t)cx, (uint8_t)cy);   /* 砕けたので通れる升になる */
         draw_coal((uint8_t)cx, (uint8_t)cy);
         field_redraw_cell((int8_t)cx, (int8_t)(cy - 1));
@@ -527,21 +556,60 @@ static const uint8_t coal_hp_tbl[MAX_STAGE] = {
 /* TODO: 絵が異なり耐久度がさらに高い「特殊な黒ダイヤ」。coal[] の値域はまだ余っている
    (1..COAL_HP_MAX と COAL_CRACKED しか使っていない) ので、種別は別配列か上位ビットで持つ。 */
 
+/* (c,r) の隣で黒ダイヤを置ける升を1つ返す。無ければ 0xFFFF。 */
+static uint16_t vein_next(uint16_t from)
+{
+    static const int8_t dc[4] = { 1, -1, 0, 0 };
+    static const int8_t dr[4] = { 0, 0, 1, -1 };
+    uint8_t k, o = (uint8_t)(rnd8() & 3);
+    int8_t c = (int8_t)(from % COLS), r = (int8_t)(from / COLS);
+    for (k = 0; k < 4; k++) {
+        uint8_t j = (uint8_t)((o + k) & 3);
+        int8_t nc = (int8_t)(c + dc[j]), nr = (int8_t)(r + dr[j]);
+        if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) {
+            continue;
+        }
+        {
+            uint16_t i = (uint16_t)(uint8_t)nr * COLS + (uint8_t)nc;
+            if (cell_ok(i, 1)) {
+                return i;
+            }
+        }
+    }
+    return 0xFFFF;
+}
+
+/*
+ * 黒ダイヤを**繋がった炭層**として置く。1個ずつばらまくと、1個掘るたびに次を探して
+ * 長く掘る羽目になり、そこが遊びの大半を占めてしまう。鉱脈にすると、掘り当ててから
+ * 一息に採れるので、掘る時間が減って手応えが出る。
+ */
 static void place_coal(void)
 {
     uint8_t want = coal_n_tbl[stage - 1];
     uint8_t hp   = coal_hp_tbl[stage - 1];
     uint16_t i;
+    uint8_t len;
 
     coal_left = 0;
-    build_candidates(1);
     while (coal_left < want) {
+        build_candidates(1);            /* 置くたびに作り直す (coal[] が増えるため) */
         i = take_candidate();
         if (i == 0xFFFF) {
-            return;                 /* 置ける升が尽きた (通常は起きない) */
+            return;                     /* 置ける升が尽きた */
         }
         coal[i] = hp;
         coal_left++;
+        len = (uint8_t)(1 + (rnd8() % COAL_VEIN_MAX));   /* この鉱脈の長さ */
+        while (--len && coal_left < want) {
+            uint16_t n = vein_next(i);
+            if (n == 0xFFFF) {
+                break;                  /* これ以上伸ばせない */
+            }
+            coal[n] = hp;
+            coal_left++;
+            i = n;
+        }
     }
 }
 
@@ -724,12 +792,7 @@ static void set_stage_layout(void)
         used[i] = 0;
     }
 
-    /* 面ごとに土の色を変える */
-    switch ((stage - 1) % 3) {
-    case 0:  vdp_set_palette(COL_DIRT, 4, 2, 1); break;   /* 炭層まじりの茶 */
-    case 1:  vdp_set_palette(COL_DIRT, 3, 3, 2); break;   /* 硬い岩盤の灰 */
-    default: vdp_set_palette(COL_DIRT, 2, 2, 4); break;   /* 湧水を含む青みの層 */
-    }
+    set_dirt_palette();
 
     carve_stage_number();
 
