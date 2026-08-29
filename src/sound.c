@@ -55,9 +55,12 @@ static uint8_t sfx_left, sfx_t, sfx_vol0, sfx_dec, sfx_noise, sfx_pri, sfx_on;
 
 /* 効果音の定義: データ / ノイズか / 音量 / 減衰 / 優先度 */
 static const uint8_t *const sfx_data[8] = { sfx_dig, sfx_pick, sfx_set, sfx_boom, sfx_miss, sfx_mine, sfx_nope, sfx_break };
-static const uint8_t sfx_isnoise[8]     = {       1,        0,       0,        1,        0,        0,        0,        1 };
+/* 0=トーン 1=ノイズ 2=トーン+ノイズ (金属音) */
+static const uint8_t sfx_isnoise[8]     = {       1,        0,       0,        1,        0,        2,        0,        1 };
 static const uint8_t sfx_volume[8]      = {       8,       13,      11,       15,       14,       13,        9,       15 };
 static const uint8_t sfx_decay[8]       = {       1,        3,       2,        3,        3,        4,        4,        2 };
+/* トーンに重ねるノイズの粗さ (モード2 のときだけ使う)。小さいほど高い。 */
+static const uint8_t sfx_noisep[8]      = {       0,        0,       0,        0,        0,        2,        0,        0 };
 static const uint8_t sfx_prio[8]        = {       0,        1,       1,        2,        2,        1,        0,        2 };
 
 /* ノイズドラム。PSG のノイズ周期を変えて太鼓・スネア・ハイハットを作り分ける。 */
@@ -69,9 +72,21 @@ static const uint8_t drum_vol[4]    = { 0, 14, 13,  9 };
 static const uint8_t drum_dec[4]    = { 0,  2,  2,  1 };
 
 /* ch C をノイズ(ドラム/爆発)にするかトーンにするかを切り替える */
-static void set_mixer(uint8_t noise_c)
+/*
+ * ch C の出し方を切り替える。R7 は bit0-2 がトーン、bit3-5 がノイズの
+ * 「切る」ビット (1 で切れる)。
+ *   0 = トーンのみ      0x38 (ノイズ A/B/C を切る)
+ *   1 = ノイズのみ      0x1C (トーン C とノイズ A/B を切る)
+ *   2 = トーン+ノイズ   0x18 (ノイズ A/B だけ切る)
+ * **PSG は矩形波固定で波形は変えられない。**金属音のような濁った音は、
+ * 同じチャンネルにトーンとノイズを重ねて非調和成分を混ぜて作る。
+ */
+static void set_mixer(uint8_t mode)
 {
-    PSG_W(7, (uint8_t)(mixer_base | (noise_c ? 0x1C : 0x38)));
+    uint8_t m = 0x38;
+    if (mode == 1) { m = 0x1C; }
+    else if (mode == 2) { m = 0x18; }
+    PSG_W(7, (uint8_t)(mixer_base | m));
 }
 
 void snd_init(void)
@@ -103,6 +118,9 @@ void snd_sfx(uint8_t id)
     sfx_vol0 = sfx_volume[id];
     sfx_dec = sfx_decay[id];
     sfx_noise = sfx_isnoise[id];
+    if (sfx_noise == 2) {
+        PSG_W(6, sfx_noisep[id]);      /* 重ねるノイズの粗さは固定 */
+    }
     sfx_pri = sfx_prio[id];
     sfx_on = 1;
     set_mixer(sfx_noise);
@@ -128,7 +146,7 @@ static void sfx_tick(void)
         }
         sfx_left = *sfx_p++;
         sfx_t = 0;
-        if (sfx_noise) {
+        if (sfx_noise == 1) {
             PSG_W(6, val);             /* ノイズ周期 */
         } else {
             uint16_t per = note_period[val];
