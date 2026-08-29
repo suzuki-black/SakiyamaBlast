@@ -121,9 +121,12 @@ static uint8_t read_dir(void)
    風呂の升目を通過すると一瞬で下がる (仕様は後で調整するかもしれない)。 */
 static void update_temp(void)
 {
+    /* 風呂。**入っている間だけ少しずつ下がる。**
+       一瞬で全快にすると、出発点の近くの本通りに置かれる風呂を通りすがりに
+       踏むだけで体温が0へ戻り、意識して入る必要がまったく無くなる。 */
     if (bath_on && ((px & 15) == 0) && ((py & 15) == 0)
         && ((uint8_t)(px >> 4) == bath_c) && ((uint8_t)(py >> 4) == bath_r)) {
-        temp = 0;
+        temp = (uint8_t)((temp > BATH_COOL) ? (temp - BATH_COOL) : 0);
         temp_acc = 0;
         return;
     }
