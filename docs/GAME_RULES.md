@@ -298,6 +298,7 @@ MSX turbo R 向け（SDCC / ASCII8 MegaROM）。1画面固定の掘り＋採掘�
 
 ```
 PICK_FRAMES 18        つるはしを1回振る時間（0.3秒）
+HEAT_PER_SWING 1      つるはし1振りごとの発熱
 COAL_VEIN_MAX 4       炭層1本の最大長
 COAL_SHAKE_FRAMES 10  砕けたときの画面揺れ
 BOMB_RANGE 5          ダイナマイトの飛距離（升）

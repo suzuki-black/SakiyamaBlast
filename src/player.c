@@ -23,6 +23,20 @@ uint8_t player_cell_c(void) { return (uint8_t)((px + 8) >> 4); }
 uint8_t player_cell_r(void) { return (uint8_t)((py + 8) >> 4); }
 uint8_t player_dir(void)    { return face; }
 
+/* 体温を1つ上げる。上限に達したらオーバーヒートで1ミス。
+   時間経過だけでなく、**つるはしを1振りするごとにも**上がる。 */
+static void heat_add(uint8_t n)
+{
+    if (temp >= TEMP_MAX) {
+        return;
+    }
+    temp = (uint8_t)((TEMP_MAX - temp <= n) ? TEMP_MAX : temp + n);
+    if (temp >= TEMP_MAX && !invuln) {
+        dead = 1;
+        dead_cause = DEAD_HEAT;
+    }
+}
+
 /*
  * つるはしを振る。向いている先の升が黒ダイヤなら耐久度を1削る。
  * 振り切るまで PICK_FRAMES のあいだ動けないので、そこへ敵が寄ってくる。
@@ -47,6 +61,7 @@ void player_pick(void)
         return;                     /* 黒ダイヤに接していないと振れない */
     }
     swing = PICK_FRAMES;
+    heat_add(HEAT_PER_SWING);   /* 1振りごとに発熱 (これが風呂へ行く動機になる) */
     coal_hit(cx, cy);
     snd_sfx(SFX_MINE);
 }
@@ -117,13 +132,7 @@ static void update_temp(void)
         return;
     }
     temp_acc = 0;
-    if (temp < TEMP_MAX) {
-        temp++;
-        if (temp >= TEMP_MAX && !invuln) {
-            dead = 1;               /* オーバーヒート */
-            dead_cause = DEAD_HEAT;
-        }
-    }
+    heat_add(1);
 }
 
 /* 火薬を拾う。節点に乗った時だけ判定する。 */
