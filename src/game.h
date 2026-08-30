@@ -148,6 +148,11 @@
    本数は絞る。炭柱は必ず壊す (クリア条件に数える) ので、本数がそのまま強制的な発熱に
    なる: 面1で1本20、面15で1本32。 */
 #define PILLAR_MAX     2
+/* 炭柱ごとに「岩が何ブロック沈むか」を持つ。升の左下に数字で出す
+   (右上は耐久度)。この沈み込みぶんは **落下距離に数えない**。
+   2ブロック沈んだだけでは岩は割れず、沈んだ先からさらに落ちた距離で
+   通常どおり判定する (1ブロックなら割れない / 2ブロック以上で割れる)。 */
+#define PILLAR_DROP_MAX 3
 /* 割れた瞬間に画面を縦へ揺らす (R#18 = SET ADJUST)。 */
 #define COAL_SHAKE_FRAMES 10
 /* 採掘した瞬間、その升を光らせる。割ったとき (画面揺れ) とは別の演出で、
@@ -222,7 +227,7 @@ extern uint8_t  dug[NCELL];      /* 掘り済みフラグ */
 extern uint8_t  powder[NCELL];   /* 火薬 (ダイナマイトの弾薬) */
 extern uint8_t  bombdrop[NCELL]; /* 投げて落ちたダイナマイト。拾い直せる */
 extern uint8_t  ume[NCELL];      /* 梅干し。倒した敵が落とす。拾うと体温が下がる */
-extern uint8_t  pillar[NCELL];   /* 1 = 炭柱 (岩を支えている黒ダイヤ)。絵と数字の色が変わる */
+extern uint8_t  pillar[NCELL];   /* 0 = 通常 / 1以上 = 炭柱。値は壊したとき岩が沈むブロック数 */
 /* 黒ダイヤ (石炭)。土と違って自機の掘りでは進めず、障害物として立ちはだかる。
    つるはしで1回叩くごとに耐久度が1減り、0になると COAL_CRACKED (割れた状態) になる。
    割れると通れるようになり、その升に入ると採掘できる。
@@ -315,8 +320,8 @@ uint8_t rock_push(int8_t i, int8_t dx);         /* 1=押せた 0=押せない */
 uint8_t rock_crush_check(uint8_t cx, uint8_t cy);
 void    rock_destroy_at(int8_t cx, int8_t cy);  /* 爆風で吹き飛ばす */
 void    rock_update(void);
-/* 炭柱が壊れた = 天盤が落ちる。盤面のすべての岩が揺れてから1升沈む。 */
-void    rock_collapse(void);
+/* 炭柱が壊れた = 天盤が落ちる。盤面のすべての岩が揺れてから blocks 升沈む。 */
+void    rock_collapse(uint8_t blocks);
 void    rock_draw(void);
 
 /* --- enemy.c --- */

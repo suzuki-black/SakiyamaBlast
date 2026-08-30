@@ -188,11 +188,11 @@ uint8_t coal_hit(int8_t cx, int8_t cy)
     coal[i]--;
     if (coal[i] == 0) {
         {
-            uint8_t was_pillar = pillar[i];
+            uint8_t drop = pillar[i];          /* この柱が抜けると岩が何ブロック沈むか */
             coal[i] = COAL_CRACKED;
             pillar[i] = 0;                     /* 割れたらもう支えではない */
-            if (was_pillar) {
-                rock_collapse();               /* 天盤を支える柱が消えた = 落盤 */
+            if (drop) {
+                rock_collapse(drop);           /* 天盤を支える柱が消えた = 落盤 */
             }
         }
         shake_t = COAL_SHAKE_FRAMES;           /* 砕けた瞬間、画面を揺らす */
@@ -456,6 +456,14 @@ void draw_coal(uint8_t cx, uint8_t cy)
            下地を坑木の色にして「梁に彫った数字」に見せる。 */
         text_draw((uint16_t)((uint16_t)cx << 4) + 8, (uint16_t)((uint16_t)cy << 4) + 1,
                   buf, COL_TUNNEL, is_p ? COL_FUSE : COL_DIA, 1);
+        if (is_p) {
+            /* 左下に「壊すと岩が何ブロック沈むか」。右上の耐久度と読み違えないよう、
+               白抜きにして色を変えてある。 */
+            text_u8(buf, is_p);
+            buf[1] = 0;
+            text_draw((uint16_t)((uint16_t)cx << 4), (uint16_t)((uint16_t)cy << 4) + 8,
+                      buf, COL_WHITE, COL_DARK, 1);
+        }
     }
 }
 
@@ -856,7 +864,8 @@ static void place_pillars(void)
             return;
         }
         coal[i] = hp;
-        pillar[i] = 1;
+        /* 壊したとき岩が何ブロック沈むか。柱ごとに違うので、升の左下に数字で出す。 */
+        pillar[i] = (uint8_t)(1 + (rnd8() % PILLAR_DROP_MAX));
         coal_left++;
     }
 }

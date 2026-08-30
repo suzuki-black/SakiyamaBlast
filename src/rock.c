@@ -23,7 +23,9 @@ uint8_t rock_x[ROCK_MAX], rock_y[ROCK_MAX];
 static uint8_t jig_t[ROCK_MAX];     /* 揺れの残りフレーム */
 static uint8_t fall_r0[ROCK_MAX];   /* 落下を開始した行 (落下距離で割れ判定) */
 static uint8_t crushed[ROCK_MAX];   /* 落下中に何かを潰したか */
-static uint8_t sink[ROCK_MAX];      /* 落盤で沈み込む途中。支えの有無を無視して1升落ちる */
+/* 落盤で沈み込む先の行。0xFF = 沈み込み中でない。
+   ここへ着くまでは土でも突き抜けて落ち、着いた時点で落下距離を数え直す。 */
+static uint8_t sink_to[ROCK_MAX];
 static uint8_t split_t[ROCK_MAX];   /* 割れた姿を出しておく残りフレーム */
 
 void rock_clear(void)
@@ -31,6 +33,7 @@ void rock_clear(void)
     uint8_t i;
     for (i = 0; i < ROCK_MAX; i++) {
         rock_state[i] = ROCK_NONE;
+        sink_to[i] = 0xFF;
         spr_park((uint8_t)(SPR_ROCK + i));
     }
 }
@@ -45,7 +48,7 @@ void rock_place(uint8_t c, uint8_t r)
             rock_state[i] = ROCK_WAIT;
             jig_t[i] = 0;
             crushed[i] = 0;
-            sink[i] = 0;
+            sink_to[i] = 0xFF;
             spr_color_lines((uint8_t)(SPR_ROCK + i), art_colours(PAT_ROCK));
             return;
         }
@@ -151,7 +154,7 @@ static void rock_break(uint8_t i)
 {
     rock_state[i] = ROCK_SPLIT;
     split_t[i] = ROCK_SPLIT_FRAMES;
-    sink[i] = 0;
+    sink_to[i] = 0xFF;
     field_shake(ROCK_LAND_SHAKE);
     /* 割れた絵は岩と行ごとの色が違うので、色表も差し替える。 */
     spr_color_lines((uint8_t)(SPR_ROCK + i), art_colours(PAT_SPLIT));
@@ -206,6 +209,19 @@ static void rock_fall_step(uint8_t i)
     r = (int8_t)(rock_y[i] >> 4);
     link_smash((uint8_t)c, (uint8_t)r); /* 通り抜けた升の間の膜を割る */
     bath_destroy_at(c, r);              /* 落ちてきた岩は風呂を壊す */
+    /* 沈み込み中は土でも突き抜けて落ちる。沈み終わった時点で落下距離を数え直すので、
+       **沈んだぶんは割れ判定に入らない** (炭柱に書いてある数だけ落ちても割れない)。 */
+    if (sink_to[i] != 0xFF) {
+        if ((uint8_t)r < sink_to[i]) {
+            if (r + 1 >= ROWS) {
+                sink_to[i] = 0xFF;
+                rock_break(i);          /* 盤外へ抜けた */
+            }
+            return;
+        }
+        sink_to[i] = 0xFF;
+        fall_r0[i] = (uint8_t)r;        /* ここから先だけを落下距離として数える */
+    }
     if (r + 1 < ROWS && cell_dug(c, (int8_t)(r + 1)) && !rock_solid_at(c, (int8_t)(r + 1))) {
         return;                         /* まだ落ちる */
     }
@@ -215,7 +231,6 @@ static void rock_fall_step(uint8_t i)
     } else {
         rock_state[i] = ROCK_WAIT;
         jig_t[i] = 0;
-        sink[i] = 0;                    /* 沈み込みはここまで */
         /* 岩がその升に居座る場合だけ、下敷きの割れた黒ダイヤを砕き出しておく。
            岩の升には自機が入れないので、放っておくと回収できずクリア不能になる。
            炭柱 (岩の真下の黒ダイヤ) を割ると必ずこの形になる。 */
@@ -232,18 +247,23 @@ static void rock_fall_step(uint8_t i)
  *    落ちて割れる (落下距離は元の位置から数えるので、1升沈む + 1升落ちるで割れる)
  *  - 一番下の行に居る岩は落ちる先が無いので消える
  */
-void rock_collapse(void)
+void rock_collapse(uint8_t blocks)
 {
     uint8_t i;
+    if (blocks == 0) {
+        blocks = 1;
+    }
     for (i = 0; i < ROCK_MAX; i++) {
+        uint8_t r;
         if (rock_state[i] != ROCK_WAIT && rock_state[i] != ROCK_JIG) {
             continue;                   /* 落下中・割れている岩は落盤の対象外 */
         }
-        if ((uint8_t)(rock_y[i] >> 4) + 1 >= ROWS) {
-            rock_break(i);                  /* 一番下。落ちる先が無いので消える */
+        r = (uint8_t)(rock_y[i] >> 4);
+        if (r + 1 >= ROWS) {
+            rock_break(i);              /* 一番下。落ちる先が無いので消える */
             continue;
         }
-        sink[i] = 1;
+        sink_to[i] = (uint8_t)(r + blocks);
         rock_state[i] = ROCK_JIG;
         jig_t[i] = ROCK_JIG_FRAMES;
     }
@@ -269,7 +289,7 @@ void rock_update(void)
             rock_fall_step(i);
             continue;
         }
-        if (supported(i) && !sink[i]) {
+        if (supported(i) && sink_to[i] == 0xFF) {
             rock_state[i] = ROCK_WAIT;
             jig_t[i] = 0;
             continue;

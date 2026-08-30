@@ -70,7 +70,7 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
                 if {[debug read memory [expr {$A_COAL+\$i}]]} {incr d}; \
                 incr g [debug read memory [expr {$A_DUG+\$i}]] }; \
             set pl 0; \
-            for {set i 0} {\$i<176} {incr i} { incr pl [debug read memory [expr {$A_PILLAR+\$i}]] }; \
+            for {set i 0} {\$i<176} {incr i} { if {[debug read memory [expr {$A_PILLAR+\$i}]]} {incr pl} }; \
             puts \$f \"PILLARN \$pl\"; \
             puts \$f \"POWDERN \$p\"; puts \$f \"COALN \$d\"; puts \$f \"COALLEFT [debug read memory $A_COALLEFT]\"; puts \$f \"DUGN \$g\"; \
             puts \$f \"PCT [debug read memory $A_PCT]\"; \
