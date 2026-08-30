@@ -18,7 +18,12 @@ LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKD
 # 固定領域 (0x4000-0x9FFF) は 24KB しかない。絵と曲は**ただのデータ**なので、
 # 0xA000 の窓へリンクして ROM のセグメント3へ置き、固定領域を空ける。
 # 実行時は bank_select(DATA_SEG) でこの窓を選んでおく。
-BANKED_SRC := $(SRCDIR)/art.c $(SRCDIR)/music.c
+# バンク側 (0xA000 の窓) へ置くモジュール。
+# **title_draw() の中から呼ばれるものは置けない。** あそこは窓をタイトル画像へ
+# 切り替えている最中なので、バンク側のコードは見えなくなる (vdp / lowlevel / msx は固定)。
+# それ以外は常に DATA_SEG が選ばれているので、コードを置いても同じ速度で動く。
+BANKED_SRC := $(SRCDIR)/art.c $(SRCDIR)/music.c \
+              $(SRCDIR)/hud.c $(SRCDIR)/config.c $(SRCDIR)/bonus.c
 
 CSRC      := $(wildcard $(SRCDIR)/*.c)
 HEADERS   := $(wildcard $(SRCDIR)/*.h)
@@ -77,7 +82,7 @@ $(ART_TILE): $(ART_TILE_SRC) tools/png2art.py tools/palette.py | $(BUILDDIR)
 # ヘッダにも依存させる。これが無いと game.h の定数を変えても再ビルドされず、
 # 古い ROM のまま「直したつもり」になる。
 $(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(HEADERS) $(MAKEFILE) $(TITLE_PAL) $(ART_SPR) $(ART_TILE) $(PAL_H) | $(BUILDDIR)
-	$(CC) $(CFLAGS) $(if $(filter $<,$(BANKED_SRC)),--codeseg BANKDATA) -c -o $@ $<
+	$(CC) $(CFLAGS) $(if $(filter $<,$(BANKED_SRC)),--codeseg BANKDATA --constseg BANKDATA) -c -o $@ $<
 
 # crt0 が必ず先頭に来るようにリンク順を固定する
 $(IHX): $(BUILDDIR)/crt0.rel $(AOBJ) $(COBJ)
