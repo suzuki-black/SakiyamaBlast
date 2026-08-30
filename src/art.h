@@ -27,6 +27,7 @@ const uint8_t  *art_colours(uint8_t i);   /* mode-2 の行ごとの色 (16バイ
 #define TILE_DIA    6      /* 黒ダイヤ (石炭)。つるはしで割る */
 #define TILE_DYNA   7      /* 投げて落ちたダイナマイト */
 #define TILE_DIACRK 8      /* 割れた黒ダイヤ。通れて、通ると採掘できる */
+#define TILE_PILLAR 9      /* 炭柱。岩を支えている黒ダイヤ。三ツ枠を巻いてある */
 const uint8_t *art_tile_of(uint8_t i);
 
 #endif

@@ -9,6 +9,7 @@ uint8_t  dug[NCELL];
 uint8_t  powder[NCELL];
 uint8_t  bombdrop[NCELL];
 uint8_t  ume[NCELL];
+uint8_t  pillar[NCELL];
 uint8_t  coal[NCELL];
 uint8_t  coal_left;
 uint8_t  cell_link[NCELL];
@@ -168,6 +169,7 @@ uint8_t coal_hit(int8_t cx, int8_t cy)
     coal[i]--;
     if (coal[i] == 0) {
         coal[i] = COAL_CRACKED;
+        pillar[i] = 0;                         /* 割れたらもう支えではない */
         shake_t = COAL_SHAKE_FRAMES;           /* 砕けた瞬間、画面を揺らす */
         snd_sfx(SFX_BREAK);
         dig_sweep((uint8_t)cx, (uint8_t)cy);   /* 砕けたので通れる升になる */
@@ -345,20 +347,46 @@ void draw_ume(uint8_t cx, uint8_t cy)
     draw_tile(cx, cy, art_tile_of(TILE_BCOOL), 2);   /* 冷却なので体温回復ボーナスと同じ絵 */
 }
 
-/* 倒した敵がその場へ落とし物をする。置けない升 (土・黒ダイヤ・既に何かある) なら諦める。 */
-void drop_item_at(int8_t cx, int8_t cy, uint8_t is_ume)
+/* その升へ落とし物を置けるか。 */
+static uint8_t can_drop(int8_t cx, int8_t cy)
 {
     uint16_t i;
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
-        return;
+        return 0;
     }
     i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
     if (!dug[i] || coal[i] || powder[i] || bombdrop[i] || ume[i]) {
-        return;
+        return 0;
     }
     if (bath_on && (uint8_t)cx == bath_c && (uint8_t)cy == bath_r) {
-        return;
+        return 0;
     }
+    return 1;
+}
+
+/* 倒した敵がその場へ落とし物をする。
+   倒した升が塞がっていることがある (落ちてきた岩が割れた黒ダイヤの升で潰した等)。
+   そこで諦めると、いちばん報いたい「岩で潰した」場合に限って報酬が消えるので、
+   真下と四方まで探す。どこにも置けなければ諦める。 */
+void drop_item_at(int8_t cx, int8_t cy, uint8_t is_ume)
+{
+    uint16_t i;
+    if (!can_drop(cx, cy)) {
+        static const int8_t dx[4] = { 0, -1, 1, 0 };
+        static const int8_t dy[4] = { 1, 0, 0, -1 };   /* 岩は落ちるので真下から */
+        uint8_t k;
+        for (k = 0; k < 4; k++) {
+            if (can_drop((int8_t)(cx + dx[k]), (int8_t)(cy + dy[k]))) {
+                cx = (int8_t)(cx + dx[k]);
+                cy = (int8_t)(cy + dy[k]);
+                break;
+            }
+        }
+        if (k == 4) {
+            return;
+        }
+    }
+    i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
     if (is_ume) {
         ume[i] = 1;
         draw_ume((uint8_t)cx, (uint8_t)cy);
@@ -391,14 +419,19 @@ void draw_coal(uint8_t cx, uint8_t cy)
         draw_tile(cx, cy, art_tile_of(TILE_DIACRK), 2);
         return;
     }
-    draw_tile(cx, cy, art_tile_of(TILE_DIA), 0);
-    if (hp == 0 || hp > 9) {
-        return;                      /* 2桁は右上に収まらない */
+    {
+        uint8_t is_p = pillar[(uint16_t)cy * COLS + cx];
+        draw_tile(cx, cy, art_tile_of(is_p ? TILE_PILLAR : TILE_DIA), 0);
+        if (hp == 0 || hp > 9) {
+            return;                  /* 2桁は右上に収まらない */
+        }
+        text_u8(buf, hp);
+        buf[1] = 0;
+        /* 数字は升の右上8x8を塗り潰す。炭柱はそこが三ツ枠に当たるので、
+           下地を坑木の色にして「梁に彫った数字」に見せる。 */
+        text_draw((uint16_t)((uint16_t)cx << 4) + 8, (uint16_t)((uint16_t)cy << 4) + 1,
+                  buf, COL_TUNNEL, is_p ? COL_FUSE : COL_DIA, 1);
     }
-    text_u8(buf, hp);
-    buf[1] = 0;
-    text_draw((uint16_t)((uint16_t)cx << 4) + 8, (uint16_t)((uint16_t)cy << 4) + 1,
-              buf, COL_TUNNEL, COL_DIA, 1);
 }
 
 /* 風呂 (温泉)。触れると体温が一気に下がる。 */
@@ -790,8 +823,28 @@ static void place_pillars(void)
             continue;
         }
         coal[i] = hp;
+        pillar[i] = 1;
         coal_left++;
     }
+}
+
+/* 候補のうち「2升下が既に坑道」のものだけ残す。
+   岩の真下には炭柱が入るので、その1つ下が坑道なら、炭柱を割ったとき岩は
+   2升以上落ちて坑道を突き抜ける = 縦一列の敵を潰して砕ける。
+   ここを見ずに置くと、割っても岩は1升落ちてその場に居座るだけで、
+   狙った「つるはし一振り -> 崩落 -> 敵一掃」が起きない。 */
+static void keep_droppable(void)
+{
+    uint8_t k = 0, m = 0;
+    while (k < cand_n) {
+        uint16_t i = cand[k];
+        uint16_t below2 = i + COLS + COLS;
+        if (below2 < NCELL && dug[below2] && !coal[below2]) {
+            cand[m++] = cand[k];
+        }
+        k++;
+    }
+    cand_n = m;
 }
 
 static void place_rocks(void)
@@ -803,6 +856,14 @@ static void place_rocks(void)
     }
     while (n) {
         build_candidates(2);        /* 岩は互いの真下条件に効くので毎回作り直す (最大4個) */
+        {
+            uint8_t all = cand_n;
+            keep_droppable();
+            if (cand_n == 0) {
+                build_candidates(2);   /* 落とせる場所が無ければ従来どおりどこでも */
+                (void)all;
+            }
+        }
         i = take_candidate();
         if (i == 0xFFFF) {
             return;
@@ -1018,6 +1079,7 @@ void build_stage(void)
         powder[i] = 0;
         bombdrop[i] = 0;
         ume[i] = 0;
+        pillar[i] = 0;
         coal[i] = 0;
         cell_link[i] = 0;
     }
