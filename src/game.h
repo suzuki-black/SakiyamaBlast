@@ -382,6 +382,11 @@ void hud_draw(void);
 void score_reset(void);
 void score_add(uint16_t v);
 void score_kills(uint8_t n, uint8_t by_rock);   /* 同時に倒した数で倍々 */
+uint16_t kill_value(uint8_t n, uint8_t by_rock); /* その点数だけを返す (表示用) */
+/* 倒した升へ得点を出す (ディグダグ方式)。何点入ったかがその場で分かる。 */
+void score_popup(uint8_t cx, uint8_t cy, uint16_t v);
+void popup_tick(void);
+#define POPUP_FRAMES 60       /* 出しておく時間 (1秒) */
 
 /* 得点表 */
 #define PTS_POWDER  10

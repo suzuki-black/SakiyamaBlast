@@ -355,6 +355,7 @@ void main(void)
             throw_pressed();
         }
         coal_shake_tick();
+        popup_tick();
         bomb_update();
         rock_update();
         enemy_update();

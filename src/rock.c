@@ -23,6 +23,11 @@ uint8_t rock_x[ROCK_MAX], rock_y[ROCK_MAX];
 static uint8_t jig_t[ROCK_MAX];     /* 揺れの残りフレーム */
 static uint8_t fall_r0[ROCK_MAX];   /* 落下を開始した行 (落下距離で割れ判定) */
 static uint8_t crushed[ROCK_MAX];   /* 落下中に何かを潰したか */
+/* 1回の落下で潰した敵の数。**升ごとに1体ずつ計上すると、縦一列をまとめて
+   潰しても1体ずつ倒したのと同じ点数にしかならない。** 落ち切ってから
+   まとめて score_kills() に渡すことで、倍々の表がやっと効く。 */
+static uint8_t kills[ROCK_MAX];
+static uint8_t kill_c[ROCK_MAX], kill_r[ROCK_MAX];   /* 最初に潰した升 (得点を出す場所) */
 /* 落盤で沈み込む先の行。0xFF = 沈み込み中でない。
    ここへ着くまでは土でも突き抜けて落ち、着いた時点で落下距離を数え直す。 */
 static uint8_t sink_to[ROCK_MAX];
@@ -150,8 +155,20 @@ uint8_t rock_push(int8_t i, int8_t dx)
 /* 割れる。**すぐには消さない。** 即座に消えると何が起きたのか読み取れないので、
    軽く画面を揺らし、二つに割れた姿を ROCK_SPLIT_FRAMES だけ見せてから消す。
    その間は支えにも障害物にもならない (rock_at が拾わない)。 */
+/* 1回の落下で潰した数をまとめて計上する。まとめて潰すほど倍々になる。 */
+static void cash_kills(uint8_t i)
+{
+    if (!kills[i]) {
+        return;
+    }
+    score_kills(kills[i], 1);           /* 落下岩は爆風の倍 */
+    score_popup(kill_c[i], kill_r[i], kill_value(kills[i], 1));
+    kills[i] = 0;
+}
+
 static void rock_break(uint8_t i)
 {
+    cash_kills(i);
     rock_state[i] = ROCK_SPLIT;
     split_t[i] = ROCK_SPLIT_FRAMES;
     sink_to[i] = 0xFF;
@@ -197,8 +214,12 @@ static void rock_fall_step(uint8_t i)
         uint8_t killed = enemy_kill_at((int8_t)(rock_x[i] >> 4),
                                        (int8_t)((rock_y[i] + 8) >> 4), DROP_BY_ROCK);
         if (killed) {
+            if (!kills[i]) {                     /* 得点は最初に潰した升へ出す */
+                kill_c[i] = (uint8_t)(rock_x[i] >> 4);
+                kill_r[i] = (uint8_t)((rock_y[i] + 8) >> 4);
+            }
             crushed[i] = 1;
-            score_kills(killed, 1);      /* 落下岩は爆風の倍 */
+            kills[i] = (uint8_t)(kills[i] + killed);
         }
     }
 
@@ -229,6 +250,7 @@ static void rock_fall_step(uint8_t i)
     if (crushed[i] || (uint8_t)(r - fall_r0[i]) >= 2) {
         rock_break(i);
     } else {
+        cash_kills(i);
         rock_state[i] = ROCK_WAIT;
         jig_t[i] = 0;
         /* 岩がその升に居座る場合だけ、下敷きの割れた黒ダイヤを砕き出しておく。
@@ -303,6 +325,7 @@ void rock_update(void)
                 rock_state[i] = ROCK_FALL;
                 fall_r0[i] = (uint8_t)(rock_y[i] >> 4);
                 crushed[i] = 0;
+                kills[i] = 0;
             }
         }
     }

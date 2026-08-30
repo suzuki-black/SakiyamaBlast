@@ -94,6 +94,7 @@ static void explode_on_enemy(void)
 {
     uint8_t killed = enemy_kill_at((int8_t)bomb_c, (int8_t)bomb_r, 0);
     score_kills(killed, 0);
+    score_popup(bomb_c, bomb_r, kill_value(killed, 0));
     vdp_fill((uint16_t)((uint16_t)bomb_c << 4), (uint16_t)((uint16_t)bomb_r << 4),
              16, 16, COL_BLAST);
     if (!invuln && player_cell_c() == bomb_c && player_cell_r() == bomb_r) {

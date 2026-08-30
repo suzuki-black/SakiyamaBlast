@@ -49,6 +49,18 @@ void score_add(uint16_t v)
 /* 同時に倒した数で増える得点 (Mr. Do! のリンゴ潰しと同じ考え方) */
 static const uint16_t kill_pts[6] = { 0, 100, 200, 400, 600, 800 };
 
+/* n体を同時に倒したときの点数。得点表示にも使うので値だけ返す口を分けてある。 */
+uint16_t kill_value(uint8_t n, uint8_t by_rock)
+{
+    if (n == 0) {
+        return 0;
+    }
+    if (n > 5) {
+        n = 5;
+    }
+    return by_rock ? (uint16_t)(kill_pts[n] * 2) : kill_pts[n];
+}
+
 void score_kills(uint8_t n, uint8_t by_rock)
 {
     uint16_t v;
@@ -58,8 +70,62 @@ void score_kills(uint8_t n, uint8_t by_rock)
     if (n > 5) {
         n = 5;
     }
-    v = kill_pts[n];
-    score_add(by_rock ? (uint16_t)(v * 2) : v);
+    v = kill_value(n, by_rock);
+    score_add(v);
+}
+
+/* 倒した升へ得点を出す。ディグダグは倒した場所に点数が出るので、
+   何をして何点入ったのかがその場で分かる。まとめて潰したときの倍率も伝わる。
+   同時に出せるのは1つだけ。新しいものが古いものを上書きする。 */
+static uint8_t  pop_t, pop_c, pop_r;
+static char     pop_s[8];
+
+static void popup_erase(void)
+{
+    int8_t k;
+    for (k = 0; k < 3; k++) {          /* 文字は最大4桁 = 2升ぶん。余裕を見て3升消す */
+        field_redraw_cell((int8_t)(pop_c + k), (int8_t)pop_r);
+    }
+    player_carve();
+}
+
+void score_popup(uint8_t cx, uint8_t cy, uint16_t v)
+{
+    uint8_t d[5], n = 0, i;
+    if (pop_t) {
+        popup_erase();                 /* 前のものを先に片付ける */
+    }
+    if (v == 0) {
+        return;
+    }
+    while (v && n < 5) {
+        d[n++] = (uint8_t)(v % 10);
+        v = (uint16_t)(v / 10);
+    }
+    for (i = 0; i < n; i++) {
+        pop_s[i] = (char)('0' + d[n - 1 - i]);
+    }
+    pop_s[n] = 0;
+    /* 右端からはみ出さないよう寄せる。1文字8px = 半升。 */
+    if (cx + ((n + 1) >> 1) >= COLS) {
+        cx = (uint8_t)(COLS - ((n + 1) >> 1) - 1);
+    }
+    pop_c = cx;
+    pop_r = cy;
+    pop_t = POPUP_FRAMES;
+    text_draw((uint16_t)((uint16_t)cx << 4), (uint16_t)(((uint16_t)cy << 4) + 4),
+              pop_s, COL_WHITE, COL_TUNNEL, 1);
+}
+
+void popup_tick(void)
+{
+    if (!pop_t) {
+        return;
+    }
+    pop_t--;
+    if (!pop_t) {
+        popup_erase();
+    }
 }
 
 /* --- 画面配置 --- */
