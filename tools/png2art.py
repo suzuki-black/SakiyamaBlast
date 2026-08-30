@@ -65,6 +65,8 @@ def main(argv):
             pats.append((name, pat))
             cols.append((name, col))
         lines.append("")
+        lines.append("#define ART_SPR_N %d   /* スプライトの枚数。転送漏れを防ぐため必ずこれで回す */" % len(names))
+        lines.append("")
         lines.append("static const uint16_t art_spr_pat[%d][16] = {" % len(names))
         for name, pat in pats:
             lines.append("    {   /* %s */" % name)

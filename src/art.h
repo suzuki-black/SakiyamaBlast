@@ -15,6 +15,7 @@
 /* スプライトの番号は game.h の PAT_MINER..PAT_BAT と同じ順で、
    assets/sprites.png のセルの並びもそれに合わせてある。 */
 const uint16_t *art_pattern(uint8_t i);   /* 16行 x 16bit の形 */
+uint8_t art_pattern_count(void);          /* スプライトの枚数 (転送漏れ防止) */
 const uint8_t  *art_colours(uint8_t i);   /* mode-2 の行ごとの色 (16バイト) */
 
 /* 背景タイル (16x16 の 4bpp、1枚128バイト) */

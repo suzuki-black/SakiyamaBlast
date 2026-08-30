@@ -228,7 +228,10 @@ void main(void)
     {
         uint8_t i;
         /* 絵は assets の PNG から生成したものをそのまま使う */
-        for (i = 0; i <= PAT_BAT; i++) {
+        /* **枚数は art 側から取る。** ここを PAT_xxx で決め打ちにすると、
+           絵を足したときに転送漏れが起きて VRAM のゴミが表示される
+           (割れた岩を足したとき、実際にそうなった)。 */
+        for (i = 0; i < art_pattern_count(); i++) {
             spr_pattern_rows(i, art_pattern(i));
         }
         spr_color_lines(SPR_PLAYER, art_colours(PAT_MINER));
