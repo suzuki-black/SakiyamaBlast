@@ -201,6 +201,10 @@ static void rock_fall_step(uint8_t i)
     } else {
         rock_state[i] = ROCK_WAIT;
         jig_t[i] = 0;
+        /* 岩がその升に居座る場合だけ、下敷きの割れた黒ダイヤを砕き出しておく。
+           岩の升には自機が入れないので、放っておくと回収できずクリア不能になる。
+           炭柱 (岩の真下の黒ダイヤ) を割ると必ずこの形になる。 */
+        coal_crush_at(c, r);
     }
 }
 

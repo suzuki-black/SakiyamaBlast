@@ -161,6 +161,13 @@ static void collect(void)
         score_add(PTS_POWDER);
         snd_sfx(SFX_PICK);
     }
+    if (ume[i]) {                              /* 梅干し。塩分補給で体温が下がる */
+        ume[i] = 0;
+        draw_dug_cell((int8_t)c, (int8_t)r);
+        player_carve();
+        temp = (uint8_t)((temp > UME_COOL) ? (temp - UME_COOL) : 0);
+        snd_sfx(SFX_PICK);
+    }
     if (bombdrop[i]) {                         /* 投げて落ちたダイナマイトを拾い直す */
         bombdrop[i] = 0;
         draw_dug_cell((int8_t)c, (int8_t)r);

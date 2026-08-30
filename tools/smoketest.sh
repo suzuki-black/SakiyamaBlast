@@ -34,6 +34,7 @@ A_NESTC=$(addr nest_c); A_NESTR=$(addr nest_r)
 A_BATHON=$(addr bath_on); A_BATHC=$(addr bath_c); A_BATHR=$(addr bath_r)
 A_POWDER=$(addr powder); A_COAL=$(addr coal); A_DUG=$(addr dug)
 A_COALLEFT=$(addr coal_left)
+A_ROCKST=$(addr rock_state); A_ROCKX=$(addr rock_x); A_ROCKY=$(addr rock_y)
 A_PCT=$(addr dug_pct)
 
 # 面1は掘り抜きが数字の「1」(15升) ＋ 敵の湧き出し口1升 = 16升。
@@ -63,11 +64,29 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
                 incr p [debug read memory [expr {$A_POWDER+\$i}]]; \
                 if {[debug read memory [expr {$A_COAL+\$i}]]} {incr d}; \
                 incr g [debug read memory [expr {$A_DUG+\$i}]] }; \
+            set pl 0; \
+            for {set k 0} {\$k<4} {incr k} { \
+                if {![debug read memory [expr {$A_ROCKST+\$k}]]} {continue}; \
+                set rc [expr {[debug read memory [expr {$A_ROCKX+\$k}]]/16}]; \
+                set rr [expr {[debug read memory [expr {$A_ROCKY+\$k}]]/16}]; \
+                if {\$rr+1 < 11 && [debug read memory [expr {$A_COAL+(\$rr+1)*16+\$rc}]]} {incr pl} }; \
+            puts \$f \"PILLARN \$pl\"; \
             puts \$f \"POWDERN \$p\"; puts \$f \"COALN \$d\"; puts \$f \"COALLEFT [debug read memory $A_COALLEFT]\"; puts \$f \"DUGN \$g\"; \
             puts \$f \"PCT [debug read memory $A_PCT]\"; \
             close \$f; exit }" >/dev/null 2>&1
 
 fail=0
+val() { awk -v k="$1" '$1==k {print $2}' "$OUT"; }
+# 下限だけを見る検査 (乱数で値が動くが、0 では困るもの)
+check_min() {
+    got=$(val "$1")
+    if [ -n "$got" ] && [ "$got" -ge "$2" ] 2>/dev/null; then
+        echo "  ok   $3 ($1=$got >= $2)"
+    else
+        echo "  FAIL $3 ($1: expected >= $2, got ${got:-none})"
+        fail=1
+    fi
+}
 check() {
     got=$(awk -v k="$1" '$1==k {print $2}' "$OUT")
     if [ "$got" = "$2" ]; then
@@ -86,8 +105,12 @@ check TUNNELCELL 17 "掘り抜きの縦線が掘られている (0x11)"
 check DUGN     16  "掘り抜き「1」(15升) ＋ 湧き出し口(1升)"
 check PCT      9   "開始時の採掘率"
 check POWDERN  10  "火薬が10個置かれている"
-check COALN    4   "面1の黒ダイヤは4個 (coal_n_tbl[0])"
-check COALLEFT 4   "残りの黒ダイヤ数が一致している"
+# 黒ダイヤは coal_n_tbl[0]=4 個 ＋ 炭柱 (岩の真下に置くぶん)。岩は面1で2個なので
+# 通常は 4+2=6 だが、真下が既に埋まっていれば炭柱は置かれないので個数で照合する。
+PILLARN=$(val PILLARN)
+check_min PILLARN 1 "炭柱が岩の真下に置かれている"
+check COALN    $((4 + PILLARN)) "黒ダイヤ = 面1の4個 + 炭柱${PILLARN}個"
+check COALLEFT $((4 + PILLARN)) "残りの黒ダイヤ数が一致している"
 check STARTC   7   "自機の出発点の列 (掘り抜きの上端)"
 check STARTR   1   "自機の出発点の行"
 check NESTDUG  1   "敵の湧き出し口が1ブロック開いている"

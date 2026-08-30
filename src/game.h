@@ -89,6 +89,11 @@
 #define GHOST_BASE    600     /* 透明化までのフレーム数 (面1 = 10秒) */
 #define GHOST_STEP    20      /* 面が進むごとに早くなる */
 #define GHOST_MIN     300     /* 高次面での下限 (5秒) */
+/* 切羽圧。掘った升の数だけ透明化までの時間を縮める。
+   「掘るほど危険が増すが、掘らないとクリアできない」という本作の芯を、面番号ではなく
+   プレイヤー自身の行為に結び付けるための項。開始時の掘り抜きは数えない。 */
+#define GHOST_PRESSURE 3      /* 1升掘るごとに縮むフレーム数 (0.05秒) */
+
 #define GHOST_PAUSE   20      /* 透明になる瞬間は一拍止まる */
 /* 湧いた直後は洞窟の口でこの間だけ点滅する。動かず、触れても当たらない。
    いきなり実体で出てくると出会い頭の事故になるため。 */
@@ -110,6 +115,10 @@
    (実測: 24秒の間に3回も勝手にリセットされ、体温は上限の13%までしか上がらなかった)。
    240 から冷まし切るには 2秒その場に留まる必要がある。 */
 #define BATH_COOL      2
+/* 梅干し。倒した敵が落とす。食べると体温が下がる。
+   倒す = 時間を買う、という判断を作るためのもの。史実では15〜30分働いたら
+   水風呂に入り、梅干しで塩分を補給していた (docs/HISTORY.md §2.1)。 */
+#define UME_COOL      60      /* 拾ったときに下がる体温 (TEMP_MAX の 1/4) */
 
 #define FUSE_FRAMES   120     /* ダイナマイトの導火 = 約2秒 */
 #define FLASH_FRAMES  8       /* 爆風の閃光 */
@@ -126,6 +135,10 @@
 /* 黒ダイヤは1個ずつばらまかず、**繋がった炭層**として置く。掘って辿り着く距離が
    減り、鉱脈を掘り当てて一息に採る感じが出る。1本の長さは 1..COAL_VEIN_MAX。 */
 #define COAL_VEIN_MAX 4
+/* 炭柱 (残柱式)。岩の真下に意図的に置く、耐久の高い黒ダイヤ。
+   割ると岩の支えが外れて落ちるので、「どれをどの順で割るか」が意味を持つ。
+   絵は普通の黒ダイヤと同じで、右上の耐久度の数字が大きいことで見分ける。 */
+#define PILLAR_HP_ADD  3      /* 通常の黒ダイヤに上乗せする耐久 */
 /* 割れた瞬間に画面を縦へ揺らす (R#18 = SET ADJUST)。 */
 #define COAL_SHAKE_FRAMES 10
 /* 採掘した瞬間、その升を光らせる。割ったとき (画面揺れ) とは別の演出で、
@@ -193,6 +206,7 @@ extern uint8_t combo;         /* いまの倍率 (1..COMBO_MAX)。0 = 継続し�
 extern uint8_t  dug[NCELL];      /* 掘り済みフラグ */
 extern uint8_t  powder[NCELL];   /* 火薬 (ダイナマイトの弾薬) */
 extern uint8_t  bombdrop[NCELL]; /* 投げて落ちたダイナマイト。拾い直せる */
+extern uint8_t  ume[NCELL];      /* 梅干し。倒した敵が落とす。拾うと体温が下がる */
 /* 黒ダイヤ (石炭)。土と違って自機の掘りでは進めず、障害物として立ちはだかる。
    つるはしで1回叩くごとに耐久度が1減り、0になると COAL_CRACKED (割れた状態) になる。
    割れると通れるようになり、その升に入ると採掘できる。
@@ -205,6 +219,7 @@ extern uint8_t  coal_left;       /* まだ採掘していない黒ダイヤの�
    bit0 = 右隣との境目が抜けている / bit1 = 真下との境目が抜けている */
 extern uint8_t  cell_link[NCELL];
 extern uint16_t dug_n;           /* 掘ったセル数 */
+extern uint16_t dug_n0;          /* 面の開始時点の掘済み数 (切羽圧の基準) */
 extern uint8_t  dug_pct;         /* 採掘率 % */
 extern uint8_t  stage;
 extern uint8_t  start_c, start_r;
@@ -222,7 +237,10 @@ void    draw_dug_cell(int8_t cx, int8_t cy);
 void    draw_cell_dirt(int8_t cx, int8_t cy);
 void    draw_powder(uint8_t cx, uint8_t cy);
 void    draw_bombdrop(uint8_t cx, uint8_t cy);
-void    drop_powder_at(int8_t cx, int8_t cy);   /* 倒した敵が火薬を落とす */
+/* 倒した敵の落とし物。is_ume なら梅干し (冷却)、そうでなければ火薬。 */
+void    drop_item_at(int8_t cx, int8_t cy, uint8_t is_ume);
+void    draw_ume(uint8_t cx, uint8_t cy);
+void    coal_crush_at(int8_t cx, int8_t cy);   /* 落ちてきた岩が割れた黒ダイヤを砕く */
 void    draw_bath(uint8_t cx, uint8_t cy);
 void    draw_coal(uint8_t cx, uint8_t cy);       /* 耐久度に応じて絵を選ぶ */
 void    draw_bonus(uint8_t cx, uint8_t cy, uint8_t kind);
@@ -285,6 +303,8 @@ void    enemy_clear(void);
 void    enemy_stage_reset(void);      /* 面開始時に出現数と湧きタイマを仕込む */
 void    enemy_update(void);
 void    enemy_draw(void);
+extern uint16_t en_morph[ENEMY_MAX];   /* 透明化までの残りフレーム (計測用) */
+extern uint8_t  en_ghost[ENEMY_MAX];   /* 1 = 透明化中 (計測用) */
 uint8_t enemy_kill_at(int8_t cx, int8_t cy, uint8_t by_rock);  /* 倒した数を返す */
 uint8_t enemy_at(int8_t cx, int8_t cy);        /* その升に敵が居るか (投げたダイナマイトの判定) */
 

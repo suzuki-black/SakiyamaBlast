@@ -8,12 +8,14 @@
 uint8_t  dug[NCELL];
 uint8_t  powder[NCELL];
 uint8_t  bombdrop[NCELL];
+uint8_t  ume[NCELL];
 uint8_t  coal[NCELL];
 uint8_t  coal_left;
 uint8_t  cell_link[NCELL];
 uint8_t  combo;
 static uint16_t combo_t;        /* コンボの残り時間 */
 uint16_t dug_n;
+uint16_t dug_n0;
 uint8_t  dug_pct;
 uint8_t  stage;
 uint8_t  start_c, start_r;
@@ -162,6 +164,21 @@ uint8_t coal_hit(int8_t cx, int8_t cy)
 }
 
 /* 割れた黒ダイヤの升に入ったときの採掘。ここで初めて coal_left が減る。 */
+/* 落ちてきた岩が、割れた黒ダイヤの升に居座ったときの後始末。
+   岩の升には自機が入れないので、放っておくとその黒ダイヤは永久に回収できず
+   「全採掘」のクリア条件を満たせなくなる。岩が砕き出した扱いで回収する。
+   残柱式でいう「炭柱を割ったら天盤が落ちて潰す」そのものでもある。 */
+void coal_crush_at(int8_t cx, int8_t cy)
+{
+    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
+        return;
+    }
+    if (coal[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx] != COAL_CRACKED) {
+        return;
+    }
+    coal_take((uint8_t)cx, (uint8_t)cy);
+}
+
 void coal_take(uint8_t cx, uint8_t cy)
 {
     uint16_t i = (uint16_t)cy * COLS + cx;
@@ -255,22 +272,32 @@ void draw_powder(uint8_t cx, uint8_t cy)
     draw_tile(cx, cy, art_tile_of(TILE_POWDER), 2);
 }
 
-/* 倒した敵がその場へ火薬を落とす。置けない升 (土・黒ダイヤ・既に何かある) なら諦める。 */
-void drop_powder_at(int8_t cx, int8_t cy)
+void draw_ume(uint8_t cx, uint8_t cy)
+{
+    draw_tile(cx, cy, art_tile_of(TILE_BCOOL), 2);   /* 冷却なので体温回復ボーナスと同じ絵 */
+}
+
+/* 倒した敵がその場へ落とし物をする。置けない升 (土・黒ダイヤ・既に何かある) なら諦める。 */
+void drop_item_at(int8_t cx, int8_t cy, uint8_t is_ume)
 {
     uint16_t i;
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
         return;
     }
     i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
-    if (!dug[i] || coal[i] || powder[i] || bombdrop[i]) {
+    if (!dug[i] || coal[i] || powder[i] || bombdrop[i] || ume[i]) {
         return;
     }
     if (bath_on && (uint8_t)cx == bath_c && (uint8_t)cy == bath_r) {
         return;
     }
-    powder[i] = 1;
-    draw_powder((uint8_t)cx, (uint8_t)cy);
+    if (is_ume) {
+        ume[i] = 1;
+        draw_ume((uint8_t)cx, (uint8_t)cy);
+    } else {
+        powder[i] = 1;
+        draw_powder((uint8_t)cx, (uint8_t)cy);
+    }
 }
 
 /* 投げて落ちたダイナマイト。坑道の上に重ねるので外周2pxは残す。 */
@@ -671,6 +698,34 @@ static void place_coal(void)
 }
 
 /* 岩を土の中へ。真下も土であること (置いた瞬間に落ち始めないように)。 */
+/* 炭柱。岩の真下の升へ、耐久の高い黒ダイヤを置く。
+   黒ダイヤは未掘の升にしか置かれないので dug=0 のまま = そのまま岩の支えになる
+   (支え判定は「真下が掘れていなければ支え」)。割ると支えが外れて岩が落ちる。
+   岩を置く条件が「真下は土」なので、その升は必ず空いている。 */
+static void place_pillars(void)
+{
+    uint8_t k, hp = coal_hp_tbl[stage - 1];
+    uint16_t i;
+    hp = (uint8_t)(hp + PILLAR_HP_ADD);
+    if (hp > COAL_HP_MAX) {
+        hp = COAL_HP_MAX;
+    }
+    for (k = 0; k < ROCK_MAX; k++) {
+        if (rock_state[k] == 0) {
+            continue;
+        }
+        if ((uint8_t)((rock_y[k] >> 4) + 1) >= ROWS) {
+            continue;
+        }
+        i = (uint16_t)((rock_y[k] >> 4) + 1) * COLS + (rock_x[k] >> 4);
+        if (dug[i] || coal[i] || powder[i] || used[i]) {
+            continue;
+        }
+        coal[i] = hp;
+        coal_left++;
+    }
+}
+
 static void place_rocks(void)
 {
     uint8_t n = (uint8_t)(2 + (stage - 1) / 7);      /* 2〜4個 */
@@ -882,6 +937,7 @@ static void set_stage_layout(void)
     place_powder(POWDER_PER_STAGE);
     place_rocks();
     place_coal();
+    place_pillars();
 }
 
 void build_stage(void)
@@ -893,6 +949,7 @@ void build_stage(void)
         dug[i] = 0;
         powder[i] = 0;
         bombdrop[i] = 0;
+        ume[i] = 0;
         coal[i] = 0;
         cell_link[i] = 0;
     }
@@ -906,6 +963,7 @@ void build_stage(void)
         }
     }
     dug_pct = (uint8_t)((dug_n * 100u) / NCELL);
+    dug_n0 = dug_n;              /* 切羽圧はここからの増分で測る */
 
     /* 面の最初から掘れている升どうしは、描画上も膜が無いので繋がっている扱いにする。
        (膜が残るのは「片方が後から掘られた」ときだけ) */

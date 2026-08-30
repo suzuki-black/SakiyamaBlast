@@ -19,12 +19,12 @@ uint8_t en_state[ENEMY_MAX];
 uint8_t en_x[ENEMY_MAX], en_y[ENEMY_MAX];
 
 static uint8_t  en_dir[ENEMY_MAX];
-static uint8_t  en_ghost[ENEMY_MAX];      /* 1 = 透明で土をすり抜けている */
+uint8_t  en_ghost[ENEMY_MAX];             /* 1 = 透明で土をすり抜けている (計測用に公開) */
 uint8_t  en_kind[ENEMY_MAX];       /* EN_RAT / EN_BAT */
 static uint8_t  en_gdirt[ENEMY_MAX];      /* 透明化してから一度でも土の中へ入ったか */
 static uint8_t  en_acc[ENEMY_MAX];
 static uint8_t  en_pause[ENEMY_MAX];
-static uint16_t en_morph[ENEMY_MAX];
+uint16_t en_morph[ENEMY_MAX];             /* 透明化までの残りフレーム (計測用に公開) */
 static uint16_t scatter_t;                /* 散開/追跡の切り替えタイマ */
 static uint8_t  scattering;               /* 1 = 散開中 (各自の隅へ向かう) */
 uint16_t en_rest[ENEMY_MAX];              /* 洞窟で静養している残りフレーム。0 で出られる */
@@ -60,10 +60,13 @@ void enemy_clear(void)
     }
 }
 
+/* 透明化までのフレーム数。面が進むほど短く、さらに**自分が掘った升の数だけ**短くなる。
+   後者が切羽圧で、「掘るほど危険が増すが掘らないとクリアできない」を成立させる項。 */
 static uint16_t ghost_frames(void)
 {
     uint16_t t = GHOST_BASE;
     uint16_t d = (uint16_t)(stage - 1) * GHOST_STEP;
+    d = (uint16_t)(d + (uint16_t)(dug_n - dug_n0) * GHOST_PRESSURE);
     if (d >= t || (uint16_t)(t - d) < GHOST_MIN) {
         return GHOST_MIN;
     }
@@ -201,9 +204,12 @@ uint8_t enemy_kill_at(int8_t cx, int8_t cy, uint8_t by_rock)
             en_rest[i] = respawn_frames();   /* 倒された敵は洞窟で静養してから戻る */
             spr_park((uint8_t)(SPR_ENEMY + i));
             killed++;
-            /* 火薬を落とす。岩で潰したときは必ず、爆風なら半々。 */
-            if (by_rock || (rnd8() & 1)) {
-                drop_powder_at(cx, cy);
+            /* 落とし物。岩で潰したら梅干し (体温を下げる = 時間を買える)、
+               爆風なら火薬を半々で。岩は資源を使わないぶん報われる。 */
+            if (by_rock) {
+                drop_item_at(cx, cy, 1);
+            } else if (rnd8() & 1) {
+                drop_item_at(cx, cy, 0);
             }
         }
     }
