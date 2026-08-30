@@ -168,8 +168,14 @@ uint8_t coal_hit(int8_t cx, int8_t cy)
     i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
     coal[i]--;
     if (coal[i] == 0) {
-        coal[i] = COAL_CRACKED;
-        pillar[i] = 0;                         /* 割れたらもう支えではない */
+        {
+            uint8_t was_pillar = pillar[i];
+            coal[i] = COAL_CRACKED;
+            pillar[i] = 0;                     /* 割れたらもう支えではない */
+            if (was_pillar) {
+                rock_collapse();               /* 天盤を支える柱が消えた = 落盤 */
+            }
+        }
         shake_t = COAL_SHAKE_FRAMES;           /* 砕けた瞬間、画面を揺らす */
         snd_sfx(SFX_BREAK);
         dig_sweep((uint8_t)cx, (uint8_t)cy);   /* 砕けたので通れる升になる */
@@ -811,7 +817,8 @@ static void place_pillars(void)
     if (hp > COAL_HP_MAX) {
         hp = COAL_HP_MAX;
     }
-    for (k = 0; k < ROCK_MAX; k++) {
+    uint8_t made = 0;
+    for (k = 0; k < ROCK_MAX && made < PILLAR_MAX; k++) {
         if (rock_state[k] == 0) {
             continue;
         }
@@ -825,6 +832,7 @@ static void place_pillars(void)
         coal[i] = hp;
         pillar[i] = 1;
         coal_left++;
+        made++;
     }
 }
 
@@ -849,7 +857,7 @@ static void keep_droppable(void)
 
 static void place_rocks(void)
 {
-    uint8_t n = (uint8_t)(2 + (stage - 1) / 7);      /* 2〜4個 */
+    uint8_t n = (uint8_t)(3 + (stage - 1) / 3);      /* 3〜6個 */
     uint16_t i;
     if (n > ROCK_MAX) {
         n = ROCK_MAX;

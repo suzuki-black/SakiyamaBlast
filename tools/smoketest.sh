@@ -34,7 +34,7 @@ A_NESTC=$(addr nest_c); A_NESTR=$(addr nest_r)
 A_BATHON=$(addr bath_on); A_BATHC=$(addr bath_c); A_BATHR=$(addr bath_r)
 A_POWDER=$(addr powder); A_COAL=$(addr coal); A_DUG=$(addr dug)
 A_COALLEFT=$(addr coal_left)
-A_ROCKST=$(addr rock_state); A_ROCKX=$(addr rock_x); A_ROCKY=$(addr rock_y)
+A_PILLAR=$(addr pillar)
 A_PCT=$(addr dug_pct)
 
 # 面1は掘り抜きが数字の「1」(15升) ＋ 敵の湧き出し口1升 = 16升。
@@ -65,11 +65,7 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
                 if {[debug read memory [expr {$A_COAL+\$i}]]} {incr d}; \
                 incr g [debug read memory [expr {$A_DUG+\$i}]] }; \
             set pl 0; \
-            for {set k 0} {\$k<4} {incr k} { \
-                if {![debug read memory [expr {$A_ROCKST+\$k}]]} {continue}; \
-                set rc [expr {[debug read memory [expr {$A_ROCKX+\$k}]]/16}]; \
-                set rr [expr {[debug read memory [expr {$A_ROCKY+\$k}]]/16}]; \
-                if {\$rr+1 < 11 && [debug read memory [expr {$A_COAL+(\$rr+1)*16+\$rc}]]} {incr pl} }; \
+            for {set i 0} {\$i<176} {incr i} { incr pl [debug read memory [expr {$A_PILLAR+\$i}]] }; \
             puts \$f \"PILLARN \$pl\"; \
             puts \$f \"POWDERN \$p\"; puts \$f \"COALN \$d\"; puts \$f \"COALLEFT [debug read memory $A_COALLEFT]\"; puts \$f \"DUGN \$g\"; \
             puts \$f \"PCT [debug read memory $A_PCT]\"; \
@@ -105,8 +101,8 @@ check TUNNELCELL 17 "掘り抜きの縦線が掘られている (0x11)"
 check DUGN     16  "掘り抜き「1」(15升) ＋ 湧き出し口(1升)"
 check PCT      9   "開始時の採掘率"
 check POWDERN  10  "火薬が10個置かれている"
-# 黒ダイヤは coal_n_tbl[0]=4 個 ＋ 炭柱 (岩の真下に置くぶん)。岩は面1で2個なので
-# 通常は 4+2=6 だが、真下が既に埋まっていれば炭柱は置かれないので個数で照合する。
+# 黒ダイヤは coal_n_tbl[0]=4 個 ＋ 炭柱 (PILLAR_MAX 本まで)。岩の真下が既に
+# 埋まっていれば炭柱は置かれないので、実際に立った本数で照合する。
 PILLARN=$(val PILLARN)
 check_min PILLARN 1 "炭柱が岩の真下に置かれている"
 check COALN    $((4 + PILLARN)) "黒ダイヤ = 面1の4個 + 炭柱${PILLARN}個"

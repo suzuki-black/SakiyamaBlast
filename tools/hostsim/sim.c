@@ -146,10 +146,27 @@ static int escapes(int c, int r)
     return n;
 }
 
+/* 揺れている / 落ちてくる岩の真下か。
+   人間は0.75秒の揺れを見て避けるので、ボットにも見せないと岩の危険を
+   過大に評価してしまう (岩を一切見ないボットは面の評価にならない)。 */
+static int under_falling_rock(int c, int r)
+{
+    uint8_t k;
+    for (k = 0; k < ROCK_MAX; k++) {
+        int rr;
+        if (rock_state[k] != ROCK_JIG && rock_state[k] != ROCK_FALL) { continue; }
+        if ((rock_x[k] >> 4) != c) { continue; }
+        rr = rock_y[k] >> 4;
+        if (rr <= r && r - rr <= 4) { return 1; }   /* 同じ列の上にある */
+    }
+    return 0;
+}
+
 /* その升にとって「一番近い敵が何歩で来られるか」。来られないなら大きい値。 */
 static int danger_at(int c, int r)
 {
     int k, best = 999;
+    if (under_falling_rock(c, r)) { return 0; }   /* 岩の下は最悪 */
     uint16_t i = (uint16_t)r * COLS + c;
     for (k = 0; k < ENEMY_MAX; k++) {
         if (!en_live[k]) { continue; }
@@ -414,6 +431,11 @@ int main(int argc, char **argv)
                    k ? "," : "", en_state[k], ec, er, en_ghost[k],
                    en_morph[k] ? 0 : 0,
                    (ec >= 0 && ec < COLS && er >= 0 && er < ROWS) ? bfs_d[er * COLS + ec] : -1);
+        }
+        printf("],\"r\":[");
+        for (k = 0; k < ROCK_MAX; k++) {
+            printf("%s[%d,%d,%d]", k ? "," : "",
+                   rock_state[k], rock_x[k] >> 4, rock_y[k] >> 4);
         }
         printf("],\"sfx\":%d}\n", (int)(sfx_fired[0] + sfx_fired[1] + sfx_fired[2] +
                sfx_fired[3] + sfx_fired[4] + sfx_fired[5] + sfx_fired[6] +

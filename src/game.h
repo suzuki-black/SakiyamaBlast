@@ -28,7 +28,7 @@
 /* 岩。押し・落下距離での割れ・潰しは Mr. Do! の apple 準拠だが、**支え判定は Dig Dug 準拠**で、
    真下の升目に自機が居る間は揺れも落下もしない (好きなだけ待てる)。自機が離れた瞬間に
    揺れ始め、揺れ切ると落ちる。 */
-#define ROCK_MAX      4
+#define ROCK_MAX      6
 #define ROCK_JIG_FRAMES 45    /* 揺れ (約0.75秒。DESIGN の当初値) */
 #define ROCK_FALL_SPD 2       /* 落下 px/frame (1セル=8フレーム) */
 
@@ -139,6 +139,9 @@
    割ると岩の支えが外れて落ちるので、「どれをどの順で割るか」が意味を持つ。
    絵は専用のもの (三ツ枠を巻いた姿)。数字だけの違いでは見分けられなかった。 */
 #define PILLAR_HP_ADD  3      /* 通常の黒ダイヤに上乗せする耐久 */
+/* 炭柱の本数は岩の数と切り離す。岩1個につき1本にすると、面1で 6本 x 5振り = 発熱120 が
+   強制されて体温が破綻する。炭柱は必ず壊す (クリア条件に数える) ので、本数＝強制コスト。 */
+#define PILLAR_MAX     2
 /* 割れた瞬間に画面を縦へ揺らす (R#18 = SET ADJUST)。 */
 #define COAL_SHAKE_FRAMES 10
 /* 採掘した瞬間、その升を光らせる。割ったとき (画面揺れ) とは別の演出で、
@@ -296,6 +299,8 @@ uint8_t rock_push(int8_t i, int8_t dx);         /* 1=押せた 0=押せない */
 uint8_t rock_crush_check(uint8_t cx, uint8_t cy);
 void    rock_destroy_at(int8_t cx, int8_t cy);  /* 爆風で吹き飛ばす */
 void    rock_update(void);
+/* 炭柱が壊れた = 天盤が落ちる。盤面のすべての岩が揺れてから1升沈む。 */
+void    rock_collapse(void);
 void    rock_draw(void);
 
 /* --- enemy.c --- */

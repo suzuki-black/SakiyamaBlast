@@ -21,6 +21,7 @@ uint8_t rock_x[ROCK_MAX], rock_y[ROCK_MAX];
 static uint8_t jig_t[ROCK_MAX];     /* 揺れの残りフレーム */
 static uint8_t fall_r0[ROCK_MAX];   /* 落下を開始した行 (落下距離で割れ判定) */
 static uint8_t crushed[ROCK_MAX];   /* 落下中に何かを潰したか */
+static uint8_t sink[ROCK_MAX];      /* 落盤で沈み込む途中。支えの有無を無視して1升落ちる */
 
 void rock_clear(void)
 {
@@ -41,6 +42,7 @@ void rock_place(uint8_t c, uint8_t r)
             rock_state[i] = ROCK_WAIT;
             jig_t[i] = 0;
             crushed[i] = 0;
+            sink[i] = 0;
             return;
         }
     }
@@ -201,10 +203,37 @@ static void rock_fall_step(uint8_t i)
     } else {
         rock_state[i] = ROCK_WAIT;
         jig_t[i] = 0;
+        sink[i] = 0;                    /* 沈み込みはここまで */
         /* 岩がその升に居座る場合だけ、下敷きの割れた黒ダイヤを砕き出しておく。
            岩の升には自機が入れないので、放っておくと回収できずクリア不能になる。
            炭柱 (岩の真下の黒ダイヤ) を割ると必ずこの形になる。 */
         coal_crush_at(c, r);
+    }
+}
+
+/*
+ * 炭柱が壊れたときの落盤。残柱式で天盤を支えていた柱が無くなるので、
+ * 盤面の**すべての岩**が揺れてから1升沈む。
+ *  - 岩は地中に埋まっているものなので、真下が土でも沈む。抜けた升は土のまま
+ *    (dug[] を触らない)。1升だけなら割れない
+ *  - 沈んだ先の下が掘れていれば、そこからは通常の岩と同じ。落ちるところまで
+ *    落ちて割れる (落下距離は元の位置から数えるので、1升沈む + 1升落ちるで割れる)
+ *  - 一番下の行に居る岩は落ちる先が無いので消える
+ */
+void rock_collapse(void)
+{
+    uint8_t i;
+    for (i = 0; i < ROCK_MAX; i++) {
+        if (rock_state[i] == ROCK_NONE || rock_state[i] == ROCK_FALL) {
+            continue;
+        }
+        if ((uint8_t)(rock_y[i] >> 4) + 1 >= ROWS) {
+            rock_break(i);                  /* 一番下。落ちる先が無いので消える */
+            continue;
+        }
+        sink[i] = 1;
+        rock_state[i] = ROCK_JIG;
+        jig_t[i] = ROCK_JIG_FRAMES;
     }
 }
 
@@ -219,7 +248,7 @@ void rock_update(void)
             rock_fall_step(i);
             continue;
         }
-        if (supported(i)) {
+        if (supported(i) && !sink[i]) {
             rock_state[i] = ROCK_WAIT;
             jig_t[i] = 0;
             continue;
