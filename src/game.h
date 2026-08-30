@@ -144,11 +144,16 @@
 /* 採掘した瞬間、その升を光らせる。割ったとき (画面揺れ) とは別の演出で、
    「割る」と「手に入れる」を分けて見せる。 */
 #define COAL_GET_FRAMES 9
-/* 連続採掘のコンボ。前の採掘からこの時間内に次を採ると倍率が上がる。
-   炭層は繋がっているので、掘り当てたら一息に採り切る動機になる。 */
-#define COMBO_WINDOW 180      /* 3秒 */
-#define COMBO_MAX      8
-extern uint8_t combo;         /* いまの倍率 (1..COMBO_MAX)。0 = 継続していない */
+/* 炭層の連鎖採掘。割れた黒ダイヤの升に入ると、繋がっている割れた黒ダイヤを
+   すべて同時に採る。「耐久ぶん振って溜める → 一歩踏み込んで一気に放出」という
+   溜めと放出になる。
+   同時に、割れた黒ダイヤは通れる升なので、炭層を全部割った時点で最大
+   COAL_VEIN_MAX 升の直線通路が開通し、**敵の高速道路になる**。
+   1個ずつ安全に採るか、全部割ってから一気に採るかがそのままギャンブルになる。 */
+#define CHAIN_MAX      8      /* 一度に採れる上限 */
+extern uint8_t combo;         /* 直前の連鎖で採った数。HUD 表示用 */
+extern uint8_t combo_t;       /* HUD に出しておく残り時間 */
+#define COMBO_SHOW    90      /* 連鎖数を出しておくフレーム数 (1.5秒) */
 
 /* ダイナマイトは投げる武器。向いている方向へ最大5升飛ぶ。
    飛んだ先に敵が居ればそこで爆発 (爆風は1升だけ・地形は掘らない)、
@@ -231,7 +236,8 @@ uint8_t cell_dug(int8_t cx, int8_t cy);
 #define LINK_RIGHT 1
 #define LINK_DOWN  2
 uint8_t cell_linked(int8_t cx, int8_t cy, uint8_t dir);   /* その向きへ膜なしで通れるか */
-void    link_carve(uint8_t px_, uint8_t py_);             /* 自機が膜を抜いた分を記録する */
+void    link_carve(uint8_t px_, uint8_t py_);
+void    link_open(uint8_t cx, uint8_t cy);   /* 割れた黒ダイヤの升を通路として繋ぐ */             /* 自機が膜を抜いた分を記録する */
 void    dig_sweep(uint8_t cx, uint8_t cy);
 void    draw_dug_cell(int8_t cx, int8_t cy);
 void    draw_cell_dirt(int8_t cx, int8_t cy);

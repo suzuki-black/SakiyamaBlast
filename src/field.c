@@ -13,7 +13,7 @@ uint8_t  coal[NCELL];
 uint8_t  coal_left;
 uint8_t  cell_link[NCELL];
 uint8_t  combo;
-static uint16_t combo_t;        /* コンボの残り時間 */
+uint8_t  combo_t;               /* HUD に連鎖数を出しておく残り時間 */
 uint16_t dug_n;
 uint16_t dug_n0;
 uint8_t  dug_pct;
@@ -66,6 +66,26 @@ void link_carve(uint8_t px_, uint8_t py_)
     }
 }
 
+/* 割れた黒ダイヤの升と、隣り合う掘れている升との膜を開く。
+   割れた升を「本当に通れる通路」にするためのもの。これをやらないと、
+   炭層を全部割っても敵は通れず、リスクの無いただの得点になってしまう。 */
+void link_open(uint8_t cx, uint8_t cy)
+{
+    uint16_t k = (uint16_t)cy * COLS + cx;
+    if (cx + 1 < COLS && cell_dug((int8_t)(cx + 1), (int8_t)cy)) {
+        cell_link[k] |= LINK_RIGHT;
+    }
+    if (cx > 0 && cell_dug((int8_t)(cx - 1), (int8_t)cy)) {
+        cell_link[k - 1] |= LINK_RIGHT;
+    }
+    if (cy + 1 < ROWS && cell_dug((int8_t)cx, (int8_t)(cy + 1))) {
+        cell_link[k] |= LINK_DOWN;
+    }
+    if (cy > 0 && cell_dug((int8_t)cx, (int8_t)(cy - 1))) {
+        cell_link[k - COLS] |= LINK_DOWN;
+    }
+}
+
 /* 面ごとに土の色を変える。閃光から戻すときにも使う。 */
 void set_dirt_palette(void)
 {
@@ -89,7 +109,7 @@ void coal_shake_tick(void)
     if (combo_t) {
         combo_t--;
         if (!combo_t) {
-            combo = 0;                  /* 途切れた */
+            combo = 0;                  /* 表示を消す */
         }
     }
 
@@ -151,6 +171,10 @@ uint8_t coal_hit(int8_t cx, int8_t cy)
         shake_t = COAL_SHAKE_FRAMES;           /* 砕けた瞬間、画面を揺らす */
         snd_sfx(SFX_BREAK);
         dig_sweep((uint8_t)cx, (uint8_t)cy);   /* 砕けたので通れる升になる */
+        /* **膜も開く。** 割れた升は本当に通路になり、炭層を全部割ると
+           最大 COAL_VEIN_MAX 升の直線が開通して敵の高速道路になる。
+           これが「全部割ってから一気に採る」のリスクそのもの。 */
+        link_open((uint8_t)cx, (uint8_t)cy);
         draw_coal((uint8_t)cx, (uint8_t)cy);
         field_redraw_cell((int8_t)cx, (int8_t)(cy - 1));
         field_redraw_cell((int8_t)cx, (int8_t)(cy + 1));
@@ -179,12 +203,10 @@ void coal_crush_at(int8_t cx, int8_t cy)
     coal_take((uint8_t)cx, (uint8_t)cy);
 }
 
-void coal_take(uint8_t cx, uint8_t cy)
+/* 1升ぶんの回収。連鎖の途中でも呼ばれるので、音と倍率は呼び元が持つ。 */
+static void take_one(uint8_t cx, uint8_t cy)
 {
     uint16_t i = (uint16_t)cy * COLS + cx;
-    if (coal[i] != COAL_CRACKED) {
-        return;
-    }
     coal[i] = 0;
     coal_left--;
     /* 隣の升の「土の膜」の形も変わるので、周囲ごと描き直す。 */
@@ -198,13 +220,59 @@ void coal_take(uint8_t cx, uint8_t cy)
     get_c = cx;
     get_r = cy;
     vdp_fill((uint16_t)((uint16_t)cx << 4), (uint16_t)((uint16_t)cy << 4), 16, 16, COL_WHITE);
-    /* 続けて採るほど倍率が上がり、音程も上がっていく。 */
-    if (combo < COMBO_MAX) {
-        combo++;
+}
+
+/* 入った升から、繋がっている割れた黒ダイヤをすべて同時に採る。
+   得点は1個目 PTS_COAL、以降は倍々。溜めて一歩で放出する形になる。 */
+void coal_take(uint8_t cx, uint8_t cy)
+{
+    uint8_t qc[CHAIN_MAX], qr[CHAIN_MAX];
+    uint8_t head = 0, tail = 0, n;
+    uint16_t pts = PTS_COAL;
+
+    if (coal[(uint16_t)cy * COLS + cx] != COAL_CRACKED) {
+        return;
     }
-    combo_t = COMBO_WINDOW;
-    snd_sfx_up(SFX_COAL, (uint8_t)((combo - 1) * 2));
-    score_add((uint16_t)(PTS_COAL * combo));
+    coal[(uint16_t)cy * COLS + cx] = 0;       /* 先に消して二重に積まないようにする */
+    qc[tail] = cx; qr[tail] = cy; tail++;
+
+    while (head < tail) {
+        uint8_t c = qc[head], r = qr[head], k;
+        head++;
+        /* 四方の割れた黒ダイヤを列に足す */
+        for (k = 0; k < 4; k++) {
+            int8_t nc = (int8_t)c, nr = (int8_t)r;
+            uint16_t j;
+            if (k == 0) { nr--; } else if (k == 1) { nr++; }
+            else if (k == 2) { nc--; } else { nc++; }
+            if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS || tail >= CHAIN_MAX) {
+                continue;
+            }
+            j = (uint16_t)(uint8_t)nr * COLS + (uint8_t)nc;
+            if (coal[j] != COAL_CRACKED) {
+                continue;
+            }
+            coal[j] = 0;
+            qc[tail] = (uint8_t)nc; qr[tail] = (uint8_t)nr; tail++;
+        }
+    }
+
+    /* 採った順に、倍々の得点と1段ずつ高い音で放出する */
+    for (n = 0; n < tail; n++) {
+        coal[(uint16_t)qr[n] * COLS + qc[n]] = COAL_CRACKED;   /* take_one の前提へ戻す */
+        take_one(qc[n], qr[n]);
+        score_add(pts);
+        if (pts < 0x4000) {
+            pts = (uint16_t)(pts * 2);
+        }
+    }
+    combo = tail;
+    combo_t = COMBO_SHOW;
+    /* 数が多いほど高く鳴らし、揺れも大きくする */
+    snd_sfx_up(SFX_COAL, (uint8_t)((tail - 1) * 3));
+    if (tail >= 2) {
+        shake_t = (uint8_t)(COAL_SHAKE_FRAMES + tail);
+    }
 }
 
 void dig_sweep(uint8_t cx, uint8_t cy)
