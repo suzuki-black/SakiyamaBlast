@@ -131,6 +131,11 @@
 /* 採掘した瞬間、その升を光らせる。割ったとき (画面揺れ) とは別の演出で、
    「割る」と「手に入れる」を分けて見せる。 */
 #define COAL_GET_FRAMES 9
+/* 連続採掘のコンボ。前の採掘からこの時間内に次を採ると倍率が上がる。
+   炭層は繋がっているので、掘り当てたら一息に採り切る動機になる。 */
+#define COMBO_WINDOW 180      /* 3秒 */
+#define COMBO_MAX      8
+extern uint8_t combo;         /* いまの倍率 (1..COMBO_MAX)。0 = 継続していない */
 
 /* ダイナマイトは投げる武器。向いている方向へ最大5升飛ぶ。
    飛んだ先に敵が居ればそこで爆発 (爆風は1升だけ・地形は掘らない)、
@@ -140,6 +145,11 @@
 #define LIVES_INIT    3
 #define MAX_STAGE     15      /* 全15面。掘り抜きが面番号の形になる */
 #define POWDER_PER_STAGE 10   /* 盤面に置く火薬の数 (面によらず一定) */
+/* 倒した敵は火薬を落とす。倒しても得点が入るだけだと、資源を消費して敵を倒す
+   理由がなく「無視して掘り続けるのが最適」になってしまう。落とすことで
+   「1本使って倒し、拾って取り返す」という投資の判断が生まれる。
+   岩で潰すと必ず落とし、ダイナマイトだと半々。岩は資源を使わないぶん報われる。 */
+#define DROP_BY_ROCK  1       /* 岩で潰した敵は必ず落とす */
 
 /* --- パレット番号 --- */
 #define COL_TUNNEL 1
@@ -212,6 +222,7 @@ void    draw_dug_cell(int8_t cx, int8_t cy);
 void    draw_cell_dirt(int8_t cx, int8_t cy);
 void    draw_powder(uint8_t cx, uint8_t cy);
 void    draw_bombdrop(uint8_t cx, uint8_t cy);
+void    drop_powder_at(int8_t cx, int8_t cy);   /* 倒した敵が火薬を落とす */
 void    draw_bath(uint8_t cx, uint8_t cy);
 void    draw_coal(uint8_t cx, uint8_t cy);       /* 耐久度に応じて絵を選ぶ */
 void    draw_bonus(uint8_t cx, uint8_t cy, uint8_t kind);
@@ -274,7 +285,7 @@ void    enemy_clear(void);
 void    enemy_stage_reset(void);      /* 面開始時に出現数と湧きタイマを仕込む */
 void    enemy_update(void);
 void    enemy_draw(void);
-uint8_t enemy_kill_at(int8_t cx, int8_t cy);   /* 爆風・落下岩で倒す。倒した数を返す */
+uint8_t enemy_kill_at(int8_t cx, int8_t cy, uint8_t by_rock);  /* 倒した数を返す */
 uint8_t enemy_at(int8_t cx, int8_t cy);        /* その升に敵が居るか (投げたダイナマイトの判定) */
 
 /* --- bomb.c --- */

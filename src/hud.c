@@ -76,8 +76,9 @@ void score_kills(uint8_t n, uint8_t by_rock)
 #define DYN_X     60
 #define COAL_X    112                  /* 残りの黒ダイヤ */
 #define COAL_Y    (ROW_B + 1)
+#define COMBO_X   200                  /* 連続採掘の倍率 */
 
-static uint8_t h_lives, h_stock, h_coal, h_stage, h_temp;
+static uint8_t h_lives, h_stock, h_coal, h_stage, h_temp, h_combo;
 static uint8_t h_score[SCORE_DIGITS];
 
 void hud_reset(void)
@@ -86,6 +87,7 @@ void hud_reset(void)
     h_lives = 0xFF;
     h_stock = 0xFF;
     h_coal  = 0xFF;
+    h_combo = 0xFF;
     h_stage = 0xFF;
     h_temp  = 0xFF;
     for (i = 0; i < SCORE_DIGITS; i++) {
@@ -165,7 +167,7 @@ static void draw_coal_left(void)
 {
     char buf[16];
     uint8_t n;
-    vdp_fill(COAL_X, ROW_B, 140, 14, COL_HUD);
+    vdp_fill(COAL_X, ROW_B, 84, 14, COL_HUD);
     /* 黒ダイヤの目印 (石炭の塊) */
     vdp_fill(COAL_X + 1, COAL_Y + 1, 10, 8, COL_DIA);
     vdp_fill(COAL_X + 3, COAL_Y + 2, 3, 2, COL_WHITE);
@@ -175,6 +177,20 @@ static void draw_coal_left(void)
     text_draw(COAL_X + 16, ROW_B + 2, buf,
               (uint8_t)(coal_left ? COL_WHITE : COL_FUSE), COL_HUD, 1);
     h_coal = coal_left;
+}
+
+/* 連続採掘の倍率。1倍のときは出さない (常時出ていると意味が薄れる)。 */
+static void draw_combo(void)
+{
+    char buf[6];
+    vdp_fill(COMBO_X, ROW_B, 40, 14, COL_HUD);
+    if (combo >= 2) {
+        buf[0] = 'X';
+        buf[1] = (char)('0' + combo);
+        buf[2] = 0;
+        text_draw(COMBO_X, ROW_B + 2, buf, COL_FUSE, COL_HUD, 1);
+    }
+    h_combo = combo;
 }
 
 void hud_draw(void)
@@ -198,4 +214,5 @@ void hud_draw(void)
     if (lives != h_lives) { draw_lives(); }
     if (stock != h_stock) { draw_stock(); }
     if (coal_left != h_coal) { draw_coal_left(); }
+    if (combo != h_combo)     { draw_combo(); }
 }

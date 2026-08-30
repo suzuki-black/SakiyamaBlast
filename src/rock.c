@@ -126,7 +126,7 @@ uint8_t rock_push(int8_t i, int8_t dx)
     /* 横へ押し込んだ先に居るものは潰れる。落とさなくても岩を武器にできるので、
        ダイナマイトを温存できる。押した岩は割れずに残る (何度でも押して使える)。 */
     {
-        uint8_t killed = enemy_kill_at(nc, r);
+        uint8_t killed = enemy_kill_at(nc, r, DROP_BY_ROCK);
         if (killed) {
             score_kills(killed, 1);
         }
@@ -179,7 +179,7 @@ static void rock_fall_step(uint8_t i)
     /* 落下中の岩は縦一列の敵をまとめて潰す (Mr. Do! 準拠) */
     {
         uint8_t killed = enemy_kill_at((int8_t)(rock_x[i] >> 4),
-                                       (int8_t)((rock_y[i] + 8) >> 4));
+                                       (int8_t)((rock_y[i] + 8) >> 4), DROP_BY_ROCK);
         if (killed) {
             crushed[i] = 1;
             score_kills(killed, 1);      /* 落下岩は爆風の倍 */

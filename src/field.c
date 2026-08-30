@@ -11,6 +11,8 @@ uint8_t  bombdrop[NCELL];
 uint8_t  coal[NCELL];
 uint8_t  coal_left;
 uint8_t  cell_link[NCELL];
+uint8_t  combo;
+static uint16_t combo_t;        /* コンボの残り時間 */
 uint16_t dug_n;
 uint8_t  dug_pct;
 uint8_t  stage;
@@ -81,6 +83,13 @@ static uint8_t get_c, get_r;
 void coal_shake_tick(void)
 {
     int8_t amp;
+
+    if (combo_t) {
+        combo_t--;
+        if (!combo_t) {
+            combo = 0;                  /* 途切れた */
+        }
+    }
 
     /* 採掘した升の閃き。白 -> 黒ダイヤの色 と2段で光らせてから元へ戻す。
        自機が升の上に乗っているので、周りがふちどられるように見える。 */
@@ -172,8 +181,13 @@ void coal_take(uint8_t cx, uint8_t cy)
     get_c = cx;
     get_r = cy;
     vdp_fill((uint16_t)((uint16_t)cx << 4), (uint16_t)((uint16_t)cy << 4), 16, 16, COL_WHITE);
-    snd_sfx(SFX_COAL);
-    score_add(PTS_COAL);
+    /* 続けて採るほど倍率が上がり、音程も上がっていく。 */
+    if (combo < COMBO_MAX) {
+        combo++;
+    }
+    combo_t = COMBO_WINDOW;
+    snd_sfx_up(SFX_COAL, (uint8_t)((combo - 1) * 2));
+    score_add((uint16_t)(PTS_COAL * combo));
 }
 
 void dig_sweep(uint8_t cx, uint8_t cy)
@@ -239,6 +253,24 @@ void draw_dug_cell(int8_t cx, int8_t cy)
 void draw_powder(uint8_t cx, uint8_t cy)
 {
     draw_tile(cx, cy, art_tile_of(TILE_POWDER), 2);
+}
+
+/* 倒した敵がその場へ火薬を落とす。置けない升 (土・黒ダイヤ・既に何かある) なら諦める。 */
+void drop_powder_at(int8_t cx, int8_t cy)
+{
+    uint16_t i;
+    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
+        return;
+    }
+    i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
+    if (!dug[i] || coal[i] || powder[i] || bombdrop[i]) {
+        return;
+    }
+    if (bath_on && (uint8_t)cx == bath_c && (uint8_t)cy == bath_r) {
+        return;
+    }
+    powder[i] = 1;
+    draw_powder((uint8_t)cx, (uint8_t)cy);
 }
 
 /* 投げて落ちたダイナマイト。坑道の上に重ねるので外周2pxは残す。 */

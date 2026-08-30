@@ -60,6 +60,7 @@ static uint8_t drum_on;        /* 1 = チャンネルC をノイズのドラム�
 /* 効果音の状態。ch C を一時的に奪う。 */
 static const uint8_t *sfx_p;
 static uint8_t sfx_left, sfx_t, sfx_vol0, sfx_dec, sfx_noise, sfx_pri, sfx_on;
+static uint8_t sfx_up;          /* 音程を持ち上げる半音数 (コンボ用) */
 
 /* 効果音の定義: データ / ノイズか / 音量 / 減衰 / 優先度 */
 static const uint8_t *const sfx_data[9] = { sfx_dig, sfx_pick, sfx_set, sfx_boom, sfx_miss, sfx_mine, sfx_nope, sfx_break, sfx_coal };
@@ -113,6 +114,14 @@ void snd_init(void)
     mode = SND_OFF;
 }
 
+void snd_sfx_up(uint8_t id, uint8_t n)
+{
+    snd_sfx(id);
+    if (sfx_on) {
+        sfx_up = n;
+    }
+}
+
 void snd_sfx(uint8_t id)
 {
     if (id > SFX_COAL) {
@@ -127,6 +136,7 @@ void snd_sfx(uint8_t id)
     sfx_vol0 = sfx_volume[id];
     sfx_dec = sfx_decay[id];
     sfx_noise = sfx_isnoise[id];
+    sfx_up = 0;
     if (sfx_noise == 2) {
         PSG_W(6, sfx_noisep[id]);      /* 重ねるノイズの粗さは固定 */
     }
@@ -166,7 +176,10 @@ static void sfx_tick(void)
         if (sfx_noise == 1) {
             PSG_W(6, val);             /* ノイズ周期 */
         } else {
-            uint16_t per = note_period[val];
+            uint16_t per;
+            uint8_t k = (uint8_t)(val + sfx_up);
+            if (k > 84) { k = 84; }              /* 表の上限で頭打ち */
+            per = note_period[k];
             PSG_W(4, (uint8_t)(per & 0xFF));
             PSG_W(5, (uint8_t)(per >> 8));
         }

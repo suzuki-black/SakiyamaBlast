@@ -189,7 +189,7 @@ uint8_t enemy_at(int8_t cx, int8_t cy)
     return 0;
 }
 
-uint8_t enemy_kill_at(int8_t cx, int8_t cy)
+uint8_t enemy_kill_at(int8_t cx, int8_t cy, uint8_t by_rock)
 {
     uint8_t i, killed = 0;
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
@@ -201,6 +201,10 @@ uint8_t enemy_kill_at(int8_t cx, int8_t cy)
             en_rest[i] = respawn_frames();   /* 倒された敵は洞窟で静養してから戻る */
             spr_park((uint8_t)(SPR_ENEMY + i));
             killed++;
+            /* 火薬を落とす。岩で潰したときは必ず、爆風なら半々。 */
+            if (by_rock || (rnd8() & 1)) {
+                drop_powder_at(cx, cy);
+            }
         }
     }
     return killed;

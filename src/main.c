@@ -125,6 +125,7 @@ static void start_stage(void)
     player_start();
     enemy_stage_reset();
     bonus_stage_reset();
+    combo = 0;
     hud_reset();
     hud_draw();
     show_stage_msg();        /* 面を描き切ってから開始表示を出す */

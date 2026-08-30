@@ -25,6 +25,8 @@ uint8_t snd_busy(void);          /* ファンファーレが鳴っている間�
 #define SFX_BREAK 7      /* 黒ダイヤが砕けた (ガシャン) */
 #define SFX_COAL  8      /* 黒ダイヤを採掘した (チャリーン) */
 void snd_sfx(uint8_t id);
+/* 音程を n 半音ぶん上げて鳴らす。コンボで音が上がっていく演出に使う。 */
+void snd_sfx_up(uint8_t id, uint8_t n);
 
 /* 曲データ (music.c)。3チャンネルぶんの (音程, 長さ) の並び。
    音程 0=休符 / 0xFE=終わり / 0xFF=先頭へ戻る。長さはフレーム数。 */
