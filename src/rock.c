@@ -15,6 +15,7 @@
 #include "game.h"
 #include "sprite.h"
 #include "sound.h"
+#include "art.h"
 
 uint8_t rock_state[ROCK_MAX];
 uint8_t rock_x[ROCK_MAX], rock_y[ROCK_MAX];
@@ -23,6 +24,7 @@ static uint8_t jig_t[ROCK_MAX];     /* 揺れの残りフレーム */
 static uint8_t fall_r0[ROCK_MAX];   /* 落下を開始した行 (落下距離で割れ判定) */
 static uint8_t crushed[ROCK_MAX];   /* 落下中に何かを潰したか */
 static uint8_t sink[ROCK_MAX];      /* 落盤で沈み込む途中。支えの有無を無視して1升落ちる */
+static uint8_t split_t[ROCK_MAX];   /* 割れた姿を出しておく残りフレーム */
 
 void rock_clear(void)
 {
@@ -44,6 +46,7 @@ void rock_place(uint8_t c, uint8_t r)
             jig_t[i] = 0;
             crushed[i] = 0;
             sink[i] = 0;
+            spr_color_lines((uint8_t)(SPR_ROCK + i), art_colours(PAT_ROCK));
             return;
         }
     }
@@ -56,7 +59,7 @@ int8_t rock_at(int8_t cx, int8_t cy)
         return -1;
     }
     for (i = 0; i < ROCK_MAX; i++) {
-        if (rock_state[i] != ROCK_NONE) {
+        if (rock_state[i] != ROCK_NONE && rock_state[i] != ROCK_SPLIT) {
             if ((int8_t)(rock_x[i] >> 4) == cx && (int8_t)(rock_y[i] >> 4) == cy) {
                 return (int8_t)i;
             }
@@ -141,10 +144,17 @@ uint8_t rock_push(int8_t i, int8_t dx)
     return 1;
 }
 
+/* 割れる。**すぐには消さない。** 即座に消えると何が起きたのか読み取れないので、
+   軽く画面を揺らし、二つに割れた姿を ROCK_SPLIT_FRAMES だけ見せてから消す。
+   その間は支えにも障害物にもならない (rock_at が拾わない)。 */
 static void rock_break(uint8_t i)
 {
-    rock_state[i] = ROCK_NONE;
-    spr_park((uint8_t)(SPR_ROCK + i));
+    rock_state[i] = ROCK_SPLIT;
+    split_t[i] = ROCK_SPLIT_FRAMES;
+    sink[i] = 0;
+    field_shake(ROCK_LAND_SHAKE);
+    /* 割れた絵は岩と行ごとの色が違うので、色表も差し替える。 */
+    spr_color_lines((uint8_t)(SPR_ROCK + i), art_colours(PAT_SPLIT));
     bonus_rock_broken();               /* 2個割るとボーナスが出る */
 }
 
@@ -194,6 +204,7 @@ static void rock_fall_step(uint8_t i)
     }
     c = (int8_t)(rock_x[i] >> 4);
     r = (int8_t)(rock_y[i] >> 4);
+    link_smash((uint8_t)c, (uint8_t)r); /* 通り抜けた升の間の膜を割る */
     bath_destroy_at(c, r);              /* 落ちてきた岩は風呂を壊す */
     if (r + 1 < ROWS && cell_dug(c, (int8_t)(r + 1)) && !rock_solid_at(c, (int8_t)(r + 1))) {
         return;                         /* まだ落ちる */
@@ -225,8 +236,8 @@ void rock_collapse(void)
 {
     uint8_t i;
     for (i = 0; i < ROCK_MAX; i++) {
-        if (rock_state[i] == ROCK_NONE || rock_state[i] == ROCK_FALL) {
-            continue;
+        if (rock_state[i] != ROCK_WAIT && rock_state[i] != ROCK_JIG) {
+            continue;                   /* 落下中・割れている岩は落盤の対象外 */
         }
         if ((uint8_t)(rock_y[i] >> 4) + 1 >= ROWS) {
             rock_break(i);                  /* 一番下。落ちる先が無いので消える */
@@ -244,6 +255,14 @@ void rock_update(void)
     uint8_t i;
     for (i = 0; i < ROCK_MAX; i++) {
         if (rock_state[i] == ROCK_NONE) {
+            continue;
+        }
+        if (rock_state[i] == ROCK_SPLIT) {
+            split_t[i]--;
+            if (split_t[i] == 0) {
+                rock_state[i] = ROCK_NONE;
+                spr_park((uint8_t)(SPR_ROCK + i));
+            }
             continue;
         }
         if (rock_state[i] == ROCK_FALL) {
@@ -282,7 +301,8 @@ void rock_draw(void)
             if (rock_state[i] == ROCK_JIG && (jig_t[i] & 2)) {
                 x = (uint8_t)(x + 1);
             }
-            spr_set((uint8_t)(SPR_ROCK + i), x, (uint8_t)(rock_y[i] - 1), PAT_ROCK);
+            spr_set((uint8_t)(SPR_ROCK + i), x, (uint8_t)(rock_y[i] - 1),
+                    (uint8_t)(rock_state[i] == ROCK_SPLIT ? PAT_SPLIT : PAT_ROCK));
         }
     }
 }

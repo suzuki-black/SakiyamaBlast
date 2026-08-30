@@ -103,6 +103,24 @@ static uint8_t shake_t;
 static uint8_t get_t;                   /* 採掘した升を光らせている残りフレーム */
 static uint8_t get_c, get_r;
 
+/* 外から画面を揺らす。すでに揺れているときは長いほうを残す。 */
+void field_shake(uint8_t frames)
+{
+    if (frames > shake_t) {
+        shake_t = frames;
+    }
+}
+
+/* 落ちてきた岩が (cx,cy) と1つ上の升の間の膜を突き破る。
+   岩は薄皮を残して通り過ぎるのではなく、割って落ちる。 */
+void link_smash(uint8_t cx, uint8_t cy)
+{
+    if (cx >= COLS || cy == 0 || cy >= ROWS) {
+        return;
+    }
+    cell_link[(uint16_t)(cy - 1) * COLS + cx] |= LINK_DOWN;
+}
+
 void coal_shake_tick(void)
 {
     int8_t amp;

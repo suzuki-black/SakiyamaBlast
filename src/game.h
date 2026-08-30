@@ -211,6 +211,7 @@ extern uint8_t combo_t;       /* HUD に出しておく残り時間 */
 #define PAT_ROCK  2
 #define PAT_RAT   3
 #define PAT_BAT   4
+#define PAT_SPLIT 5      /* 割れた岩。消える前に1秒だけ出す */
 
 /* --- field.c --- */
 extern uint8_t  dug[NCELL];      /* 掘り済みフラグ */
@@ -264,7 +265,9 @@ void    bath_destroy_at(int8_t cx, int8_t cy);   /* 岩・爆風で壊れる (�
 void    field_redraw_cell(int8_t cx, int8_t cy);
 void    build_stage(void);
 void    set_dirt_palette(void);   /* 面ごとの土の色 */
-void    coal_shake_tick(void);   /* 割れた瞬間の画面揺れと、採掘した升の閃き。毎フレーム呼ぶ */
+void    coal_shake_tick(void);
+void    field_shake(uint8_t frames);   /* 画面を揺らす (岩の着地など) */
+void    link_smash(uint8_t cx, uint8_t cy);  /* 岩が縦に突き破った膜を開く */   /* 割れた瞬間の画面揺れと、採掘した升の閃き。毎フレーム呼ぶ */
 
 /* --- player.c --- */
 extern uint8_t px, py;
@@ -289,6 +292,10 @@ uint8_t player_cell_r(void);
 #define ROCK_WAIT 1
 #define ROCK_JIG  2
 #define ROCK_FALL 3
+#define ROCK_SPLIT 4          /* 割れた姿を見せている最中。当たり判定も支えも無い */
+/* 割れた岩を出しておくフレーム数。即座に消すと、何が起きたのか分からない。 */
+#define ROCK_SPLIT_FRAMES 60
+#define ROCK_LAND_SHAKE   6   /* 着地の軽い揺れ */
 
 extern uint8_t rock_state[ROCK_MAX];
 extern uint8_t rock_x[ROCK_MAX], rock_y[ROCK_MAX];
