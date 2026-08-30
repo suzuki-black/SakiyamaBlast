@@ -63,15 +63,15 @@ static uint8_t sfx_left, sfx_t, sfx_vol0, sfx_dec, sfx_noise, sfx_pri, sfx_on;
 static uint8_t sfx_up;          /* 音程を持ち上げる半音数 (コンボ用) */
 
 /* 効果音の定義: データ / ノイズか / 音量 / 減衰 / 優先度 */
-static const uint8_t *const sfx_data[9] = { sfx_dig, sfx_pick, sfx_set, sfx_boom, sfx_miss, sfx_mine, sfx_nope, sfx_break, sfx_coal };
+static const uint8_t *const sfx_data[10] = { sfx_dig, sfx_pick, sfx_set, sfx_boom, sfx_miss, sfx_mine, sfx_nope, sfx_break, sfx_coal, sfx_cavein };
 /* 0=トーン 1=ノイズ 2=トーン+ノイズ (金属音) */
-static const uint8_t sfx_isnoise[9]     = {       1,        0,       0,        1,        0,        2,        0,        1,        0 };
-static const uint8_t sfx_volume[9]      = {       8,       13,      11,       15,       14,       15,        9,       15,       15 };
+static const uint8_t sfx_isnoise[10]    = {       1,        0,       0,        1,        0,        2,        0,        1,        0,         1 };
+static const uint8_t sfx_volume[10]     = {       8,       13,      11,       15,       14,       15,        9,       15,       15,        15 };
 /* 大きいほど減衰が遅い。0 は1フレームに1ずつ落ちる = 打撃音向き。 */
-static const uint8_t sfx_decay[9]       = {       1,        3,       2,        3,        3,        0,        4,        2,        1 };
+static const uint8_t sfx_decay[10]      = {       1,        3,       2,        3,        3,        0,        4,        2,        1,         4 };
 /* トーンに重ねるノイズの粗さ (モード2 のときだけ使う)。小さいほど高い。 */
-static const uint8_t sfx_noisep[9]      = {       0,        0,       0,        0,        0,        1,        0,        0,        0 };
-static const uint8_t sfx_prio[9]        = {       0,        1,       1,        2,        2,        1,        0,        2,        2 };
+static const uint8_t sfx_noisep[10]     = {       0,        0,       0,        0,        0,        1,        0,        0,        0,         0 };
+static const uint8_t sfx_prio[10]       = {       0,        1,       1,        2,        2,        1,        0,        2,        2,         3 };
 
 /* ノイズドラム。PSG のノイズ周期を変えて太鼓・スネア・ハイハットを作り分ける。 */
 #define DRUM_BD 1

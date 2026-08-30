@@ -805,49 +805,39 @@ static void place_coal(void)
 }
 
 /* 岩を土の中へ。真下も土であること (置いた瞬間に落ち始めないように)。 */
-/* 炭柱。岩の真下の升へ、耐久の高い黒ダイヤを置く。
-   黒ダイヤは未掘の升にしか置かれないので dug=0 のまま = そのまま岩の支えになる
-   (支え判定は「真下が掘れていなければ支え」)。割ると支えが外れて岩が落ちる。
-   岩を置く条件が「真下は土」なので、その升は必ず空いている。 */
+/* 炭柱。耐久の高い黒ダイヤを、岩とは無関係な場所へ置く。
+   割ると天盤を支える柱が消えたことになり、盤面の**すべての岩**が落ちる (rock_collapse)。
+   岩の真上・真下に置く必要はない。むしろ離れた場所にあるほうが、
+   「黄枠 = 天井全部が落ちる」という合図として正確に伝わる。 */
 static void place_pillars(void)
 {
-    uint8_t k, hp = coal_hp_tbl[stage - 1];
+    uint8_t made, hp = coal_hp_tbl[stage - 1];
     uint16_t i;
     hp = (uint8_t)(hp + PILLAR_HP_ADD);
     if (hp > COAL_HP_MAX) {
         hp = COAL_HP_MAX;
     }
-    uint8_t made = 0;
-    for (k = 0; k < ROCK_MAX && made < PILLAR_MAX; k++) {
-        if (rock_state[k] == 0) {
-            continue;
-        }
-        if ((uint8_t)((rock_y[k] >> 4) + 1) >= ROWS) {
-            continue;
-        }
-        i = (uint16_t)((rock_y[k] >> 4) + 1) * COLS + (rock_x[k] >> 4);
-        if (dug[i] || coal[i] || powder[i] || used[i]) {
-            continue;
+    for (made = 0; made < PILLAR_MAX; made++) {
+        build_candidates(1);
+        i = take_candidate();
+        if (i == 0xFFFF) {
+            return;
         }
         coal[i] = hp;
         pillar[i] = 1;
         coal_left++;
-        made++;
     }
 }
 
-/* 候補のうち「2升下が既に坑道」のものだけ残す。
-   岩の真下には炭柱が入るので、その1つ下が坑道なら、炭柱を割ったとき岩は
-   2升以上落ちて坑道を突き抜ける = 縦一列の敵を潰して砕ける。
-   ここを見ずに置くと、割っても岩は1升落ちてその場に居座るだけで、
-   狙った「つるはし一振り -> 崩落 -> 敵一掃」が起きない。 */
-static void keep_droppable(void)
+/* 指定した行の候補を落とす。
+   スプライトは16px高なので、別の升行に置けば走査線が全く重ならない。
+   MSX2 は横一列に9枚目以降が消えるので、**1行に岩は1個まで**にしておけば、
+   岩が走査線を食う量を確定的に抑えられる。 */
+static void drop_row(uint8_t row)
 {
     uint8_t k = 0, m = 0;
     while (k < cand_n) {
-        uint16_t i = cand[k];
-        uint16_t below2 = i + COLS + COLS;
-        if (below2 < NCELL && dug[below2] && !coal[below2]) {
+        if ((uint8_t)(cand[k] / COLS) != row) {
             cand[m++] = cand[k];
         }
         k++;
@@ -857,26 +847,26 @@ static void keep_droppable(void)
 
 static void place_rocks(void)
 {
-    uint8_t n = (uint8_t)(3 + (stage - 1) / 3);      /* 3〜6個 */
+    uint8_t n = (uint8_t)(4 + (stage - 1) / 3);      /* 4〜8個 */
     uint16_t i;
     if (n > ROCK_MAX) {
         n = ROCK_MAX;
     }
+    /* 候補は一度だけ作り、置くたびにその行を落としていく。
+       毎回作り直すと 176升 x cell_ok を岩の数だけ繰り返すことになり、
+       面の組み立てが目に見えて遅くなる (画面が暗いままの時間が伸びる)。
+       岩どうしの「真下は土」条件は行ごと落とすことで自然に満たされる。 */
+    build_candidates(2);
     while (n) {
-        build_candidates(2);        /* 岩は互いの真下条件に効くので毎回作り直す (最大4個) */
-        {
-            uint8_t all = cand_n;
-            keep_droppable();
+        if (cand_n == 0) {
+            build_candidates(2);    /* 空いている行が尽きたら同じ行でも置く */
             if (cand_n == 0) {
-                build_candidates(2);   /* 落とせる場所が無ければ従来どおりどこでも */
-                (void)all;
+                return;
             }
         }
         i = take_candidate();
-        if (i == 0xFFFF) {
-            return;
-        }
         rock_place((uint8_t)(i % COLS), (uint8_t)(i / COLS));
+        drop_row((uint8_t)(i / COLS));
         n--;
     }
 }

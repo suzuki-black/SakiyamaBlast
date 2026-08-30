@@ -24,6 +24,7 @@ uint8_t snd_busy(void);          /* ファンファーレが鳴っている間�
 #define SFX_NOPE 6       /* 投げられないときの空振り (コツン) */
 #define SFX_BREAK 7      /* 黒ダイヤが砕けた (ガシャン) */
 #define SFX_COAL  8      /* 黒ダイヤを採掘した (チャリーン) */
+#define SFX_CAVEIN 9     /* 落盤。盤面の岩が全部落ちる合図 (ゴゴゴ…) */
 void snd_sfx(uint8_t id);
 /* 音程を n 半音ぶん上げて鳴らす。コンボで音が上がっていく演出に使う。 */
 void snd_sfx_up(uint8_t id, uint8_t n);
@@ -34,6 +35,6 @@ extern const uint8_t bgm_a[], bgm_b[], bgm_c[];
 extern const uint8_t title_a[], title_b[], title_c[];
 extern const uint8_t fan_a[], fan_b[], fan_c[];
 extern const uint8_t miss_a[], miss_b[], miss_c[];
-extern const uint8_t sfx_dig[], sfx_pick[], sfx_set[], sfx_boom[], sfx_miss[], sfx_mine[], sfx_nope[], sfx_break[], sfx_coal[];
+extern const uint8_t sfx_dig[], sfx_pick[], sfx_set[], sfx_boom[], sfx_miss[], sfx_mine[], sfx_nope[], sfx_break[], sfx_coal[], sfx_cavein[];
 
 #endif

@@ -14,6 +14,7 @@
  */
 #include "game.h"
 #include "sprite.h"
+#include "sound.h"
 
 uint8_t rock_state[ROCK_MAX];
 uint8_t rock_x[ROCK_MAX], rock_y[ROCK_MAX];
@@ -235,6 +236,7 @@ void rock_collapse(void)
         rock_state[i] = ROCK_JIG;
         jig_t[i] = ROCK_JIG_FRAMES;
     }
+    snd_sfx(SFX_CAVEIN);   /* 盤面全体が動くので、通常の破砕音とは別の合図を鳴らす */
 }
 
 void rock_update(void)

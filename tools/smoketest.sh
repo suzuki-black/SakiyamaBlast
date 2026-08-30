@@ -43,12 +43,17 @@ A_PCT=$(addr dug_pct)
 openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
     -command "set renderer none; set throttle off; \
         after time 6 {keymatrixdown 8 0x01}; after time 6.2 {keymatrixup 8 0x01}; \
-        after time 8.5 { \
+        proc ready {} { \
+            if {[debug read {VDP regs} 1] != 98} { after time 0.1 ready; return }; \
+            after time 0.5 sample }; \
+        after time 6.5 ready; \
+        proc sample {} { \
             set f [open $OUT w]; \
             puts \$f \"R0 [debug read {VDP regs} 0]\"; \
             puts \$f \"R1 [debug read {VDP regs} 1]\"; \
             puts \$f \"DIRT [debug read VRAM 0]\"; \
-            puts \$f \"TUNNELCELL [debug read VRAM 13370]\"; \
+            set sc [debug read memory $A_STARTC]; set sr [debug read memory $A_STARTR]; \
+            puts \$f \"TUNNELCELL [debug read VRAM [expr {(\$sr*16+8)*128 + (\$sc*16+8)/2}]]\"; \
             puts \$f \"PX [debug read memory $A_PX]\"; \
             puts \$f \"PY [debug read memory $A_PY]\"; \
             puts \$f \"STARTC [debug read memory $A_STARTC]\"; \
@@ -69,7 +74,8 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
             puts \$f \"PILLARN \$pl\"; \
             puts \$f \"POWDERN \$p\"; puts \$f \"COALN \$d\"; puts \$f \"COALLEFT [debug read memory $A_COALLEFT]\"; puts \$f \"DUGN \$g\"; \
             puts \$f \"PCT [debug read memory $A_PCT]\"; \
-            close \$f; exit }" >/dev/null 2>&1
+            close \$f; exit }; \
+        " >/dev/null 2>&1
 
 fail=0
 val() { awk -v k="$1" '$1==k {print $2}' "$OUT"; }
@@ -97,7 +103,7 @@ echo "smoketest: $ROM on $MACHINE"
 check R0       6   "SCREEN 5 (GRAPHIC 4) になっている"
 check R1       98  "表示ON・垂直帰線割り込みON・16x16スプライト"
 check DIRT     102 "盤面が土で塗られている (0x66)"
-check TUNNELCELL 17 "掘り抜きの縦線が掘られている (0x11)"
+check TUNNELCELL 17 "自機の出発点が坑道として描かれている (0x11)"
 check DUGN     16  "掘り抜き「1」(15升) ＋ 湧き出し口(1升)"
 check PCT      9   "開始時の採掘率"
 check POWDERN  10  "火薬が10個置かれている"
