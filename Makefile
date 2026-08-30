@@ -52,7 +52,7 @@ ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT
 MACHINE   ?= C-BIOS_MSX2+_JP
 
-.PHONY: all run check gamedata gamedata-import clean
+.PHONY: hostsim grade all run check gamedata gamedata-import clean
 
 all: $(ROM)
 
@@ -101,6 +101,22 @@ gamedata-import: gamedata.json tools/import_gamedata.py tools/palette.py
 
 clean:
 	rm -rf $(BUILDDIR)
+
+# ---- 面の数値化 (ホスト側。MSX の ROM とは別物) ----
+# src/ のロジックをそのまま gcc でビルドし、VDP/PSG だけスタブへ差し替えて
+# ヘッドレスで走らせる。詳細は docs/HOSTSIM.md。
+HOSTSIM_SRC := $(SRCDIR)/field.c $(SRCDIR)/enemy.c $(SRCDIR)/player.c \
+               $(SRCDIR)/rock.c $(SRCDIR)/bomb.c $(SRCDIR)/bonus.c \
+               tools/hostsim/stubs.c tools/hostsim/sim.c
+
+tools/hostsim/sim: $(HOSTSIM_SRC) $(HEADERS)
+	cc -std=c99 -O2 -Wall -DHOSTSIM -D__z88dk_fastcall= -I$(SRCDIR) -o $@ $(HOSTSIM_SRC)
+
+hostsim: tools/hostsim/sim
+
+# 面1〜15を採点する。合格条件を外れた面は配置を振り直す判断材料になる。
+grade: tools/hostsim/sim
+	python3 tools/hostsim/metrics.py --all --runs 24
 
 check: $(ROM)
 	sh tools/smoketest.sh $(ROM)

@@ -29,7 +29,7 @@ static uint16_t scatter_t;                /* 散開/追跡の切り替えタイ�
 static uint8_t  scattering;               /* 1 = 散開中 (各自の隅へ向かう) */
 uint16_t en_rest[ENEMY_MAX];              /* 洞窟で静養している残りフレーム。0 で出られる */
 static uint8_t  en_pool;                  /* この面のプール数 (先頭から en_pool 体を使う) */
-static uint8_t  en_warm[ENEMY_MAX];       /* 湧いた直後の点滅。0以外の間は動かず当たらない */
+uint8_t  en_warm[ENEMY_MAX];              /* 湧いて点滅中 (まだ当たらない)。計測用に公開 */       /* 湧いた直後の点滅。0以外の間は動かず当たらない */
 static uint8_t  en_col[ENEMY_MAX];      /* 色テーブルへ焼いた色 (変化時だけ書く) */
 static uint16_t spawn_timer;
 

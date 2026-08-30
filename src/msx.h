@@ -2,10 +2,17 @@
 #ifndef MSX_H
 #define MSX_H
 
+#ifdef HOSTSIM
+/* ホスト計測ビルド (tools/hostsim) では本物の 8/16bit 型を使う。
+   MSX 側は int が16bitなので、ここを合わせないと桁あふれの挙動が変わり、
+   シミュレーション結果が実機と食い違ってしまう。 */
+#include <stdint.h>
+#else
 typedef unsigned char  uint8_t;
 typedef signed char    int8_t;
 typedef unsigned int   uint16_t;
 typedef signed int     int16_t;
+#endif
 
 /* BIOS ワークエリア */
 #define JIFFY   (*(volatile uint8_t *)0xFC9E)   /* 割り込みごとに増える (下位だけ見れば足りる) */

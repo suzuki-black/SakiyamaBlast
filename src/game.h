@@ -305,6 +305,7 @@ void    enemy_update(void);
 void    enemy_draw(void);
 extern uint16_t en_morph[ENEMY_MAX];   /* 透明化までの残りフレーム (計測用) */
 extern uint8_t  en_ghost[ENEMY_MAX];   /* 1 = 透明化中 (計測用) */
+extern uint8_t  en_warm[ENEMY_MAX];    /* 1 = 湧いて点滅中でまだ当たらない (計測用) */
 uint8_t enemy_kill_at(int8_t cx, int8_t cy, uint8_t by_rock);  /* 倒した数を返す */
 uint8_t enemy_at(int8_t cx, int8_t cy);        /* その升に敵が居るか (投げたダイナマイトの判定) */
 
