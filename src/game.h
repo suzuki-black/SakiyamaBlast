@@ -115,6 +115,10 @@
    (実測: 24秒の間に3回も勝手にリセットされ、体温は上限の13%までしか上がらなかった)。
    240 から冷まし切るには 2秒その場に留まる必要がある。 */
 #define BATH_COOL      2
+/* 水風呂は **1px でも重なっていれば** 冷える。升にぴったり整列している間だけだと、
+   高次の面で通りすがりに掠める操作がまったく報われず、当たっているのか
+   バグなのか区別が付かない。 */
+#define BATH_BUBBLE    4      /* 泡が1段上がるフレーム数 */
 /* 梅干し。倒した敵が落とす。食べると体温が下がる。
    倒す = 時間を買う、という判断を作るためのもの。史実では15〜30分働いたら
    水風呂に入り、梅干しで塩分を補給していた (docs/HISTORY.md §2.1)。 */
@@ -255,6 +259,9 @@ void    drop_item_at(int8_t cx, int8_t cy, uint8_t is_ume);
 void    draw_ume(uint8_t cx, uint8_t cy);
 void    coal_crush_at(int8_t cx, int8_t cy);   /* 落ちてきた岩が割れた黒ダイヤを砕く */
 void    draw_bath(uint8_t cx, uint8_t cy);
+/* 冷えている最中の水風呂。泡を1つ描いて、効いていることを見せる。 */
+void    draw_bath_active(uint8_t phase);
+extern uint8_t bathing;       /* 1 = いま水風呂に触れて冷えている */
 void    draw_coal(uint8_t cx, uint8_t cy);       /* 耐久度に応じて絵を選ぶ */
 void    draw_bonus(uint8_t cx, uint8_t cy, uint8_t kind);
 void    draw_cave(uint8_t cx, uint8_t cy);

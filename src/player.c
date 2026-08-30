@@ -119,16 +119,49 @@ static uint8_t read_dir(void)
 
 /* 体温。毎フレームわずかに上がり、上限でオーバーヒート = 1ミス。
    風呂の升目を通過すると一瞬で下がる (仕様は後で調整するかもしれない)。 */
+/* 水風呂に触れているか。自機も升も16pxなので、両軸とも16px未満のずれなら
+   どこかが重なっている。 */
+static uint8_t in_bath(void)
+{
+    int16_t dx, dy;
+    if (!bath_on) {
+        return 0;
+    }
+    dx = (int16_t)((int16_t)px - (int16_t)((uint16_t)bath_c << 4));
+    dy = (int16_t)((int16_t)py - (int16_t)((uint16_t)bath_r << 4));
+    if (dx < 0) { dx = (int16_t)(-dx); }
+    if (dy < 0) { dy = (int16_t)(-dy); }
+    return (uint8_t)((dx < 16) && (dy < 16));
+}
+
+static uint8_t bath_t, bath_phase;
+
 static void update_temp(void)
 {
-    /* 風呂。**入っている間だけ少しずつ下がる。**
+    /* 風呂。**触れている間だけ少しずつ下がる。**
        一瞬で全快にすると、出発点の近くの本通りに置かれる風呂を通りすがりに
-       踏むだけで体温が0へ戻り、意識して入る必要がまったく無くなる。 */
-    if (bath_on && ((px & 15) == 0) && ((py & 15) == 0)
-        && ((uint8_t)(px >> 4) == bath_c) && ((uint8_t)(py >> 4) == bath_r)) {
+       踏むだけで体温が0へ戻り、意識して入る必要がまったく無くなる。
+       ただし判定は **1px でも重なっていれば** とする。升にぴったり整列して
+       いる間だけだと、動きながらでは滅多に成立せず、当たっているのか
+       効かないバグなのかがプレイヤーに区別できない。 */
+    if (in_bath()) {
         temp = (uint8_t)((temp > BATH_COOL) ? (temp - BATH_COOL) : 0);
         temp_acc = 0;
+        if (!bathing) {
+            bathing = 1;
+            bath_t = 0;
+        }
+        bath_t++;
+        if (bath_t >= BATH_BUBBLE) {
+            bath_t = 0;
+            bath_phase++;
+            draw_bath_active(bath_phase);
+        }
         return;
+    }
+    if (bathing) {
+        bathing = 0;
+        draw_bath(bath_c, bath_r);       /* 泡を消して元の湯へ戻す */
     }
     temp_acc++;
     if (temp_acc < TEMP_TICK) {
@@ -276,6 +309,8 @@ void player_start(void)
     py = (uint8_t)(start_r << 4);
     cdir = DIR_NONE;
     face = DIR_DOWN;            /* 坑口から降りてくるので、初期は下向き */
+    bathing = 0;
+    bath_t = 0;
     chewing = 0;
     swing = 0;
     acc = 0;

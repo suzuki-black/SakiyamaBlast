@@ -23,6 +23,7 @@ uint8_t  start_c, start_r;
 uint8_t  nest_c, nest_r;
 uint8_t  bath_c, bath_r;
 uint8_t  bath_on;
+uint8_t  bathing;
 
 /* cx,cy から dir の向きへ、土の膜に邪魔されずに通れるか。
    左/上は「隣の升から見た右/下」と同じ境目なので、そちらへ読み替えて1箇所で読む。 */
@@ -462,6 +463,19 @@ void draw_coal(uint8_t cx, uint8_t cy)
 void draw_bath(uint8_t cx, uint8_t cy)
 {
     draw_tile(cx, cy, art_tile_of(TILE_BATH), 2);
+}
+
+/* 冷えている最中の水風呂。湯の中を泡が1つ上がっていく。
+   **体温が下がっていることを画面で見せるためのもの。** これが無いと、
+   触れているのか、触れても効かないバグなのかがプレイヤーに区別できない。 */
+void draw_bath_active(uint8_t phase)
+{
+    uint16_t x = (uint16_t)((uint16_t)bath_c << 4);
+    uint16_t y = (uint16_t)((uint16_t)bath_r << 4);
+    uint8_t up = (uint8_t)(phase & 7);           /* 0..7 で上がって戻る */
+    draw_bath(bath_c, bath_r);                   /* 前の泡を消す */
+    vdp_fill((uint16_t)(x + 5 + ((up & 1) << 2)),
+             (uint16_t)(y + 12 - (up << 1)), 2, 2, COL_WHITE);
 }
 
 /* 敵の湧き出し口。数字の掘り抜きとは別に、独立した1ブロックの横穴として置く。 */
