@@ -70,13 +70,22 @@ uint32_t sim_score;
 void score_add(uint16_t v) { sim_score += v; }
 
 /* hud.c の kill_pts と同じ表 (1..5体で倍々)。落下岩は爆風の倍。 */
-void score_kills(uint8_t n, uint8_t by_rock)
-{
-    static const uint16_t kill_pts[6] = { 0, 200, 400, 800, 1600, 3200 };
-    if (n == 0) { return; }
-    if (n > 5)  { n = 5; }
-    sim_score += by_rock ? (uint32_t)(kill_pts[n] * 2) : kill_pts[n];
-}
+uint16_t kill_value(uint8_t n, uint8_t by_rock);
+void score_kills(uint8_t n, uint8_t by_rock) { sim_score += kill_value(n, by_rock); }
 
 void vdp_set_palette(uint8_t i, uint8_t r, uint8_t g, uint8_t b)
 { (void)i; (void)r; (void)g; (void)b; }
+
+/* --- 得点表示。計測では位置と値だけ拾えれば足りる --- */
+uint16_t pop_last_v;          /* 直近に出た点数 (指標で使えるように残す) */
+void score_popup(uint8_t cx, uint8_t cy, uint16_t v) { (void)cx; (void)cy; pop_last_v = v; }
+void popup_tick(void) { }
+
+/* hud.c の kill_pts と同じ表。同時に倒すほど倍率が上がる。 */
+uint16_t kill_value(uint8_t n, uint8_t by_rock)
+{
+    static const uint16_t kill_pts[6] = { 0, 100, 200, 400, 600, 800 };
+    if (n == 0) { return 0; }
+    if (n > 5)  { n = 5; }
+    return by_rock ? (uint16_t)(kill_pts[n] * 2) : kill_pts[n];
+}
