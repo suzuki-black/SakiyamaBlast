@@ -344,9 +344,10 @@ void main(void)
 
         if (!dead) {
             player_update();
-            if (fire_pressed()) {
-                player_pick();          /* つるはしで黒ダイヤを削る */
-            }
+            /* **押しているかどうか**をそのまま渡す。押した瞬間に威力1で即座に振り、
+               押したままなら振り終わるたびに自動で次を振って威力が上がる。 */
+            fire_pressed();
+            player_pick((uint8_t)(gttrig(0) || gttrig(1)));
             if (throw_pressed()) {
                 bomb_throw(player_dir());
             }

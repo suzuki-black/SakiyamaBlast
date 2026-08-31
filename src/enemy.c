@@ -29,7 +29,9 @@ static uint16_t scatter_t;                /* 散開/追跡の切り替えタイ�
 static uint8_t  scattering;               /* 1 = 散開中 (各自の隅へ向かう) */
 uint16_t en_rest[ENEMY_MAX];              /* 洞窟で静養している残りフレーム。0 で出られる */
 static uint8_t  en_pool;                  /* この面のプール数 (先頭から en_pool 体を使う) */
-uint8_t  en_warm[ENEMY_MAX];              /* 湧いて点滅中 (まだ当たらない)。計測用に公開 */       /* 湧いた直後の点滅。0以外の間は動かず当たらない */
+uint8_t  en_warm[ENEMY_MAX];              /* 湧いて点滅中 (まだ当たらない)。計測用に公開 */
+uint8_t  en_stun[ENEMY_MAX];              /* よろけの深さ 0..STUN_MAX */
+static uint16_t en_stun_t[ENEMY_MAX];     /* 次に1段戻るまで */
 static uint8_t  en_col[ENEMY_MAX];      /* 色テーブルへ焼いた色 (変化時だけ書く) */
 static uint16_t spawn_timer;
 
@@ -55,6 +57,8 @@ void enemy_clear(void)
     for (i = 0; i < ENEMY_MAX; i++) {
         en_state[i] = 0;
         en_warm[i] = 0;
+        en_stun[i] = 0;
+        en_stun_t[i] = 0;
         en_col[i] = 0xFF;
         spr_park((uint8_t)(SPR_ENEMY + i));
     }
@@ -190,6 +194,31 @@ uint8_t enemy_at(int8_t cx, int8_t cy)
         }
     }
     return 0;
+}
+
+/* つるはしで敵をよろけさせる。叩くほど深く潰れ、時間で1段ずつ戻る。
+   潰れている間は動かず、触れてもミスにならないので、先頭の敵をよろけさせて
+   通り抜け、奥の敵も潰して岩の下へ並べる、という組み立てができる。
+   透明化中の敵は土の中に居るので当たらない (ダイナマイトと揃えてある)。 */
+uint8_t enemy_stun_at(int8_t cx, int8_t cy, uint8_t power)
+{
+    uint8_t i, hit = 0;
+    for (i = 0; i < ENEMY_MAX; i++) {
+        if (!en_state[i] || en_warm[i] || en_ghost[i]) {
+            continue;
+        }
+        if (!hits_cell(i, cx, cy)) {
+            continue;
+        }
+        en_stun[i] = (uint8_t)(en_stun[i] + power);
+        if (en_stun[i] > STUN_MAX) {
+            en_stun[i] = STUN_MAX;
+        }
+        en_stun_t[i] = STUN_STEP;
+        en_acc[i] = 0;
+        hit = 1;
+    }
+    return hit;
 }
 
 uint8_t enemy_kill_at(int8_t cx, int8_t cy, uint8_t by_rock)
@@ -515,6 +544,16 @@ void enemy_update(void)
             en_warm[i]--;                /* 湧き出し口で点滅中。動かないし当たらない */
             continue;
         }
+        /* よろけている間は動かない。時間で1段ずつ戻り、戻る姿がそのまま
+           「あと何秒で復活するか」の表示になる。 */
+        if (en_stun[i]) {
+            /* 0 で入ると引き算が回り込んで事実上戻らなくなるので、先に見る。 */
+            if (en_stun_t[i] == 0 || --en_stun_t[i] == 0) {
+                en_stun[i]--;
+                en_stun_t[i] = STUN_STEP;
+            }
+            continue;                    /* 動かないし、触れても当たらない */
+        }
         if (en_pause[i]) {
             en_pause[i]--;               /* 変異中は一瞬止まる */
         } else {
@@ -542,6 +581,25 @@ void enemy_update(void)
     }
 }
 
+/* よろけの段ごとの色表を組み立てる。潰れると体が下がるので、白い帯もそこへ合わせる。
+   段ごとに表を持つと 4種 x 4段 x 16行 = 256バイト要るので、その場で組む。 */
+static uint8_t stun_col[16];
+static const uint8_t stun_band[4] = { 4, 6, 8, 11 };   /* 白い帯の開始行 */
+
+static const uint8_t *stun_colours(uint8_t kind, uint8_t lv)
+{
+    uint8_t k, top;
+    if (lv == 0) {
+        return kind_colours[kind];
+    }
+    top = stun_band[lv];
+    for (k = 0; k < 16; k++) {
+        stun_col[k] = (uint8_t)((k == top || k == (uint8_t)(top + 1))
+                                ? COL_WHITE : kind_colours[kind][0]);
+    }
+    return stun_col;
+}
+
 /* 透明化中の色。16行ぜんぶ同じ淡い色にして、輪郭だけが見える状態にする。 */
 static const uint8_t ghost_colours[16] = {
     COL_BATH, COL_BATH, COL_BATH, COL_BATH, COL_BATH, COL_BATH, COL_BATH, COL_BATH,
@@ -562,13 +620,20 @@ void enemy_draw(void)
             spr_park((uint8_t)(SPR_ENEMY + i));
             continue;
         }
-        /* 透明化中は色を抜く。それ以外は色ごとの表を使う。 */
-        col = (uint8_t)(en_ghost[i] ? 0xFF : en_kind[i]);
+        /* 透明化中は色を抜く。よろけているときは潰れた絵に差し替え、
+           白い帯の位置も体に合わせて下げる。**色そのものは変えない** —
+           色は敵のアルゴリズムを表す情報なので、状態表示に使ってはいけない。 */
+        col = (uint8_t)(en_ghost[i] ? 0xFF : (uint8_t)(en_kind[i] + (en_stun[i] << 2)));
         if (col != en_col[i]) {
             en_col[i] = col;
-            spr_color_lines((uint8_t)(SPR_ENEMY + i),
-                            (col == 0xFF) ? ghost_colours : kind_colours[en_kind[i]]);
+            if (col == 0xFF) {
+                spr_color_lines((uint8_t)(SPR_ENEMY + i), ghost_colours);
+            } else {
+                spr_color_lines((uint8_t)(SPR_ENEMY + i),
+                                stun_colours(en_kind[i], en_stun[i]));
+            }
         }
-        spr_set((uint8_t)(SPR_ENEMY + i), en_x[i], (uint8_t)(en_y[i] - 1), PAT_RAT);
+        spr_set((uint8_t)(SPR_ENEMY + i), en_x[i], (uint8_t)(en_y[i] - 1),
+                (uint8_t)(en_stun[i] ? (PAT_STUN1 + en_stun[i] - 1) : PAT_RAT));
     }
 }

@@ -407,7 +407,7 @@ int main(int argc, char **argv)
 
         if (!dead) {
             player_update();
-            player_pick();          /* 中で「向いている先が黒ダイヤ」と「振っている最中」を見る */
+            player_pick(1);          /* 中で「向いている先が黒ダイヤ」と「振っている最中」を見る */
         }
         coal_shake_tick();
         bomb_update();

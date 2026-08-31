@@ -104,6 +104,46 @@ static uint8_t shake_t;
 static uint8_t get_t;                   /* 採掘した升を光らせている残りフレーム */
 static uint8_t get_c, get_r;
 
+/* 溜め中の汗。段が上がるほど滴が増える。体温を払っていることが絵で伝わる。 */
+static uint8_t sweat_c, sweat_r, sweat_lv;
+
+void clear_sweat(void)
+{
+    if (!sweat_lv) {
+        return;
+    }
+    sweat_lv = 0;
+    field_redraw_cell((int8_t)sweat_c, (int8_t)sweat_r);
+    player_carve();
+}
+
+void draw_sweat(uint8_t cx, uint8_t cy, uint8_t level)
+{
+    uint16_t x = (uint16_t)((uint16_t)cx << 4);
+    uint16_t y = (uint16_t)((uint16_t)cy << 4);
+    if (sweat_lv == level && sweat_c == cx && sweat_r == cy) {
+        return;                          /* 変わっていないので描き直さない */
+    }
+    clear_sweat();
+    sweat_c = cx;
+    sweat_r = cy;
+    sweat_lv = level;
+    if (!level) {
+        return;
+    }
+    /* 升の四隅へ滴を散らす。自機のスプライトが真ん中を覆うので端に置く。 */
+    vdp_fill((uint16_t)(x + 1), (uint16_t)(y + 2), 2, 2, COL_WHITE);
+    if (level >= 2) {
+        vdp_fill((uint16_t)(x + 13), (uint16_t)(y + 3), 2, 2, COL_WHITE);
+        vdp_fill((uint16_t)(x + 2), (uint16_t)(y + 12), 2, 2, COL_WHITE);
+    }
+    if (level >= 3) {
+        vdp_fill((uint16_t)(x + 12), (uint16_t)(y + 12), 2, 2, COL_WHITE);
+        vdp_fill((uint16_t)(x + 7), (uint16_t)(y + 1), 2, 2, COL_WHITE);
+        vdp_fill((uint16_t)(x + 0), (uint16_t)(y + 7), 2, 2, COL_WHITE);
+    }
+}
+
 /* 外から画面を揺らす。すでに揺れているときは長いほうを残す。 */
 void field_shake(uint8_t frames)
 {

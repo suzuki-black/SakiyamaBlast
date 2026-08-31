@@ -97,6 +97,13 @@
 #define GHOST_PAUSE   20      /* 透明になる瞬間は一拍止まる */
 /* 湧いた直後は洞窟の口でこの間だけ点滅する。動かず、触れても当たらない。
    いきなり実体で出てくると出会い頭の事故になるため。 */
+/* よろけ。つるはしで敵を叩くと潰れて動けなくなり、**触れてもミスにならない**。
+   叩くほど深く潰れ、時間で1段ずつ戻る。戻っていく姿がそのまま残り時間の表示になる。
+   潰れている敵は動かないので、岩の下へ並べてまとめて潰す狙いが成立する。
+   ディグダグの「膨らむ」の逆にしてあるのは、真似に見せないため。 */
+#define STUN_MAX       3      /* 潰れ具合の段数 */
+#define STUN_STEP    120      /* 1段戻るまでのフレーム数 (2秒) */
+
 #define SPAWN_WARM   120      /* 2秒 */
 
 /* 体温オーバーヒートと風呂。常磐炭鉱は地熱約40度＋湧水で過酷 (史実) という設定。
@@ -109,6 +116,11 @@
 /* つるはしを1振りするごとの発熱。時間経過だけだと面が短くなった今、
    風呂へ行く必要がほとんど無い。掘る量そのものを体温に効かせる。 */
 #define HEAT_PER_SWING 4
+/* 溜め打ち。押しっぱなしにすると、振り終わるたびに自動でもう一度振り、威力が上がる。
+   押した瞬間は必ず威力1で即座に振る (入力の手触りを変えないため)。
+   移動するかボタンを離すと1へ戻る。**発熱は威力に比例する** (威力3なら+12)。
+   比例させないと「掘りは常に押しっぱなし」が最適になり、体温が骨抜きになる。 */
+#define CHARGE_MAX     3
 /* 風呂は**一瞬で全快させない**。1フレームにこれだけ下がる。
    風呂は出発点の近くの本通りに置かれるので、一瞬で全快だと通りすがりに
    踏むだけで体温が0に戻り、意識して入る必要がまったく無くなる
@@ -221,6 +233,9 @@ extern uint8_t combo_t;       /* HUD に出しておく残り時間 */
 #define PAT_RAT   3
 #define PAT_BAT   4
 #define PAT_SPLIT 5      /* 割れた岩。消える前に1秒だけ出す */
+#define PAT_STUN1 6      /* よろけ 少し */
+#define PAT_STUN2 7      /* よろけ もっと */
+#define PAT_STUN3 8      /* よろけ かなり */
 
 /* --- field.c --- */
 extern uint8_t  dug[NCELL];      /* 掘り済みフラグ */
@@ -279,6 +294,11 @@ void    build_stage(void);
 void    set_dirt_palette(void);   /* 面ごとの土の色 */
 void    coal_shake_tick(void);
 void    field_shake(uint8_t frames);   /* 画面を揺らす (岩の着地など) */
+/* 溜め中の汗。**スプライトではなく背景に描く。** 自機のスプライトは16x16が
+   ほぼ埋まっていて1行1色なので汗を足す余地が無く、面を増やすと横一列8枚の
+   制限に触れる。溜め中は必ず静止しているので、背景に描いて離したら消せる。 */
+void    draw_sweat(uint8_t cx, uint8_t cy, uint8_t level);
+void    clear_sweat(void);
 void    link_smash(uint8_t cx, uint8_t cy);  /* 岩が縦に突き破った膜を開く */   /* 割れた瞬間の画面揺れと、採掘した升の閃き。毎フレーム呼ぶ */
 
 /* --- player.c --- */
@@ -294,7 +314,7 @@ void player_start(void);
 void player_update(void);
 void player_respawn(void);
 void player_carve(void);
-void player_pick(void);          /* つるはしを振る (向いている先の黒ダイヤを削る) */
+void player_pick(uint8_t held);  /* つるはしを振る。held = A ボタンを押しているか */
 uint8_t player_dir(void);       /* いま向いている方向 */
 uint8_t player_cell_c(void);
 uint8_t player_cell_r(void);
@@ -339,6 +359,9 @@ void    enemy_draw(void);
 extern uint16_t en_morph[ENEMY_MAX];   /* 透明化までの残りフレーム (計測用) */
 extern uint8_t  en_ghost[ENEMY_MAX];   /* 1 = 透明化中 (計測用) */
 extern uint8_t  en_warm[ENEMY_MAX];    /* 1 = 湧いて点滅中でまだ当たらない (計測用) */
+extern uint8_t  en_stun[ENEMY_MAX];    /* 0 = 通常 / 1..STUN_MAX = よろけ (深いほど長い) */
+/* 敵をよろけさせる。倒した数ではなく、当たった敵が居たかを返す。 */
+uint8_t enemy_stun_at(int8_t cx, int8_t cy, uint8_t power);
 uint8_t enemy_kill_at(int8_t cx, int8_t cy, uint8_t by_rock);  /* 倒した数を返す */
 uint8_t enemy_at(int8_t cx, int8_t cy);        /* その升に敵が居るか (投げたダイナマイトの判定) */
 

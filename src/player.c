@@ -42,11 +42,29 @@ static void heat_add(uint8_t n)
  * 振り切るまで PICK_FRAMES のあいだ動けないので、そこへ敵が寄ってくる。
  * 使用回数は無制限 (回数制限やアイテムでの回数増加は今後の調整で入れるかもしれない)。
  */
-void player_pick(void)
+uint8_t swing_pow;              /* いま振っている威力 1..CHARGE_MAX。0 = 溜めていない */
+
+/*
+ * つるはし。**押した瞬間は必ず威力1で即座に振る**ので、単発の手触りは変わらない。
+ * 押したまま動かずにいると、振り終わるたびに自動でもう一度振り、威力が 1→2→3 と
+ * 上がっていく。移動するかボタンを離すと1へ戻る。
+ *
+ * 威力は黒ダイヤなら「その回数ぶん叩いた」ことになり、敵ならその段数ぶん深くよろける。
+ * **発熱は威力に比例する。** 比例させないと掘りは常に押しっぱなしが最適になり、
+ * 体温という主資源が意味を失う。溜めが買っているのは時間であって熱ではない。
+ */
+void player_pick(uint8_t held)
 {
     int8_t cx, cy;
+    uint8_t k;
+
+    if (!held) {
+        swing_pow = 0;              /* 離した。次はまた威力1から */
+        clear_sweat();
+        return;
+    }
     if (swing) {
-        return;                     /* 振っている最中は次を受け付けない */
+        return;                     /* 振っている最中。振り終わったら次が出る */
     }
     cx = (int8_t)player_cell_c();
     cy = (int8_t)player_cell_r();
@@ -57,13 +75,21 @@ void player_pick(void)
     case DIR_RIGHT: cx++; break;
     default: return;                /* 向きが決まっていなければ振れない */
     }
-    if (!cell_coal(cx, cy)) {
-        return;                     /* 黒ダイヤに接していないと振れない */
+    if (!cell_coal(cx, cy) && !enemy_at(cx, cy)) {
+        return;                     /* 黒ダイヤにも敵にも接していない */
+    }
+    if (swing_pow < CHARGE_MAX) {
+        swing_pow++;
     }
     swing = PICK_FRAMES;
-    heat_add(HEAT_PER_SWING);   /* 1振りごとに発熱 (これが風呂へ行く動機になる) */
-    coal_hit(cx, cy);
-    snd_sfx(SFX_MINE);
+    heat_add((uint8_t)(HEAT_PER_SWING * swing_pow));
+    if (cell_coal(cx, cy)) {
+        for (k = 0; k < swing_pow; k++) {
+            coal_hit(cx, cy);       /* 割れたあとは cell_coal が偽になり空振りする */
+        }
+    }
+    enemy_stun_at(cx, cy, swing_pow);
+    snd_sfx_up(SFX_MINE, (uint8_t)((swing_pow - 1) * 4));   /* 溜めるほど高く鳴る */
 }
 
 /* 掘り跡は自機幅より内側2px。セル幅いっぱいに抜くと膜が消えるので必ず内側で。
@@ -311,6 +337,8 @@ void player_start(void)
     face = DIR_DOWN;            /* 坑口から降りてくるので、初期は下向き */
     bathing = 0;
     bath_t = 0;
+    swing_pow = 0;
+    clear_sweat();
     chewing = 0;
     swing = 0;
     acc = 0;
@@ -338,6 +366,7 @@ void player_update(void)
 {
     uint8_t q;
     uint8_t at_node;
+    uint8_t pre_x = px, pre_y = py;
 
     if (invuln) {
         invuln--;
@@ -375,6 +404,14 @@ void player_update(void)
         }
         cdir = q;
         face = q;
+    }
+
+    /* 溜めは「その場に留まる」ことが代償なので、動いたら切れる。 */
+    if (px != pre_x || py != pre_y) {
+        swing_pow = 0;
+        clear_sweat();
+    } else if (swing_pow) {
+        draw_sweat(player_cell_c(), player_cell_r(), swing_pow);
     }
 
     /* **拾う判定は方向転換の後に行う。**
