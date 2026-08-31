@@ -42,7 +42,8 @@ static void heat_add(uint8_t n)
  * 振り切るまで PICK_FRAMES のあいだ動けないので、そこへ敵が寄ってくる。
  * 使用回数は無制限 (回数制限やアイテムでの回数増加は今後の調整で入れるかもしれない)。
  */
-uint8_t swing_pow;              /* いま振っている威力 1..CHARGE_MAX。0 = 溜めていない */
+uint8_t swing_pow;              /* いまの威力 1..CHARGE_MAX。0 = 溜めていない (計測・描画用) */
+static uint8_t charging, charge_lv, charge_t, prev_held;
 
 /*
  * つるはし。**押した瞬間は必ず威力1で即座に振る**ので、単発の手触りは変わらない。
@@ -53,43 +54,85 @@ uint8_t swing_pow;              /* いま振っている威力 1..CHARGE_MAX。0
  * **発熱は威力に比例する。** 比例させないと掘りは常に押しっぱなしが最適になり、
  * 体温という主資源が意味を失う。溜めが買っているのは時間であって熱ではない。
  */
-void player_pick(uint8_t held)
+/* 向いている先の升。振れる対象が無ければ 0 を返す。 */
+static uint8_t pick_target(int8_t *ox, int8_t *oy)
 {
-    int8_t cx, cy;
-    uint8_t k;
-
-    if (!held) {
-        swing_pow = 0;              /* 離した。次はまた威力1から */
-        clear_sweat();
-        return;
-    }
-    if (swing) {
-        return;                     /* 振っている最中。振り終わったら次が出る */
-    }
-    cx = (int8_t)player_cell_c();
-    cy = (int8_t)player_cell_r();
+    int8_t cx = (int8_t)player_cell_c();
+    int8_t cy = (int8_t)player_cell_r();
     switch (face) {
     case DIR_UP:    cy--; break;
     case DIR_DOWN:  cy++; break;
     case DIR_LEFT:  cx--; break;
     case DIR_RIGHT: cx++; break;
-    default: return;                /* 向きが決まっていなければ振れない */
+    default: return 0;
     }
-    if (!cell_coal(cx, cy) && !enemy_at(cx, cy)) {
-        return;                     /* 黒ダイヤにも敵にも接していない */
-    }
-    if (swing_pow < CHARGE_MAX) {
-        swing_pow++;
+    *ox = cx;
+    *oy = cy;
+    return (uint8_t)(cell_coal(cx, cy) || enemy_at(cx, cy));
+}
+
+/* 実際に1振りする。威力ぶん黒ダイヤを削り、敵はその段数ぶん深くよろける。 */
+static void do_swing(uint8_t pow)
+{
+    int8_t cx, cy;
+    uint8_t k;
+    if (!pick_target(&cx, &cy)) {
+        return;
     }
     swing = PICK_FRAMES;
-    heat_add((uint8_t)(HEAT_PER_SWING * swing_pow));
+    heat_add((uint8_t)(HEAT_PER_SWING * pow));
     if (cell_coal(cx, cy)) {
-        for (k = 0; k < swing_pow; k++) {
+        for (k = 0; k < pow; k++) {
             coal_hit(cx, cy);       /* 割れたあとは cell_coal が偽になり空振りする */
         }
     }
-    enemy_stun_at(cx, cy, swing_pow);
-    snd_sfx_up(SFX_MINE, (uint8_t)((swing_pow - 1) * 4));   /* 溜めるほど高く鳴る */
+    enemy_stun_at(cx, cy, pow);
+    snd_sfx_up(SFX_MINE, (uint8_t)((pow - 1) * 4));   /* 溜めるほど高く鳴る */
+}
+
+void player_pick(uint8_t held)
+{
+    int8_t cx, cy;
+
+    if (!held) {
+        prev_held = 0;
+        if (charging && charge_lv >= 2) {
+            do_swing(charge_lv);    /* 離した瞬間に、溜めたぶんを打ち込む */
+        }
+        charging = 0;
+        charge_lv = 0;
+        charge_t = 0;
+        swing_pow = 0;
+        clear_sweat();
+        return;
+    }
+    if (!prev_held) {               /* 押した瞬間: まず普通に1振り */
+        prev_held = 1;
+        charging = 1;
+        charge_lv = 1;
+        charge_t = 0;
+        swing_pow = 1;
+        do_swing(1);
+        return;
+    }
+    if (swing) {
+        return;                     /* 振り切るまでは溜め始めない */
+    }
+    /* 押しっぱなし。**振らずに溜める。** 対象に向いていないと溜まらない。 */
+    if (!pick_target(&cx, &cy)) {
+        charge_lv = 1;
+        charge_t = 0;
+        return;
+    }
+    if (charge_lv < CHARGE_MAX) {
+        charge_t++;
+        if (charge_t >= CHARGE_TIME) {
+            charge_t = 0;
+            charge_lv++;
+            snd_sfx(SFX_PICK);      /* 段が上がった合図 */
+        }
+    }
+    swing_pow = charge_lv;
 }
 
 /* 掘り跡は自機幅より内側2px。セル幅いっぱいに抜くと膜が消えるので必ず内側で。
@@ -338,6 +381,10 @@ void player_start(void)
     bathing = 0;
     bath_t = 0;
     swing_pow = 0;
+    charging = 0;
+    charge_lv = 0;
+    charge_t = 0;
+    prev_held = 0;
     clear_sweat();
     chewing = 0;
     swing = 0;
@@ -408,10 +455,13 @@ void player_update(void)
 
     /* 溜めは「その場に留まる」ことが代償なので、動いたら切れる。 */
     if (px != pre_x || py != pre_y) {
+        charging = 0;
+        charge_lv = 0;
+        charge_t = 0;
         swing_pow = 0;
         clear_sweat();
     } else if (swing_pow) {
-        draw_sweat(player_cell_c(), player_cell_r(), swing_pow);
+        draw_charge_fx(player_cell_c(), player_cell_r(), swing_pow);
     }
 
     /* **拾う判定は方向転換の後に行う。**

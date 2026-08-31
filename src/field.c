@@ -117,7 +117,14 @@ void clear_sweat(void)
     player_carve();
 }
 
-void draw_sweat(uint8_t cx, uint8_t cy, uint8_t level)
+/*
+ * 溜め中の見た目。**すべて背景へ描く。**
+ * 自機のスプライトは16x16がほぼ埋まっていて1行1色なので、つるはしも汗も足す余地が
+ * 無く、面を増やすと横一列8枚の制限に触れる。溜め中は必ず静止しているので、
+ * 背景に描いて離したら消せる。構えの絵は上3行を空けてあり、そこへ振りかぶった
+ * つるはしが入る。
+ */
+void draw_charge_fx(uint8_t cx, uint8_t cy, uint8_t level)
 {
     uint16_t x = (uint16_t)((uint16_t)cx << 4);
     uint16_t y = (uint16_t)((uint16_t)cy << 4);
@@ -131,16 +138,23 @@ void draw_sweat(uint8_t cx, uint8_t cy, uint8_t level)
     if (!level) {
         return;
     }
-    /* 升の四隅へ滴を散らす。自機のスプライトが真ん中を覆うので端に置く。 */
-    vdp_fill((uint16_t)(x + 1), (uint16_t)(y + 2), 2, 2, COL_WHITE);
+    /* 振りかぶったつるはし。柄を斜めに、頭を横棒で。溜めるほど高く振り上げる。 */
+    {
+        uint8_t up = (uint8_t)(level - 1);          /* 0..2 */
+        uint16_t hy = (uint16_t)(y + 3 - up);
+        vdp_fill((uint16_t)(x + 4), hy, 8, 2, COL_WHITE);          /* 頭 */
+        vdp_fill((uint16_t)(x + 7), (uint16_t)(hy + 2), 2, 3, COL_FUSE);  /* 柄 */
+    }
+    /* 汗。自機のスプライトが真ん中を覆うので端へ散らす。 */
+    vdp_fill((uint16_t)(x + 1), (uint16_t)(y + 6), 2, 2, COL_WHITE);
     if (level >= 2) {
-        vdp_fill((uint16_t)(x + 13), (uint16_t)(y + 3), 2, 2, COL_WHITE);
-        vdp_fill((uint16_t)(x + 2), (uint16_t)(y + 12), 2, 2, COL_WHITE);
+        vdp_fill((uint16_t)(x + 13), (uint16_t)(y + 7), 2, 2, COL_WHITE);
+        vdp_fill((uint16_t)(x + 2), (uint16_t)(y + 13), 2, 2, COL_WHITE);
     }
     if (level >= 3) {
-        vdp_fill((uint16_t)(x + 12), (uint16_t)(y + 12), 2, 2, COL_WHITE);
-        vdp_fill((uint16_t)(x + 7), (uint16_t)(y + 1), 2, 2, COL_WHITE);
-        vdp_fill((uint16_t)(x + 0), (uint16_t)(y + 7), 2, 2, COL_WHITE);
+        vdp_fill((uint16_t)(x + 12), (uint16_t)(y + 13), 2, 2, COL_WHITE);
+        vdp_fill((uint16_t)(x + 0), (uint16_t)(y + 10), 2, 2, COL_WHITE);
+        vdp_fill((uint16_t)(x + 14), (uint16_t)(y + 10), 2, 2, COL_WHITE);
     }
 }
 

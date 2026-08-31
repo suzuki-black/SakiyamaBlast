@@ -26,6 +26,7 @@
 #define MSG_ROW     5     /* 開始表示を出すセル行 */
 
 static uint8_t state;
+static uint8_t player_pat = 0xFF;   /* いま出している自機の絵 (変化時だけ色表を書く) */
 static uint8_t prev_trig;
 uint16_t frame_n;                 /* 実フレーム数。速度計測用 (1フレーム1増) */
 static uint8_t ending_to_ura;
@@ -166,7 +167,15 @@ static void draw_actors(void)
     if (invuln && (invuln & 4)) {
         spr_park(SPR_PLAYER);           /* 無敵中は点滅 */
     } else {
-        spr_set(SPR_PLAYER, px, (uint8_t)(py - 1), PAT_MINER);
+        /* 溜めている間は構えの絵に差し替える。色の帯の位置も変わるので色表も。 */
+        {
+            uint8_t pat = (uint8_t)(swing_pow >= 2 ? PAT_BRACE : PAT_MINER);
+            if (pat != player_pat) {
+                player_pat = pat;
+                spr_color_lines(SPR_PLAYER, art_colours(pat));
+            }
+            spr_set(SPR_PLAYER, px, (uint8_t)(py - 1), pat);
+        }
     }
     rock_draw();
     enemy_draw();
