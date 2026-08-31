@@ -135,8 +135,51 @@ def read_stage_dirt(path="src/field.c"):
     return re.findall(r'vdp_set_palette\(COL_DIRT,\s*(\d+),\s*(\d+),\s*(\d+)\);\s*/\*\s*(.*?)\s*\*/', src)
 
 
+def name_list(argv, flag, meta):
+    """--sprite-names a,b,c で受け取る。無ければ META の並びを使う。"""
+    if flag in argv:
+        return argv[argv.index(flag) + 1].split(",")
+    return [m[0] for m in meta]
+
+
+# どのスプライト面に出る絵か。src/game.h の SPR_* と合わせてある。
+# 差し替え用の絵 (よろけ・構え・割れた岩) は、元の絵と同じ面に出る。
+SPR_PLAYER, SPR_BOMB, SPR_ROCK, ROCK_MAX, ENEMY_MAX = 0, 1, 2, 8, 6
+SPR_ENEMY = SPR_ROCK + ROCK_MAX
+PLANES = {
+    "miner": [SPR_PLAYER], "brace": [SPR_PLAYER],
+    "bomb": [SPR_BOMB],
+    "rock": list(range(SPR_ROCK, SPR_ROCK + ROCK_MAX)),
+    "split": list(range(SPR_ROCK, SPR_ROCK + ROCK_MAX)),
+}
+for _n in ("rat", "bat", "stun1", "stun2", "stun3"):
+    PLANES[_n] = list(range(SPR_ENEMY, SPR_ENEMY + ENEMY_MAX))
+
+
+def planes_of(sid):
+    """自機の絵はどれも面0。名前で引けなければ null (どの面に出るか未定)。"""
+    if sid in PLANES:
+        return PLANES[sid]
+    return [SPR_PLAYER] if sid.startswith(("w_", "rz_", "st_", "br_")) else None
+
+
+def meta_of(name, meta, kind):
+    """説明の引き当て。無い名前でも既定の項目を返すので、絵を足しただけで出せる。"""
+    for m in meta:
+        if m[0] == name:
+            return m
+    if kind == "sprite":
+        return (name, name, name, "misc", "（説明未記入）", ["idle"])
+    return (name, name, name, "misc", 0, "（説明未記入）")
+
+
 def main(argv):
-    out_path = argv[1] if len(argv) > 1 else "gamedata.json"
+    out_path = "gamedata.json"
+    for a in argv[1:]:
+        if not a.startswith("--") and a.endswith(".json"):
+            out_path = a
+    spr_names = name_list(argv, "--sprite-names", SPRITE_META)
+    tile_names = name_list(argv, "--tile-names", TILE_META)
 
     pal_names = {
         1: ("坑道", "COL_TUNNEL"), 2: ("肌", "COL_SKIN"), 3: ("影・長靴", "COL_DARK"),
@@ -160,11 +203,12 @@ def main(argv):
             "symbol": sym, "note": None,
         })
 
-    sprites = sprite_cells("assets/sprites.png", len(SPRITE_META))
-    tiles_img = sprite_cells("assets/tiles.png", len(TILE_META))
+    sprites = sprite_cells("assets/sprites.png", len(spr_names))
+    tiles_img = sprite_cells("assets/tiles.png", len(tile_names))
 
     sprite_patterns, characters = [], []
-    for pi, (sid, ja, en, role, desc, anims) in enumerate(SPRITE_META):
+    for pi, sid in enumerate(spr_names):
+        _, ja, en, role, desc, anims = meta_of(sid, SPRITE_META, "sprite")
         rows, cols = sprite_pixels(sprites[pi])
         pid = "%s_00" % sid
         sprite_patterns.append({
@@ -194,14 +238,14 @@ def main(argv):
         characters.append({
             "id": sid, "name": {"ja": ja, "en": en}, "role": role,
             "description": desc,
-            "spritePlanes": {"miner": [0], "bomb": [1], "rock": [2, 3, 4, 5],
-                             "rat": [6, 7, 8, 9], "bat": [6, 7, 8, 9]}[sid],
+            "spritePlanes": planes_of(sid),
             "defaultPattern": pid,
             "animations": animations,
         })
 
     tiles = []
-    for ti, (tid, ja, en, kind, inset, desc) in enumerate(TILE_META):
+    for ti, tid in enumerate(tile_names):
+        _, ja, en, kind, inset, desc = meta_of(tid, TILE_META, "tile")
         tiles.append({
             "id": tid, "tileNumber": ti, "size": [16, 16],
             "name": {"ja": ja, "en": en}, "kind": kind,

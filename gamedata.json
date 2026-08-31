@@ -647,6 +647,261 @@
         "file": "assets/sprites.png",
         "cell": 4
       }
+    },
+    {
+      "id": "split_00",
+      "patternNumber": 5,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        "FF............FF",
+        "FFF..........FFF",
+        "EEEE........EEEE",
+        "EEEEE......EEEEE",
+        "EEEEEE....EEEEEE",
+        "EEEEEE....EEEEEE",
+        "EEEEEEE..EEEEEEE",
+        "EEEEEEE..EEEEEEE",
+        "EEEEEEE..EEEEEEE",
+        "3333333..3333333",
+        ".333333..333333.",
+        "..33333..33333..",
+        "...3333..3333...",
+        "................"
+      ],
+      "lineColors": [
+        0,
+        0,
+        15,
+        15,
+        14,
+        14,
+        14,
+        14,
+        14,
+        14,
+        14,
+        3,
+        3,
+        3,
+        3,
+        0
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 5
+      }
+    },
+    {
+      "id": "stun1_00",
+      "patternNumber": 6,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        "................",
+        "................",
+        "..EE........EE..",
+        ".EEEE......EEEE.",
+        ".EEEEEEEEEEEEEE.",
+        "EEEEEEEEEEEEEEEE",
+        "EEE.EEEEEEEE.EEE",
+        "EEEEEEEEEEEEEEEE",
+        "EEEEEEEEEEEEEEEE",
+        ".EEEEEEEEEEEEEE.",
+        "..EE.EE..EE.EE..",
+        "................",
+        "................",
+        "................"
+      ],
+      "lineColors": [
+        0,
+        0,
+        0,
+        0,
+        14,
+        14,
+        14,
+        14,
+        14,
+        14,
+        14,
+        14,
+        14,
+        0,
+        0,
+        0
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 6
+      }
+    },
+    {
+      "id": "stun2_00",
+      "patternNumber": 7,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "EE............EE",
+        "EEEEEEEEEEEEEEEE",
+        "EE.EEEEEEEEEE.EE",
+        "EEEEEEEEEEEEEEEE",
+        "EEEEEEEEEEEEEEEE",
+        ".EEEEEEEEEEEEEE.",
+        "..EE.EE..EE.EE..",
+        "................",
+        "................"
+      ],
+      "lineColors": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        14,
+        14,
+        14,
+        14,
+        14,
+        14,
+        14,
+        0,
+        0
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 7
+      }
+    },
+    {
+      "id": "stun3_00",
+      "patternNumber": 8,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "E..............E",
+        "EEEEEEEEEEEEEEEE",
+        "E.EEEEEEEEEEEE.E",
+        "EEEEEEEEEEEEEEEE",
+        "................",
+        "................"
+      ],
+      "lineColors": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        14,
+        14,
+        14,
+        14,
+        0,
+        0
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 8
+      }
+    },
+    {
+      "id": "brace_00",
+      "patternNumber": 9,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        "................",
+        ".....FFFFFF.....",
+        "....FFFFFFFF....",
+        "..AAAAAAAAAAAA..",
+        "....22222222....",
+        "....22.22.22....",
+        "...7777777777...",
+        "..777777777777..",
+        ".77777777777777.",
+        ".77777777777777.",
+        "..777......777..",
+        "..333......333..",
+        ".3333......3333.",
+        ".333........333."
+      ],
+      "lineColors": [
+        0,
+        0,
+        0,
+        15,
+        15,
+        10,
+        2,
+        2,
+        7,
+        7,
+        7,
+        7,
+        7,
+        3,
+        3,
+        3
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 9
+      }
     }
   ],
   "tileFormat": {
@@ -912,6 +1167,117 @@
         "file": "assets/tiles.png",
         "cell": 6
       }
+    },
+    {
+      "id": "dyna",
+      "tileNumber": 7,
+      "size": [
+        16,
+        16
+      ],
+      "name": {
+        "ja": "dyna",
+        "en": "dyna"
+      },
+      "kind": "misc",
+      "description": "（説明未記入）",
+      "drawInsetPx": 0,
+      "pixels": [
+        "................",
+        "................",
+        "..........A.....",
+        ".........A......",
+        "........A.......",
+        "................",
+        "..88888888......",
+        ".8FF88FF888.....",
+        ".8FF88FF888.....",
+        "..88888888......",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        "................"
+      ],
+      "source": {
+        "file": "assets/tiles.png",
+        "cell": 7
+      }
+    },
+    {
+      "id": "diacrk",
+      "tileNumber": 8,
+      "size": [
+        16,
+        16
+      ],
+      "name": {
+        "ja": "diacrk",
+        "en": "diacrk"
+      },
+      "kind": "misc",
+      "description": "（説明未記入）",
+      "drawInsetPx": 0,
+      "pixels": [
+        "................",
+        "................",
+        "..CC........CC..",
+        ".CCCC..FF..CCCC.",
+        ".CCCCC.FF.CCCCC.",
+        "..CCC..F...CCC..",
+        "...C...F....C...",
+        "................",
+        "................",
+        "...C....F...C...",
+        "..CCC...F..CCC..",
+        ".CCCCC.FF.CCCCC.",
+        ".CCCC..FF..CCCC.",
+        "..CC........CC..",
+        "................",
+        "................"
+      ],
+      "source": {
+        "file": "assets/tiles.png",
+        "cell": 8
+      }
+    },
+    {
+      "id": "pillar",
+      "tileNumber": 9,
+      "size": [
+        16,
+        16
+      ],
+      "name": {
+        "ja": "pillar",
+        "en": "pillar"
+      },
+      "kind": "misc",
+      "description": "（説明未記入）",
+      "drawInsetPx": 0,
+      "pixels": [
+        "AAAAAAAAAAAAAAAA",
+        "A33333333333333A",
+        "A3CCCCCCCCCCCC3A",
+        "A3CFFCCCCCCCCC3A",
+        "A3CFCCCCCCCCCC3A",
+        "A3CCCCCCCCCCCC3A",
+        "A3CCCCCCCCCCCC3A",
+        "A3CCCC1111CCCC3A",
+        "A3CCC111111CCC3A",
+        "A3CCCC1111CCCC3A",
+        "A3CCCCCCCCCCCC3A",
+        "A3CCCCCCCCCCCC3A",
+        "A3CCCCCCCCCCCC3A",
+        "A3CCCCCCCCCCCC3A",
+        "A33333333333333A",
+        "AAAAAAAAAAAAAAAA"
+      ],
+      "source": {
+        "file": "assets/tiles.png",
+        "cell": 9
+      }
     }
   ],
   "characters": [
@@ -1153,7 +1519,11 @@
         2,
         3,
         4,
-        5
+        5,
+        6,
+        7,
+        8,
+        9
       ],
       "defaultPattern": "rock_00",
       "animations": [
@@ -1224,10 +1594,12 @@
       "role": "enemy",
       "description": "坑内の小動物。坑道の中だけを歩く通常形態。",
       "spritePlanes": [
-        6,
-        7,
-        8,
-        9
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
       ],
       "defaultPattern": "rat_00",
       "animations": [
@@ -1354,10 +1726,12 @@
       "role": "enemy",
       "description": "透明化して土をすり抜けている形態。トンネルへ入ると実体化してネズミへ戻る。",
       "spritePlanes": [
-        6,
-        7,
-        8,
-        9
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
       ],
       "defaultPattern": "bat_00",
       "animations": [
@@ -1468,6 +1842,243 @@
               "label": {
                 "ja": "下移動2",
                 "en": "Float down 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "split",
+      "name": {
+        "ja": "split",
+        "en": "split"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "defaultPattern": "split_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "split_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "split_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stun1",
+      "name": {
+        "ja": "stun1",
+        "en": "stun1"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "defaultPattern": "stun1_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "stun1_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "stun1_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stun2",
+      "name": {
+        "ja": "stun2",
+        "en": "stun2"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "defaultPattern": "stun2_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "stun2_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "stun2_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stun3",
+      "name": {
+        "ja": "stun3",
+        "en": "stun3"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "defaultPattern": "stun3_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "stun3_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "stun3_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "brace",
+      "name": {
+        "ja": "brace",
+        "en": "brace"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": [
+        0
+      ],
+      "defaultPattern": "brace_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "brace_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "brace_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
               },
               "status": "placeholder"
             }

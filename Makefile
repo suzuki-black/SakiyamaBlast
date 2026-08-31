@@ -95,8 +95,11 @@ run: $(ROM)
 	openmsx -machine $(MACHINE) -carta $(ROM) -romtype ASCII8
 
 # パターンエディタ等へ渡す、ゲーム1本ぶんのグラフィックデータ (仕様は docs/GAMEDATA_FORMAT.md)
+# 名前は import 側と同じく Makefile から渡す。ツールが自前で名前を持つと、
+# 絵を足したときに黙って古いままになり、往復が壊れる (実際に壊れていた)。
 gamedata: $(ART_SPR_SRC) $(ART_TILE_SRC) tools/export_gamedata.py tools/palette.py
-	python3 tools/export_gamedata.py gamedata.json
+	python3 tools/export_gamedata.py gamedata.json \
+	    --sprite-names $(ART_SPR_NAMES) --tile-names $(ART_TILE_NAMES)
 
 # パターンエディタで編集した gamedata.json を取り込む (assets の PNG を書き戻す)
 gamedata-import: gamedata.json tools/import_gamedata.py tools/palette.py
