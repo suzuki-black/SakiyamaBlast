@@ -158,6 +158,41 @@ void draw_charge_fx(uint8_t cx, uint8_t cy, uint8_t level)
     }
 }
 
+/*
+ * 振り下ろしの軌跡。振っている18フレームの間、つるはしが振り上げた位置から
+ * 的の側へ降りていく。**背景に描く。** 自機は振っている間その場に固定されるので、
+ * 溜めの絵と同じやり方で描いて消せる。
+ * phase は 0(振り上げ) → 1(中間) → 2(振り切り)。
+ */
+void draw_swing_fx(uint8_t cx, uint8_t cy, uint8_t dir, uint8_t phase)
+{
+    uint16_t x = (uint16_t)((uint16_t)cx << 4);
+    uint16_t y = (uint16_t)((uint16_t)cy << 4);
+    int8_t hx, hy;
+    if (sweat_lv == (uint8_t)(0x80 | phase) && sweat_c == cx && sweat_r == cy) {
+        return;
+    }
+    clear_sweat();
+    sweat_c = cx;
+    sweat_r = cy;
+    sweat_lv = (uint8_t)(0x80 | phase);   /* 溜めの汗と同じ枠で消す */
+    /* 振り上げ (真上) から、向いている側の高さへ降ろす。 */
+    hx = 4;
+    hy = (int8_t)(1 + (phase << 1));
+    if (phase >= 1) {
+        if (dir == DIR_LEFT)  { hx = (int8_t)(hx - 3 * phase); }
+        if (dir == DIR_RIGHT) { hx = (int8_t)(hx + 3 * phase); }
+        if (dir == DIR_DOWN)  { hy = (int8_t)(hy + 4 * phase); }
+        if (dir == DIR_UP)    { hy = (int8_t)(1 - phase); }
+    }
+    if (hx < 0)  { hx = 0; }
+    if (hx > 8)  { hx = 8; }
+    if (hy < 0)  { hy = 0; }
+    if (hy > 12) { hy = 12; }
+    vdp_fill((uint16_t)(x + (uint8_t)hx), (uint16_t)(y + (uint8_t)hy), 8, 2, COL_WHITE);
+    vdp_fill((uint16_t)(x + (uint8_t)hx + 3), (uint16_t)(y + (uint8_t)hy + 2), 2, 3, COL_FUSE);
+}
+
 /* 外から画面を揺らす。すでに揺れているときは長いほうを残す。 */
 void field_shake(uint8_t frames)
 {

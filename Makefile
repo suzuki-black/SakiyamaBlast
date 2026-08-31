@@ -51,7 +51,8 @@ ART_TILE_SRC := assets/tiles.png
 ART_SPR      := $(BUILDDIR)/sprites.h
 ART_TILE     := $(BUILDDIR)/tiles.h
 PAL_H        := $(BUILDDIR)/palette.h
-ART_SPR_NAMES  := miner,bomb,rock,rat,bat,split,stun1,stun2,stun3,brace
+# 名前はカンマ区切りで**1行**に書く。行継続で折ると空白が入って別の引数になる。
+ART_SPR_NAMES  := miner,bomb,rock,rat,bat,split,stun1,stun2,stun3,brace,wd1,wd2,wu1,wu2,wl1,wl2,wr1,wr2,bru,brl,brr,std,stu,stl,str
 ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar
 
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT

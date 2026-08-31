@@ -169,7 +169,7 @@ static void draw_actors(void)
     } else {
         /* 溜めている間は構えの絵に差し替える。色の帯の位置も変わるので色表も。 */
         {
-            uint8_t pat = (uint8_t)(swing_pow >= 2 ? PAT_BRACE : PAT_MINER);
+            uint8_t pat = player_pattern();
             if (pat != player_pat) {
                 player_pat = pat;
                 spr_color_lines(SPR_PLAYER, art_colours(pat));

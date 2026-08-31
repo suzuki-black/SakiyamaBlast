@@ -902,6 +902,771 @@
         "file": "assets/sprites.png",
         "cell": 9
       }
+    },
+    {
+      "id": "wd1_00",
+      "patternNumber": 10,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        ".....FFFFFF.....",
+        "....FFFFFFFF....",
+        "...FFFFFFFFFF...",
+        "..AAAAAAAAAAAA..",
+        "....22222222....",
+        "....22.22.22....",
+        ".....222222.....",
+        "...7777777777...",
+        "..777777777777..",
+        "..777777777777..",
+        "..777777777777..",
+        "..7777....777...",
+        "..333......333..",
+        ".333........33.."
+      ],
+      "lineColors": [
+        0,
+        0,
+        15,
+        15,
+        15,
+        10,
+        2,
+        2,
+        2,
+        7,
+        7,
+        7,
+        7,
+        7,
+        3,
+        3
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 10
+      }
+    },
+    {
+      "id": "wd2_00",
+      "patternNumber": 11,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        ".....FFFFFF.....",
+        "....FFFFFFFF....",
+        "...FFFFFFFFFF...",
+        "..AAAAAAAAAAAA..",
+        "....22222222....",
+        "....22.22.22....",
+        ".....222222.....",
+        "...7777777777...",
+        "..777777777777..",
+        "..777777777777..",
+        "..777777777777..",
+        "...777....7777..",
+        "..333......333..",
+        "..33........333."
+      ],
+      "lineColors": [
+        0,
+        0,
+        15,
+        15,
+        15,
+        10,
+        2,
+        2,
+        2,
+        7,
+        7,
+        7,
+        7,
+        7,
+        3,
+        3
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 11
+      }
+    },
+    {
+      "id": "wu1_00",
+      "patternNumber": 12,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        ".....FFFFFF.....",
+        "....FFFFFFFF....",
+        "...FFFFFFFFFF...",
+        "..AAAAAAAAAAAA..",
+        "....22222222....",
+        "....22222222....",
+        ".....222222.....",
+        "...7777777777...",
+        "..777777777777..",
+        "..777777777777..",
+        "..777777777777..",
+        "..7777....777...",
+        "..333......333..",
+        ".333........33.."
+      ],
+      "lineColors": [
+        0,
+        0,
+        15,
+        15,
+        15,
+        10,
+        2,
+        2,
+        2,
+        7,
+        7,
+        7,
+        7,
+        7,
+        3,
+        3
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 12
+      }
+    },
+    {
+      "id": "wu2_00",
+      "patternNumber": 13,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        ".....FFFFFF.....",
+        "....FFFFFFFF....",
+        "...FFFFFFFFFF...",
+        "..AAAAAAAAAAAA..",
+        "....22222222....",
+        "....22222222....",
+        ".....222222.....",
+        "...7777777777...",
+        "..777777777777..",
+        "..777777777777..",
+        "..777777777777..",
+        "...777....7777..",
+        "..333......333..",
+        "..33........333."
+      ],
+      "lineColors": [
+        0,
+        0,
+        15,
+        15,
+        15,
+        10,
+        2,
+        2,
+        2,
+        7,
+        7,
+        7,
+        7,
+        7,
+        3,
+        3
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 13
+      }
+    },
+    {
+      "id": "wl1_00",
+      "patternNumber": 14,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        "....FFFFFF......",
+        "...FFFFFFFF.....",
+        "..FFFFFFFFFF....",
+        ".AAAAAAAAAAAA...",
+        "...22222222.....",
+        "..22.222222.....",
+        "...222222.......",
+        "..7777777777....",
+        ".777777777777...",
+        ".777777777777...",
+        "..7777777777....",
+        "..777...777.....",
+        ".333.....333....",
+        "333.......33...."
+      ],
+      "lineColors": [
+        0,
+        0,
+        15,
+        15,
+        15,
+        10,
+        2,
+        2,
+        2,
+        7,
+        7,
+        7,
+        7,
+        7,
+        3,
+        3
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 14
+      }
+    },
+    {
+      "id": "wl2_00",
+      "patternNumber": 15,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        "....FFFFFF......",
+        "...FFFFFFFF.....",
+        "..FFFFFFFFFF....",
+        ".AAAAAAAAAAAA...",
+        "...22222222.....",
+        "..22.222222.....",
+        "...222222.......",
+        "..7777777777....",
+        ".777777777777...",
+        ".777777777777...",
+        "..7777777777....",
+        "...77...7777....",
+        "..333....333....",
+        ".333.......33..."
+      ],
+      "lineColors": [
+        0,
+        0,
+        15,
+        15,
+        15,
+        10,
+        2,
+        2,
+        2,
+        7,
+        7,
+        7,
+        7,
+        7,
+        3,
+        3
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 15
+      }
+    },
+    {
+      "id": "wr1_00",
+      "patternNumber": 16,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        "......FFFFFF....",
+        ".....FFFFFFFF...",
+        "....FFFFFFFFFF..",
+        "...AAAAAAAAAAAA.",
+        ".....22222222...",
+        ".....222222.22..",
+        ".......222222...",
+        "....7777777777..",
+        "...777777777777.",
+        "...777777777777.",
+        "....7777777777..",
+        ".....777...777..",
+        "....333.....333.",
+        "....33.......333"
+      ],
+      "lineColors": [
+        0,
+        0,
+        15,
+        15,
+        15,
+        10,
+        2,
+        2,
+        2,
+        7,
+        7,
+        7,
+        7,
+        7,
+        3,
+        3
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 16
+      }
+    },
+    {
+      "id": "wr2_00",
+      "patternNumber": 17,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        "......FFFFFF....",
+        ".....FFFFFFFF...",
+        "....FFFFFFFFFF..",
+        "...AAAAAAAAAAAA.",
+        ".....22222222...",
+        ".....222222.22..",
+        ".......222222...",
+        "....7777777777..",
+        "...777777777777.",
+        "...777777777777.",
+        "....7777777777..",
+        "....7777...77...",
+        "....333....333..",
+        "...33.......333."
+      ],
+      "lineColors": [
+        0,
+        0,
+        15,
+        15,
+        15,
+        10,
+        2,
+        2,
+        2,
+        7,
+        7,
+        7,
+        7,
+        7,
+        3,
+        3
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 17
+      }
+    },
+    {
+      "id": "bru_00",
+      "patternNumber": 18,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        "................",
+        ".....FFFFFF.....",
+        "....FFFFFFFF....",
+        "..AAAAAAAAAAAA..",
+        "....22222222....",
+        "....22222222....",
+        "...7777777777...",
+        "..777777777777..",
+        ".77777777777777.",
+        ".77777777777777.",
+        "..777......777..",
+        "..333......333..",
+        ".3333......3333.",
+        ".333........333."
+      ],
+      "lineColors": [
+        0,
+        0,
+        0,
+        15,
+        15,
+        10,
+        2,
+        2,
+        7,
+        7,
+        7,
+        7,
+        7,
+        3,
+        3,
+        3
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 18
+      }
+    },
+    {
+      "id": "brl_00",
+      "patternNumber": 19,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        "................",
+        "....FFFFFF......",
+        "...FFFFFFFF.....",
+        ".AAAAAAAAAAAA...",
+        "...22222222.....",
+        "..22.222222.....",
+        "..7777777777....",
+        ".777777777777...",
+        "77777777777777..",
+        "77777777777777..",
+        "..777...777.....",
+        "..333...333.....",
+        ".3333...3333....",
+        "333......333...."
+      ],
+      "lineColors": [
+        0,
+        0,
+        0,
+        15,
+        15,
+        10,
+        2,
+        2,
+        7,
+        7,
+        7,
+        7,
+        7,
+        3,
+        3,
+        3
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 19
+      }
+    },
+    {
+      "id": "brr_00",
+      "patternNumber": 20,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        "................",
+        "......FFFFFF....",
+        ".....FFFFFFFF...",
+        "...AAAAAAAAAAAA.",
+        ".....22222222...",
+        ".....222222.22..",
+        "....7777777777..",
+        "...777777777777.",
+        "..77777777777777",
+        "..77777777777777",
+        ".....777...777..",
+        ".....333...333..",
+        "....3333...3333.",
+        "....333......333"
+      ],
+      "lineColors": [
+        0,
+        0,
+        0,
+        15,
+        15,
+        10,
+        2,
+        2,
+        7,
+        7,
+        7,
+        7,
+        7,
+        3,
+        3,
+        3
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 20
+      }
+    },
+    {
+      "id": "std_00",
+      "patternNumber": 21,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        "................",
+        "................",
+        ".....FFFFFF.....",
+        "....FFFFFFFF....",
+        "..AAAAAAAAAAAA..",
+        "....22222222....",
+        "....22.22.22....",
+        "...7777777777...",
+        "..777777777777..",
+        "..777777777777..",
+        "..777777777777..",
+        "..7777....7777..",
+        "..333......333..",
+        ".333........33.."
+      ],
+      "lineColors": [
+        0,
+        0,
+        0,
+        0,
+        15,
+        15,
+        10,
+        2,
+        2,
+        7,
+        7,
+        7,
+        7,
+        7,
+        3,
+        3
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 21
+      }
+    },
+    {
+      "id": "stu_00",
+      "patternNumber": 22,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        ".....FFFFFF.....",
+        "....FFFFFFFF....",
+        "...FFFFFFFFFF...",
+        "..AAAAAAAAAAAA..",
+        "....22222222....",
+        "....22222222....",
+        ".....222222.....",
+        "..777777777777..",
+        ".77777777777777.",
+        ".77777777777777.",
+        "..777777777777..",
+        "...7777777777...",
+        "...777....777...",
+        "..333......333..",
+        ".333........33.."
+      ],
+      "lineColors": [
+        0,
+        15,
+        15,
+        15,
+        10,
+        2,
+        2,
+        2,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        3,
+        3
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 22
+      }
+    },
+    {
+      "id": "stl_00",
+      "patternNumber": 23,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        "..FFFFFF........",
+        ".FFFFFFFF.......",
+        "FFFFFFFFFF......",
+        "AAAAAAAAAAAA....",
+        "..22222222......",
+        ".22.222222......",
+        "..222222........",
+        ".77777777777....",
+        "7777777777777...",
+        "7777777777777...",
+        ".77777777777....",
+        ".777...7777.....",
+        "333.....333.....",
+        "33.......333...."
+      ],
+      "lineColors": [
+        0,
+        0,
+        15,
+        15,
+        15,
+        10,
+        2,
+        2,
+        2,
+        7,
+        7,
+        7,
+        7,
+        7,
+        3,
+        3
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 23
+      }
+    },
+    {
+      "id": "str_00",
+      "patternNumber": 24,
+      "size": [
+        16,
+        16
+      ],
+      "pixels": [
+        "................",
+        "................",
+        "........FFFFFF..",
+        ".......FFFFFFFF.",
+        "......FFFFFFFFFF",
+        "....AAAAAAAAAAAA",
+        "......22222222..",
+        "......222222.22.",
+        "........222222..",
+        "....77777777777.",
+        "...7777777777777",
+        "...7777777777777",
+        "....77777777777.",
+        ".....7777...777.",
+        ".....333.....333",
+        "....333.......33"
+      ],
+      "lineColors": [
+        0,
+        0,
+        15,
+        15,
+        15,
+        10,
+        2,
+        2,
+        2,
+        7,
+        7,
+        7,
+        7,
+        7,
+        3,
+        3
+      ],
+      "derived": [
+        "lineColors"
+      ],
+      "source": {
+        "file": "assets/sprites.png",
+        "cell": 24
+      }
     }
   ],
   "tileFormat": {
@@ -2075,6 +2840,621 @@
             },
             {
               "pattern": "brace_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wd1",
+      "name": {
+        "ja": "wd1",
+        "en": "wd1"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": null,
+      "defaultPattern": "wd1_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "wd1_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "wd1_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wd2",
+      "name": {
+        "ja": "wd2",
+        "en": "wd2"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": null,
+      "defaultPattern": "wd2_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "wd2_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "wd2_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wu1",
+      "name": {
+        "ja": "wu1",
+        "en": "wu1"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": null,
+      "defaultPattern": "wu1_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "wu1_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "wu1_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wu2",
+      "name": {
+        "ja": "wu2",
+        "en": "wu2"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": null,
+      "defaultPattern": "wu2_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "wu2_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "wu2_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wl1",
+      "name": {
+        "ja": "wl1",
+        "en": "wl1"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": null,
+      "defaultPattern": "wl1_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "wl1_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "wl1_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wl2",
+      "name": {
+        "ja": "wl2",
+        "en": "wl2"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": null,
+      "defaultPattern": "wl2_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "wl2_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "wl2_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wr1",
+      "name": {
+        "ja": "wr1",
+        "en": "wr1"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": null,
+      "defaultPattern": "wr1_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "wr1_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "wr1_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wr2",
+      "name": {
+        "ja": "wr2",
+        "en": "wr2"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": null,
+      "defaultPattern": "wr2_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "wr2_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "wr2_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bru",
+      "name": {
+        "ja": "bru",
+        "en": "bru"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": null,
+      "defaultPattern": "bru_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "bru_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "bru_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "brl",
+      "name": {
+        "ja": "brl",
+        "en": "brl"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": null,
+      "defaultPattern": "brl_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "brl_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "brl_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "brr",
+      "name": {
+        "ja": "brr",
+        "en": "brr"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": null,
+      "defaultPattern": "brr_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "brr_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "brr_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "std",
+      "name": {
+        "ja": "std",
+        "en": "std"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": null,
+      "defaultPattern": "std_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "std_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "std_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stu",
+      "name": {
+        "ja": "stu",
+        "en": "stu"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": null,
+      "defaultPattern": "stu_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "stu_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "stu_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stl",
+      "name": {
+        "ja": "stl",
+        "en": "stl"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": null,
+      "defaultPattern": "stl_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "stl_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "stl_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止2",
+                "en": "Idle 2"
+              },
+              "status": "placeholder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "str",
+      "name": {
+        "ja": "str",
+        "en": "str"
+      },
+      "role": "misc",
+      "description": "（説明未記入）",
+      "spritePlanes": null,
+      "defaultPattern": "str_00",
+      "animations": [
+        {
+          "id": "idle",
+          "name": {
+            "ja": "静止",
+            "en": "Idle"
+          },
+          "loop": true,
+          "frames": [
+            {
+              "pattern": "str_00",
+              "durationFrames": 8,
+              "label": {
+                "ja": "静止1",
+                "en": "Idle 1"
+              },
+              "status": "final"
+            },
+            {
+              "pattern": "str_00",
               "durationFrames": 8,
               "label": {
                 "ja": "静止2",

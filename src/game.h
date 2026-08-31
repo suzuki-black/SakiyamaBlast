@@ -241,7 +241,29 @@ extern uint8_t combo_t;       /* HUD に出しておく残り時間 */
 #define PAT_STUN1 6      /* よろけ 少し */
 #define PAT_STUN2 7      /* よろけ もっと */
 #define PAT_STUN3 8      /* よろけ かなり */
-#define PAT_BRACE 9      /* 溜めの構え (腰を落として踏ん張る) */
+#define PAT_BRACE 9      /* 溜めの構え・下向き (腰を落として踏ん張る) */
+/* 自機の絵。向きと動作でここから選ぶ。
+   正面 (PAT_MINER) は**面の開始時、まだ一度も動いていない間だけ**出す。
+   以後は必ず上下左右のどれかを向いている。 */
+#define PAT_WD1  10      /* 歩き 下 1 */
+#define PAT_WD2  11
+#define PAT_WU1  12      /* 歩き 上 1 */
+#define PAT_WU2  13
+#define PAT_WL1  14      /* 歩き 左 1 */
+#define PAT_WL2  15
+#define PAT_WR1  16      /* 歩き 右 1 */
+#define PAT_WR2  17
+#define PAT_BRU  18      /* 溜めの構え 上 */
+#define PAT_BRL  19      /* 溜めの構え 左 */
+#define PAT_BRR  20      /* 溜めの構え 右 */
+#define PAT_STD  21      /* 振り下ろし 下 */
+#define PAT_STU  22
+#define PAT_STL  23
+#define PAT_STR  24
+#define WALK_FRAMES 8    /* 歩きの絵を切り替えるフレーム数 */
+/* 向いている方向で自機の絵を選ぶ。moved=一度でも動いたか、swinging=振っている最中、
+   bracing=溜めている、walk=歩きのコマ (0/1)。 */
+uint8_t player_pattern(void);
 
 /* --- field.c --- */
 extern uint8_t  dug[NCELL];      /* 掘り済みフラグ */
@@ -305,6 +327,8 @@ void    field_shake(uint8_t frames);   /* 画面を揺らす (岩の着地など
    制限に触れる。溜め中は必ず静止しているので、背景に描いて離したら消せる。 */
 /* 溜め中の見た目。汗＋振りかぶったつるはしを、自機の升へ背景で描く。 */
 void    draw_charge_fx(uint8_t cx, uint8_t cy, uint8_t level);
+/* 振り下ろしの軌跡。振っている間、つるはしが上から的の側へ降りていく。 */
+void    draw_swing_fx(uint8_t cx, uint8_t cy, uint8_t dir, uint8_t phase);
 void    clear_sweat(void);
 extern uint8_t swing_pow;   /* いまの威力 (0 = 溜めていない) */
 void    link_smash(uint8_t cx, uint8_t cy);  /* 岩が縦に突き破った膜を開く */   /* 割れた瞬間の画面揺れと、採掘した升の閃き。毎フレーム呼ぶ */

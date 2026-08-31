@@ -43,6 +43,39 @@ static void heat_add(uint8_t n)
  * 使用回数は無制限 (回数制限やアイテムでの回数増加は今後の調整で入れるかもしれない)。
  */
 uint8_t swing_pow;              /* いまの威力 1..CHARGE_MAX。0 = 溜めていない (計測・描画用) */
+static uint8_t moved;           /* この面で一度でも動いたか (正面は開始時だけ) */
+static uint8_t walk_t, walk_f;  /* 歩きのコマ送り */
+
+/* 向き -> 絵。DIR_UP=1 DOWN=2 LEFT=3 RIGHT=4 なので -1 して 0..3 で引く。 */
+static const uint8_t pat_walk[4][2] = {
+    { PAT_WU1, PAT_WU2 }, { PAT_WD1, PAT_WD2 },
+    { PAT_WL1, PAT_WL2 }, { PAT_WR1, PAT_WR2 },
+};
+static const uint8_t pat_brace[4]  = { PAT_BRU, PAT_BRACE, PAT_BRL, PAT_BRR };
+static const uint8_t pat_strike[4] = { PAT_STU, PAT_STD, PAT_STL, PAT_STR };
+
+/*
+ * いま出すべき自機の絵。
+ *  - まだ一度も動いていない (面の開始直後) -> 正面
+ *  - 振っている最中                        -> 振り下ろし
+ *  - 溜めている                            -> 構え
+ *  - それ以外                              -> 歩き (止まっていればコマ1で立ち姿)
+ */
+uint8_t player_pattern(void)
+{
+    uint8_t d;
+    if (!moved || face == DIR_NONE) {
+        return PAT_MINER;
+    }
+    d = (uint8_t)(face - 1);
+    if (swing) {
+        return pat_strike[d];
+    }
+    if (swing_pow >= 2) {
+        return pat_brace[d];
+    }
+    return pat_walk[d][walk_f];
+}
 static uint8_t charging, charge_lv, charge_t, prev_held;
 
 /*
@@ -381,6 +414,9 @@ void player_start(void)
     bathing = 0;
     bath_t = 0;
     swing_pow = 0;
+    moved = 0;
+    walk_t = 0;
+    walk_f = 0;
     charging = 0;
     charge_lv = 0;
     charge_t = 0;
@@ -455,13 +491,25 @@ void player_update(void)
 
     /* 溜めは「その場に留まる」ことが代償なので、動いたら切れる。 */
     if (px != pre_x || py != pre_y) {
+        moved = 1;
+        walk_t++;
+        if (walk_t >= WALK_FRAMES) {
+            walk_t = 0;
+            walk_f = (uint8_t)!walk_f;
+        }
         charging = 0;
         charge_lv = 0;
         charge_t = 0;
         swing_pow = 0;
         clear_sweat();
-    } else if (swing_pow) {
+    } else if (swing) {
+        /* 振っている間はつるはしを降ろしていく。18フレームを3段に割る。 */
+        draw_swing_fx(player_cell_c(), player_cell_r(), face,
+                      (uint8_t)((PICK_FRAMES - swing) / (PICK_FRAMES / 3)));
+    } else if (swing_pow >= 2) {
         draw_charge_fx(player_cell_c(), player_cell_r(), swing_pow);
+    } else {
+        clear_sweat();
     }
 
     /* **拾う判定は方向転換の後に行う。**
