@@ -292,6 +292,22 @@ void rock_collapse(uint8_t blocks)
     snd_sfx(SFX_CAVEIN);   /* 盤面全体が動くので、通常の破砕音とは別の合図を鳴らす */
 }
 
+/* 動いている岩があるか。**クリア判定を待たせるために要る。**
+   炭柱を割ると45フレーム揺れてから沈むが、その間に最後の黒ダイヤを回収すると
+   クリアが成立して rock_update() が止まり、**落盤が一度も完走しない**。
+   実測で、揺れ始めてから落ち始めるまでの 0.75秒 の中でクリアしていた。 */
+uint8_t rock_busy(void)
+{
+    uint8_t i;
+    for (i = 0; i < ROCK_MAX; i++) {
+        if (rock_state[i] == ROCK_JIG || rock_state[i] == ROCK_FALL
+            || rock_state[i] == ROCK_SPLIT) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 void rock_update(void)
 {
     uint8_t i;
