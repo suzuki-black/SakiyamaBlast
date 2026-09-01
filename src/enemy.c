@@ -200,25 +200,54 @@ uint8_t enemy_at(int8_t cx, int8_t cy)
    潰れている間は動かず、触れてもミスにならないので、先頭の敵をよろけさせて
    通り抜け、奥の敵も潰して岩の下へ並べる、という組み立てができる。
    透明化中の敵は土の中に居るので当たらない (ダイナマイトと揃えてある)。 */
-uint8_t enemy_stun_at(int8_t cx, int8_t cy, uint8_t power)
+/*
+ * つるはしで敵をよろけさせる。(cx,cy) から (dx,dy) の向きへ PICK_REACH 升ぶん探し、
+ * **一番手前の敵1体だけ**に効かせる。
+ *
+ * ただし既に最深までよろけている敵は飛ばして、その後ろの敵を狙う。よろけた敵は
+ * その場で止まるので、飛ばさないと目の前の1体に無駄打ちし続けることになり、
+ * 「先頭を潰して次を潰す」という組み立てができない。
+ * 全員が最深なら、一番手前へ当てたことにして空振り扱いにはしない。
+ */
+uint8_t enemy_stun_at(int8_t cx, int8_t cy, int8_t dx, int8_t dy, uint8_t power)
 {
-    uint8_t i, hit = 0;
-    for (i = 0; i < ENEMY_MAX; i++) {
-        if (!en_state[i] || en_warm[i] || en_ghost[i]) {
-            continue;
+    uint8_t i, k;
+    int8_t best = -1, any = -1;
+    int8_t x = cx, y = cy;
+
+    for (k = 0; k < PICK_REACH && best < 0; k++) {
+        for (i = 0; i < ENEMY_MAX; i++) {
+            if (!en_state[i] || en_warm[i] || en_ghost[i]) {
+                continue;
+            }
+            if (!hits_cell(i, x, y)) {
+                continue;
+            }
+            if (any < 0) {
+                any = (int8_t)i;
+            }
+            if (en_stun[i] < STUN_MAX) {
+                best = (int8_t)i;      /* まだ潰しきっていない一番手前 */
+                break;
+            }
         }
-        if (!hits_cell(i, cx, cy)) {
-            continue;
-        }
-        en_stun[i] = (uint8_t)(en_stun[i] + power);
-        if (en_stun[i] > STUN_MAX) {
-            en_stun[i] = STUN_MAX;
-        }
-        en_stun_t[i] = STUN_STEP;
-        en_acc[i] = 0;
-        hit = 1;
+        x = (int8_t)(x + dx);
+        y = (int8_t)(y + dy);
     }
-    return hit;
+    if (best < 0) {
+        best = any;
+    }
+    if (best < 0) {
+        return 0;
+    }
+    i = (uint8_t)best;
+    en_stun[i] = (uint8_t)(en_stun[i] + power);
+    if (en_stun[i] > STUN_MAX) {
+        en_stun[i] = STUN_MAX;
+    }
+    en_stun_t[i] = STUN_STEP;
+    en_acc[i] = 0;
+    return 1;
 }
 
 uint8_t enemy_kill_at(int8_t cx, int8_t cy, uint8_t by_rock)

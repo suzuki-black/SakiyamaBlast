@@ -126,6 +126,9 @@
    最適になり、体温が骨抜きになる。溜めが買っているのは時間であって熱ではない。 */
 #define CHARGE_MAX     3
 #define CHARGE_TIME   30      /* 1段溜まるまでのフレーム数 (0.5秒) */
+/* つるはしが敵に届く升数。1升だけだと、よろけて止まった敵が目の前を塞いだとき、
+   その後ろの敵へどう振っても届かず、既に最深の敵へ無駄打ちし続けることになる。 */
+#define PICK_REACH     2
 /* 風呂は**一瞬で全快させない**。1フレームにこれだけ下がる。
    風呂は出発点の近くの本通りに置かれるので、一瞬で全快だと通りすがりに
    踏むだけで体温が0に戻り、意識して入る必要がまったく無くなる
@@ -393,7 +396,7 @@ extern uint8_t  en_ghost[ENEMY_MAX];   /* 1 = 透明化中 (計測用) */
 extern uint8_t  en_warm[ENEMY_MAX];    /* 1 = 湧いて点滅中でまだ当たらない (計測用) */
 extern uint8_t  en_stun[ENEMY_MAX];    /* 0 = 通常 / 1..STUN_MAX = よろけ (深いほど長い) */
 /* 敵をよろけさせる。倒した数ではなく、当たった敵が居たかを返す。 */
-uint8_t enemy_stun_at(int8_t cx, int8_t cy, uint8_t power);
+uint8_t enemy_stun_at(int8_t cx, int8_t cy, int8_t dx, int8_t dy, uint8_t power);
 uint8_t enemy_kill_at(int8_t cx, int8_t cy, uint8_t by_rock);  /* 倒した数を返す */
 uint8_t enemy_at(int8_t cx, int8_t cy);        /* その升に敵が居るか (投げたダイナマイトの判定) */
 

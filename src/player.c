@@ -88,19 +88,23 @@ static uint8_t charging, charge_lv, charge_t, prev_held;
  * 体温という主資源が意味を失う。溜めが買っているのは時間であって熱ではない。
  */
 /* 向いている先の升を返す。向きが決まっていなければ 0。 */
+static int8_t fdx, fdy;         /* 向いている方向の増分 (つるはしの届く先を辿る) */
+
 static uint8_t facing_cell(int8_t *ox, int8_t *oy)
 {
     int8_t cx = (int8_t)player_cell_c();
     int8_t cy = (int8_t)player_cell_r();
+    fdx = 0;
+    fdy = 0;
     switch (face) {
-    case DIR_UP:    cy--; break;
-    case DIR_DOWN:  cy++; break;
-    case DIR_LEFT:  cx--; break;
-    case DIR_RIGHT: cx++; break;
+    case DIR_UP:    fdy = -1; break;
+    case DIR_DOWN:  fdy =  1; break;
+    case DIR_LEFT:  fdx = -1; break;
+    case DIR_RIGHT: fdx =  1; break;
     default: return 0;
     }
-    *ox = cx;
-    *oy = cy;
+    *ox = (int8_t)(cx + fdx);
+    *oy = (int8_t)(cy + fdy);
     return 1;
 }
 
@@ -126,7 +130,7 @@ static void do_swing(uint8_t pow)
         }
         hit = 1;
     }
-    if (enemy_stun_at(cx, cy, pow)) {
+    if (enemy_stun_at(cx, cy, fdx, fdy, pow)) {
         hit = 1;
     }
     if (hit) {
