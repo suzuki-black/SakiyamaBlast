@@ -185,6 +185,11 @@
    COAL_VEIN_MAX 升の直線通路が開通し、**敵の高速道路になる**。
    1個ずつ安全に採るか、全部割ってから一気に採るかがそのままギャンブルになる。 */
 #define CHAIN_MAX      8      /* 一度に採れる上限 */
+/* 連鎖は**時間で繋がる**。岩が突き抜けて採った黒ダイヤも、自分で歩いて採った
+   黒ダイヤも、同じ連鎖として数える。倍率は**採った順**に 200→400→800→…。
+   岩は上から下へ抜けるので、その順に倍率が上がっていく。 */
+#define CHAIN_WINDOW 180      /* 連鎖が途切れるまでの時間 (3秒) */
+#define CHAIN_PTS_MAX 3200    /* 1個あたりの上限 */
 extern uint8_t combo;         /* 直前の連鎖で採った数。HUD 表示用 */
 extern uint8_t combo_t;       /* HUD に出しておく残り時間 */
 #define COMBO_SHOW    90      /* 連鎖数を出しておくフレーム数 (1.5秒) */
@@ -312,6 +317,8 @@ void    coal_crush_at(int8_t cx, int8_t cy);   /* 落ちてきた岩が割れた
 /* 落盤で、岩が載っている黒ダイヤを割る。つるはしで割ったのと同じ状態にするが、
    炭柱だった場合も落盤を再帰させない。 */
 void    coal_crack_by_rock(int8_t cx, int8_t cy);
+/* 落ちてきた岩が黒ダイヤを突き抜ける。割れた状態を経由せず、そのまま採取する。 */
+uint8_t coal_smash(int8_t cx, int8_t cy);   /* 採ったら1を返す */
 void    draw_bath(uint8_t cx, uint8_t cy);
 /* 冷えている最中の水風呂。泡を1つ描いて、効いていることを見せる。 */
 void    draw_bath_active(uint8_t phase);

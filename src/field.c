@@ -242,7 +242,7 @@ void coal_shake_tick(void)
     if (combo_t) {
         combo_t--;
         if (!combo_t) {
-            combo = 0;                  /* 表示を消す */
+            combo = 0;                  /* 連鎖が途切れた */
         }
     }
 
@@ -365,6 +365,32 @@ void coal_crack_by_rock(int8_t cx, int8_t cy)
     score_add(PTS_COAL_CRACK);
 }
 
+static void take_one(uint8_t cx, uint8_t cy);
+
+/*
+ * 落ちてきた岩が黒ダイヤを突き抜ける。**割れた状態を経由せず、そのまま採る。**
+ * 炭層の帯を岩が縦に貫くと、その場で連鎖が伸びていく。
+ * 1枚ぶんの手間 (岩の真下を割る) で帯ごと持っていける、という報酬になる。
+ */
+uint8_t coal_smash(int8_t cx, int8_t cy)
+{
+    uint16_t i;
+    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
+        return 0;
+    }
+    i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
+    /* **割れているものも採る。** cell_coal() は割れた黒ダイヤを除くので、
+       そちらで判定すると「割れているぶんだけ素通りする」ことになる。 */
+    if (!coal[i]) {
+        return 0;
+    }
+    pillar[i] = 0;                  /* 落盤を再帰させない */
+    dig_sweep((uint8_t)cx, (uint8_t)cy);
+    link_open((uint8_t)cx, (uint8_t)cy);
+    take_one((uint8_t)cx, (uint8_t)cy);
+    return 1;
+}
+
 void coal_crush_at(int8_t cx, int8_t cy)
 {
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
@@ -389,11 +415,32 @@ static void get_flash_clear(void)
 }
 
 /* 1升ぶんの回収。連鎖の途中でも呼ばれるので、音と倍率は呼び元が持つ。 */
+/*
+ * 黒ダイヤを1個採る。**連鎖の計上もここでやる。**
+ * 岩が突き抜けて採ったぶんも、自分で歩いて採ったぶんも、同じ道を通るので
+ * 自動的に同じ連鎖になる。倍率は採った順。時間 (CHAIN_WINDOW) で途切れる。
+ */
 static void take_one(uint8_t cx, uint8_t cy)
 {
     uint16_t i = (uint16_t)cy * COLS + cx;
+    uint16_t pts = PTS_COAL;
+    uint8_t k;
     coal[i] = 0;
     coal_left--;
+    /* 連鎖を1つ進める。倍率は 200 -> 400 -> 800 -> ... で CHAIN_PTS_MAX 打ち止め。 */
+    if (combo < 255) {
+        combo++;
+    }
+    combo_t = CHAIN_WINDOW;
+    for (k = 1; k < combo && pts < CHAIN_PTS_MAX; k++) {
+        pts = (uint16_t)(pts * 2);
+    }
+    if (pts > CHAIN_PTS_MAX) {
+        pts = CHAIN_PTS_MAX;
+    }
+    score_add(pts);
+    score_popup(cx, cy, pts);
+    snd_sfx_up(SFX_COAL, (uint8_t)((combo - 1) * 2));
     /* 隣の升の「土の膜」の形も変わるので、周囲ごと描き直す。 */
     field_redraw_cell((int8_t)cx, (int8_t)cy);
     field_redraw_cell((int8_t)cx, (int8_t)(cy - 1));
@@ -416,7 +463,6 @@ void coal_take(uint8_t cx, uint8_t cy)
 {
     uint8_t qc[CHAIN_MAX], qr[CHAIN_MAX];
     uint8_t head = 0, tail = 0, n;
-    uint16_t pts = PTS_COAL;
 
     if (coal[(uint16_t)cy * COLS + cx] != COAL_CRACKED) {
         return;
@@ -448,19 +494,11 @@ void coal_take(uint8_t cx, uint8_t cy)
         }
     }
 
-    /* 採った順に、倍々の得点と1段ずつ高い音で放出する */
+    /* 採った順に放出する。得点・音・連鎖の計上は take_one が持つ。 */
     for (n = 0; n < tail; n++) {
         coal[(uint16_t)qr[n] * COLS + qc[n]] = COAL_CRACKED;   /* take_one の前提へ戻す */
         take_one(qc[n], qr[n]);
-        score_add(pts);
-        if (pts < 0x4000) {
-            pts = (uint16_t)(pts * 2);
-        }
     }
-    combo = tail;
-    combo_t = COMBO_SHOW;
-    /* 数が多いほど高く鳴らし、揺れも大きくする */
-    snd_sfx_up(SFX_COAL, (uint8_t)((tail - 1) * 3));
     if (tail >= 2) {
         shake_t = (uint8_t)(COAL_SHAKE_FRAMES + tail);
     }
