@@ -123,8 +123,10 @@ void set_dirt_palette(void)
 /* 黒ダイヤが割れた瞬間、画面を縦へ揺らす。表示位置ずらし (R#18) を書くだけなので、
    盤面を描き直すより桁違いに安い。振幅は 2 -> 1 と減衰させる。 */
 static uint8_t shake_t;
-static uint8_t get_t;                   /* 採掘した升を光らせている残りフレーム */
-static uint8_t get_c, get_r;
+/* 採掘した升の閃き。**連鎖採掘で複数同時に採るので、升を覚えるのも複数要る。**
+   1升ぶんしか持っていなかったため、連鎖すると最後の1つ以外が白いまま残っていた。 */
+static uint8_t get_t, get_n;
+static uint8_t get_cs[CHAIN_MAX], get_rs[CHAIN_MAX];
 
 /* 溜め中の汗。段が上がるほど滴が増える。体温を払っていることが絵で伝わる。 */
 static uint8_t sweat_c, sweat_r, sweat_lv;
@@ -247,13 +249,15 @@ void coal_shake_tick(void)
     /* 採掘した升の閃き。白 -> 黒ダイヤの色 と2段で光らせてから元へ戻す。
        自機が升の上に乗っているので、周りがふちどられるように見える。 */
     if (get_t) {
+        uint8_t k;
         get_t--;
         if (get_t == (COAL_GET_FRAMES * 2 / 3)) {
-            vdp_fill((uint16_t)((uint16_t)get_c << 4), (uint16_t)((uint16_t)get_r << 4),
-                     16, 16, COL_DIA);
+            for (k = 0; k < get_n; k++) {
+                vdp_fill((uint16_t)((uint16_t)get_cs[k] << 4),
+                         (uint16_t)((uint16_t)get_rs[k] << 4), 16, 16, COL_DIA);
+            }
         } else if (get_t == 0) {
-            field_redraw_cell((int8_t)get_c, (int8_t)get_r);
-            player_carve();             /* 掘り跡を戻す */
+            get_flash_clear();
         }
     }
 
@@ -372,6 +376,18 @@ void coal_crush_at(int8_t cx, int8_t cy)
     coal_take((uint8_t)cx, (uint8_t)cy);
 }
 
+/* 光っている升をすべて元へ戻す。 */
+static void get_flash_clear(void)
+{
+    uint8_t k;
+    for (k = 0; k < get_n; k++) {
+        field_redraw_cell((int8_t)get_cs[k], (int8_t)get_rs[k]);
+    }
+    get_n = 0;
+    get_t = 0;
+    player_carve();                 /* 掘り跡を戻す */
+}
+
 /* 1升ぶんの回収。連鎖の途中でも呼ばれるので、音と倍率は呼び元が持つ。 */
 static void take_one(uint8_t cx, uint8_t cy)
 {
@@ -385,9 +401,12 @@ static void take_one(uint8_t cx, uint8_t cy)
     field_redraw_cell((int8_t)(cx - 1), (int8_t)cy);
     field_redraw_cell((int8_t)(cx + 1), (int8_t)cy);
     /* **描き直しのあとで**光らせる。先に塗ると、この直後の描き直しに消される。 */
+    if (get_n < CHAIN_MAX) {
+        get_cs[get_n] = cx;
+        get_rs[get_n] = cy;
+        get_n++;
+    }
     get_t = COAL_GET_FRAMES;
-    get_c = cx;
-    get_r = cy;
     vdp_fill((uint16_t)((uint16_t)cx << 4), (uint16_t)((uint16_t)cy << 4), 16, 16, COL_WHITE);
 }
 
@@ -401,6 +420,9 @@ void coal_take(uint8_t cx, uint8_t cy)
 
     if (coal[(uint16_t)cy * COLS + cx] != COAL_CRACKED) {
         return;
+    }
+    if (get_t) {
+        get_flash_clear();          /* 前の閃きを片付けてから新しい連鎖を始める */
     }
     coal[(uint16_t)cy * COLS + cx] = 0;       /* 先に消して二重に積まないようにする */
     qc[tail] = cx; qr[tail] = cy; tail++;
