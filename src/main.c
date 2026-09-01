@@ -366,6 +366,7 @@ void main(void)
         }
         coal_shake_tick();
         popup_tick();
+        cavein_flash_tick();
         bomb_update();
         rock_update();
         enemy_update();

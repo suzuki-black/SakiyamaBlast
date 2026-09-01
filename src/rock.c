@@ -290,6 +290,7 @@ void rock_collapse(uint8_t blocks)
         jig_t[i] = ROCK_JIG_FRAMES;
     }
     snd_sfx(SFX_CAVEIN);   /* 盤面全体が動くので、通常の破砕音とは別の合図を鳴らす */
+    cavein_flash();        /* 画面全体を白く飛ばす。見ていない場所の事件を伝える */
 }
 
 /* 動いている岩があるか。**クリア判定を待たせるために要る。**

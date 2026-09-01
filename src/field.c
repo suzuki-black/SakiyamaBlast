@@ -88,6 +88,28 @@ void link_open(uint8_t cx, uint8_t cy)
     }
 }
 
+/* 落盤の閃光。土の色を白へ飛ばし、FLASH_CAVEIN フレームで元へ戻す。
+   炭柱を割ると離れた場所の岩まで動くが、プレイヤーは1箇所しか見ていないので
+   何が起きたか分からない。画面全体の色を変えれば、見ていなくても伝わる。 */
+static uint8_t flash_t;
+
+void cavein_flash(void)
+{
+    flash_t = FLASH_CAVEIN;
+    vdp_set_palette(COL_DIRT, 7, 7, 7);
+}
+
+void cavein_flash_tick(void)
+{
+    if (!flash_t) {
+        return;
+    }
+    flash_t--;
+    if (!flash_t) {
+        set_dirt_palette();          /* 面ごとの土の色へ戻す */
+    }
+}
+
 /* 面ごとに土の色を変える。閃光から戻すときにも使う。 */
 void set_dirt_palette(void)
 {

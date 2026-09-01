@@ -322,7 +322,9 @@ void    coal_take(uint8_t cx, uint8_t cy);       /* 割れた黒ダイヤを採�
 void    bath_destroy_at(int8_t cx, int8_t cy);   /* 岩・爆風で壊れる (敵では壊れない) */
 void    field_redraw_cell(int8_t cx, int8_t cy);
 void    build_stage(void);
-void    set_dirt_palette(void);   /* 面ごとの土の色 */
+void    set_dirt_palette(void);
+void    cavein_flash(void);        /* 落盤の閃光を始める */
+void    cavein_flash_tick(void);   /* 毎フレーム呼ぶ。終わったら色を戻す */   /* 面ごとの土の色 */
 void    coal_shake_tick(void);
 void    field_shake(uint8_t frames);   /* 画面を揺らす (岩の着地など) */
 /* 溜め中の汗。**スプライトではなく背景に描く。** 自機のスプライトは16x16が
@@ -363,6 +365,10 @@ uint8_t player_cell_r(void);
 /* 割れた岩を出しておくフレーム数。即座に消すと、何が起きたのか分からない。 */
 #define ROCK_SPLIT_FRAMES 60
 #define ROCK_LAND_SHAKE   6   /* 着地の軽い揺れ */
+/* 落盤の閃光。土のパレットを白へ飛ばして戻す。**VRAM を一切触らずに画面全体が光る**ので、
+   盤面全体が動く事件を盤面全体の変化で伝えられる。土の色は面ごとに変わる (茶/灰/青) が、
+   白飛ばしならどの色からでも効く。 */
+#define FLASH_CAVEIN  6       /* 光らせるフレーム数 */
 
 extern uint8_t rock_state[ROCK_MAX];
 extern uint8_t rock_x[ROCK_MAX], rock_y[ROCK_MAX];
