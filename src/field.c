@@ -127,6 +127,7 @@ static uint8_t shake_t;
    1升ぶんしか持っていなかったため、連鎖すると最後の1つ以外が白いまま残っていた。 */
 static uint8_t get_t, get_n;
 static uint8_t get_cs[CHAIN_MAX], get_rs[CHAIN_MAX];
+static void get_flash_clear(void);
 
 /* 溜め中の汗。段が上がるほど滴が増える。体温を払っていることが絵で伝わる。 */
 static uint8_t sweat_c, sweat_r, sweat_lv;
