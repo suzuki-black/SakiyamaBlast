@@ -351,6 +351,17 @@ void main(void)
             continue;
         }
 
+        /* ヒットストップ。**止めるのは更新だけ**で、音と描画は進める。
+           止まっている間に効果音が途切れると、逆に手応えが痩せる。 */
+        if (hitstop) {
+            hitstop--;
+            coal_shake_tick();
+            popup_tick();
+            cavein_flash_tick();
+            draw_actors();
+            hud_draw();
+            continue;
+        }
         if (!dead) {
             player_update();
             /* **押しているかどうか**をそのまま渡す。押した瞬間に威力1で即座に振り、

@@ -190,6 +190,12 @@
    岩は上から下へ抜けるので、その順に倍率が上がっていく。 */
 #define CHAIN_WINDOW 180      /* 連鎖が途切れるまでの時間 (3秒) */
 #define CHAIN_PTS_MAX 3200    /* 1個あたりの上限 */
+/* ヒットストップ。連鎖が伸びた瞬間だけ全部を数フレーム止める。
+   **VDP を一切使わない**ので fps を落とさずに手応えだけ増やせる。
+   格闘ゲームやアクションで最も効く技法で、殴った感触はここで決まる。 */
+#define HITSTOP_BASE   2      /* 1個目で止めるフレーム数 */
+#define HITSTOP_MAX    7      /* 連鎖が伸びたときの上限 */
+extern uint8_t hitstop;
 extern uint8_t combo;         /* 直前の連鎖で採った数。HUD 表示用 */
 extern uint8_t combo_t;       /* HUD に出しておく残り時間 */
 #define COMBO_SHOW    90      /* 連鎖数を出しておくフレーム数 (1.5秒) */

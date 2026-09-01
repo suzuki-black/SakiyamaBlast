@@ -83,8 +83,10 @@ static char     pop_s[8];
 static void popup_erase(void)
 {
     int8_t k;
-    for (k = 0; k < 3; k++) {          /* 文字は最大4桁 = 2升ぶん。余裕を見て3升消す */
+    /* 倍角だと縦にも1升ぶん広がるので、下の行も消す。 */
+    for (k = 0; k < 4; k++) {
         field_redraw_cell((int8_t)(pop_c + k), (int8_t)pop_r);
+        field_redraw_cell((int8_t)(pop_c + k), (int8_t)(pop_r + 1));
     }
     player_carve();
 }
@@ -113,8 +115,9 @@ void score_popup(uint8_t cx, uint8_t cy, uint16_t v)
     pop_c = cx;
     pop_r = cy;
     pop_t = POPUP_FRAMES;
+    /* 大きい点数は倍角で出す。連鎖が伸びたことが数字の大きさでも分かる。 */
     text_draw((uint16_t)((uint16_t)cx << 4), (uint16_t)(((uint16_t)cy << 4) + 4),
-              pop_s, COL_WHITE, COL_TUNNEL, 1);
+              pop_s, COL_WHITE, COL_TUNNEL, (uint8_t)(v >= 800 ? 2 : 1));
 }
 
 void popup_tick(void)

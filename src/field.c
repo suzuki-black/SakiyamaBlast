@@ -14,6 +14,7 @@ uint8_t  coal[NCELL];
 uint8_t  coal_left;
 uint8_t  cell_link[NCELL];
 uint8_t  combo;
+uint8_t  hitstop;
 uint8_t  combo_t;               /* HUD に連鎖数を出しておく残り時間 */
 uint16_t dug_n;
 uint16_t dug_n0;
@@ -270,8 +271,13 @@ void coal_shake_tick(void)
         vdp_adjust(0, 0);            /* 元の位置へ戻す */
         return;
     }
+    /* 強い揺れのときは横にも振る。R#18 は縦横とも動かせるので追加費用はゼロ。 */
     amp = (int8_t)((shake_t > (COAL_SHAKE_FRAMES / 2)) ? 2 : 1);
-    vdp_adjust(0, (int8_t)((shake_t & 1) ? amp : (int8_t)-amp));
+    {
+        int8_t v = (int8_t)((shake_t & 1) ? amp : (int8_t)-amp);
+        int8_t h = (int8_t)((shake_t > COAL_SHAKE_FRAMES) ? ((shake_t & 2) ? 1 : -1) : 0);
+        vdp_adjust(h, v);
+    }
 }
 
 uint8_t cell_dug(int8_t cx, int8_t cy)
@@ -442,6 +448,15 @@ static void take_one(uint8_t cx, uint8_t cy)
     score_add(pts);
     score_popup(cx, cy, pts);
     snd_sfx_up(SFX_COAL, (uint8_t)((combo - 1) * 2));
+    /* 連鎖が伸びるほど強く手応えを返す。**どれも VDP をほとんど使わない。** */
+    {
+        uint8_t n = (uint8_t)(HITSTOP_BASE + combo);
+        hitstop = (uint8_t)(n > HITSTOP_MAX ? HITSTOP_MAX : n);
+    }
+    field_shake((uint8_t)(COAL_SHAKE_FRAMES + (combo << 1)));
+    if (combo >= 3) {
+        cavein_flash();             /* 3連鎖から画面全体が光る */
+    }
     /* 隣の升の「土の膜」の形も変わるので、周囲ごと描き直す。 */
     field_redraw_cell((int8_t)cx, (int8_t)cy);
     field_redraw_cell((int8_t)cx, (int8_t)(cy - 1));
