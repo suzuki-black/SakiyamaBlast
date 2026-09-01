@@ -87,8 +87,8 @@ static uint8_t charging, charge_lv, charge_t, prev_held;
  * **発熱は威力に比例する。** 比例させないと掘りは常に押しっぱなしが最適になり、
  * 体温という主資源が意味を失う。溜めが買っているのは時間であって熱ではない。
  */
-/* 向いている先の升。振れる対象が無ければ 0 を返す。 */
-static uint8_t pick_target(int8_t *ox, int8_t *oy)
+/* 向いている先の升を返す。向きが決まっていなければ 0。 */
+static uint8_t facing_cell(int8_t *ox, int8_t *oy)
 {
     int8_t cx = (int8_t)player_cell_c();
     int8_t cy = (int8_t)player_cell_r();
@@ -101,26 +101,39 @@ static uint8_t pick_target(int8_t *ox, int8_t *oy)
     }
     *ox = cx;
     *oy = cy;
-    return (uint8_t)(cell_coal(cx, cy) || enemy_at(cx, cy));
+    return 1;
 }
 
-/* 実際に1振りする。威力ぶん黒ダイヤを削り、敵はその段数ぶん深くよろける。 */
+/*
+ * 1振りする。**当たるものが無くても振る (空振り)。**
+ * 何も無いところで押して何も起きないと、ボタンが効いていないように見える。
+ * 空振りでも発熱はする — つるはしを振るのは同じだけ力を使うので、
+ * むやみに振れば体温を損する。当たれば威力ぶん黒ダイヤを削り、敵はその段数
+ * ぶん深くよろける。
+ */
 static void do_swing(uint8_t pow)
 {
     int8_t cx, cy;
-    uint8_t k;
-    if (!pick_target(&cx, &cy)) {
-        return;
+    uint8_t k, hit = 0;
+    if (!facing_cell(&cx, &cy)) {
+        return;                     /* 向きが決まっていない */
     }
     swing = PICK_FRAMES;
     heat_add((uint8_t)(HEAT_PER_SWING * pow));
     if (cell_coal(cx, cy)) {
         for (k = 0; k < pow; k++) {
-            coal_hit(cx, cy);       /* 割れたあとは cell_coal が偽になり空振りする */
+            coal_hit(cx, cy);       /* 割れたあとは cell_coal が偽になる */
         }
+        hit = 1;
     }
-    enemy_stun_at(cx, cy, pow);
-    snd_sfx_up(SFX_MINE, (uint8_t)((pow - 1) * 4));   /* 溜めるほど高く鳴る */
+    if (enemy_stun_at(cx, cy, pow)) {
+        hit = 1;
+    }
+    if (hit) {
+        snd_sfx_up(SFX_MINE, (uint8_t)((pow - 1) * 4));   /* 溜めるほど高く鳴る */
+    } else {
+        snd_sfx(SFX_NOPE);          /* 空振り。当たった音とは別にする */
+    }
 }
 
 void player_pick(uint8_t held)
@@ -151,11 +164,10 @@ void player_pick(uint8_t held)
     if (swing) {
         return;                     /* 振り切るまでは溜め始めない */
     }
-    /* 押しっぱなし。**振らずに溜める。** 対象に向いていないと溜まらない。 */
-    if (!pick_target(&cx, &cy)) {
-        charge_lv = 1;
-        charge_t = 0;
-        return;
+    /* 押しっぱなし。**振らずに溜める。** 空振りできる以上、対象の有無に関わらず
+       溜まるほうが筋が通る (代償はその場に留まること)。 */
+    if (!facing_cell(&cx, &cy)) {
+        return;                     /* 向きが決まっていなければ溜まらない */
     }
     if (charge_lv < CHARGE_MAX) {
         charge_t++;
