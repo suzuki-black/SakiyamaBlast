@@ -233,7 +233,9 @@ static void rock_fall_step(uint8_t i)
     /* 沈み込み中は土でも突き抜けて落ちる。沈み終わった時点で落下距離を数え直すので、
        **沈んだぶんは割れ判定に入らない** (炭柱に書いてある数だけ落ちても割れない)。 */
     if (sink_to[i] != 0xFF) {
-        if ((uint8_t)r < sink_to[i]) {
+        /* **黒ダイヤは突き抜けない。** 突き抜けると岩が黒ダイヤの中に居座り、
+           その升へ自機が入れなくなって回収不能 = クリア不能になる。 */
+        if ((uint8_t)r < sink_to[i] && !cell_coal(c, (int8_t)(r + 1))) {
             if (r + 1 >= ROWS) {
                 sink_to[i] = 0xFF;
                 rock_break(i);          /* 盤外へ抜けた */
@@ -271,7 +273,7 @@ static void rock_fall_step(uint8_t i)
  */
 void rock_collapse(uint8_t blocks)
 {
-    uint8_t i;
+    uint8_t i, c;
     if (blocks == 0) {
         blocks = 1;
     }
@@ -285,7 +287,15 @@ void rock_collapse(uint8_t blocks)
             rock_break(i);              /* 一番下。落ちる先が無いので消える */
             continue;
         }
-        sink_to[i] = (uint8_t)(r + blocks);
+        c = (uint8_t)(rock_x[i] >> 4);
+        if (cell_coal((int8_t)c, (int8_t)(r + 1))) {
+            /* **岩が載っている黒ダイヤを割る。** 支えを失うので普通に落ちる。
+               沈み込みではないので、落ちた距離で普通に割れ判定される。 */
+            coal_crack_by_rock((int8_t)c, (int8_t)(r + 1));
+            sink_to[i] = 0xFF;
+        } else {
+            sink_to[i] = (uint8_t)(r + blocks);   /* 土の中の岩は沈むだけ */
+        }
         rock_state[i] = ROCK_JIG;
         jig_t[i] = ROCK_JIG_FRAMES;
     }

@@ -330,6 +330,37 @@ uint8_t coal_hit(int8_t cx, int8_t cy)
    岩の升には自機が入れないので、放っておくとその黒ダイヤは永久に回収できず
    「全採掘」のクリア条件を満たせなくなる。岩が砕き出した扱いで回収する。
    残柱式でいう「炭柱を割ったら天盤が落ちて潰す」そのものでもある。 */
+/*
+ * 落盤で、岩の真下の黒ダイヤを割る。
+ *
+ * 落盤を「全部の岩がN升沈む」にしていたが、沈んだ先が土なら見た目にも結果にも
+ * 何も残らず、しかも**岩を炭層の上から土の中へ移してしまう**ので、
+ * 「岩を黒ダイヤの上に置く」仕掛けを自分で壊していた。
+ * 天盤が落ちる = **岩が載っている黒ダイヤが一斉に割れる**、に変えた。
+ * 岩は支えを失って自然に落ち、割れた黒ダイヤは回収待ちで残る。
+ */
+void coal_crack_by_rock(int8_t cx, int8_t cy)
+{
+    uint16_t i;
+    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
+        return;
+    }
+    i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
+    if (!coal[i] || coal[i] == COAL_CRACKED) {
+        return;
+    }
+    coal[i] = COAL_CRACKED;
+    pillar[i] = 0;                  /* 落盤を再帰させないため、ここで降ろす */
+    dig_sweep((uint8_t)cx, (uint8_t)cy);
+    link_open((uint8_t)cx, (uint8_t)cy);
+    draw_coal((uint8_t)cx, (uint8_t)cy);
+    field_redraw_cell(cx, (int8_t)(cy - 1));
+    field_redraw_cell(cx, (int8_t)(cy + 1));
+    field_redraw_cell((int8_t)(cx - 1), cy);
+    field_redraw_cell((int8_t)(cx + 1), cy);
+    score_add(PTS_COAL_CRACK);
+}
+
 void coal_crush_at(int8_t cx, int8_t cy)
 {
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {

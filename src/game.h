@@ -309,6 +309,9 @@ void    draw_bombdrop(uint8_t cx, uint8_t cy);
 void    drop_item_at(int8_t cx, int8_t cy, uint8_t is_ume);
 void    draw_ume(uint8_t cx, uint8_t cy);
 void    coal_crush_at(int8_t cx, int8_t cy);   /* 落ちてきた岩が割れた黒ダイヤを砕く */
+/* 落盤で、岩が載っている黒ダイヤを割る。つるはしで割ったのと同じ状態にするが、
+   炭柱だった場合も落盤を再帰させない。 */
+void    coal_crack_by_rock(int8_t cx, int8_t cy);
 void    draw_bath(uint8_t cx, uint8_t cy);
 /* 冷えている最中の水風呂。泡を1つ描いて、効いていることを見せる。 */
 void    draw_bath_active(uint8_t phase);
