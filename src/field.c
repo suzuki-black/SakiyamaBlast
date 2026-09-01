@@ -705,8 +705,14 @@ static uint8_t cell_ok(uint16_t i, uint8_t kind)
         if (r + 1 >= ROWS) {
             return 0;
         }
-        if (dug[i + COLS] || coal[i + COLS]) {
-            return 0;                                /* 岩の真下は土でなければならない */
+        if (dug[i + COLS]) {
+            return 0;              /* 真下が坑道では支えが無い */
+        }
+        /* **真下が黒ダイヤでもよい。** 黒ダイヤは未掘の升に置かれるので、そのまま
+           支えになる (支え判定は「真下が掘れていなければ支え」)。
+           割れば岩が落ちるので、**必ずやる行動がそのまま岩の引き金**になる。 */
+        if (bath_on && (uint8_t)(r + 1) == bath_r && c == bath_c) {
+            return 0;              /* 水風呂の真上は避ける。壊されると理不尽 */
         }
     }
     return 1;
@@ -959,6 +965,23 @@ static void place_pillars(void)
     }
 }
 
+/* 候補のうち「真下が黒ダイヤ」のものだけ残す。
+   岩が土の中に散らばっていると、掘る動線は黒ダイヤへ向かって伸びるので
+   **岩と掘る場所が原理的に交わらない**。炭層の上へ寄せると、割る行為が
+   そのまま岩の引き金になり、しかも割る前から落ちる先が見えている。 */
+static void keep_above_coal(void)
+{
+    uint8_t k = 0, m = 0;
+    while (k < cand_n) {
+        uint16_t i = cand[k];
+        if (i + COLS < NCELL && coal[i + COLS]) {
+            cand[m++] = cand[k];
+        }
+        k++;
+    }
+    cand_n = m;
+}
+
 /* 指定した行の候補を落とす。
    スプライトは16px高なので、別の升行に置けば走査線が全く重ならない。
    MSX2 は横一列に9枚目以降が消えるので、**1行に岩は1個まで**にしておけば、
@@ -986,10 +1009,12 @@ static void place_rocks(void)
        毎回作り直すと 176升 x cell_ok を岩の数だけ繰り返すことになり、
        面の組み立てが目に見えて遅くなる (画面が暗いままの時間が伸びる)。
        岩どうしの「真下は土」条件は行ごと落とすことで自然に満たされる。 */
+    /* まず黒ダイヤの真上へ置けるだけ置き、余った岩は従来どおり土の中へ。 */
     build_candidates(2);
+    keep_above_coal();
     while (n) {
         if (cand_n == 0) {
-            build_candidates(2);    /* 空いている行が尽きたら同じ行でも置く */
+            build_candidates(2);    /* 炭層の上が尽きた / 行が尽きた */
             if (cand_n == 0) {
                 return;
             }
@@ -1192,8 +1217,9 @@ static void set_stage_layout(void)
     connect_to_reach(nest_c, nest_r);
 
     place_powder(POWDER_PER_STAGE);
-    place_rocks();
+    /* **黒ダイヤを先に置く。** 岩を炭層の真上へ寄せるので、置く対象が先に要る。 */
     place_coal();
+    place_rocks();
     place_pillars();
 }
 

@@ -154,7 +154,11 @@ static int under_falling_rock(int c, int r)
     uint8_t k;
     for (k = 0; k < ROCK_MAX; k++) {
         int rr;
-        if (rock_state[k] != ROCK_JIG && rock_state[k] != ROCK_FALL) { continue; }
+        /* **揺れている岩 (ROCK_JIG) は危険としない。** 自機がその真下に入ると
+           支えになって落ちなくなる (Dig Dug 準拠)。揺れを避けさせると、
+           炭層の上に岩がある配置で「掘った黒ダイヤを取りに行かない」ボットになる。
+           本当に危ないのは既に落ちている岩だけ。 */
+        if (rock_state[k] != ROCK_FALL) { continue; }
         if ((rock_x[k] >> 4) != c) { continue; }
         rr = rock_y[k] >> 4;
         if (rr <= r && r - rr <= 4) { return 1; }   /* 同じ列の上にある */
@@ -407,7 +411,10 @@ int main(int argc, char **argv)
 
         if (!dead) {
             player_update();
-            player_pick(1);          /* 中で「向いている先が黒ダイヤ」と「振っている最中」を見る */
+            /* **押しっぱなしにしっぱなしにしない。** そうすると「押した瞬間の1振り」
+               のあとずっと溜めたままになり、ボットが一度も掘らなくなる。
+               最大まで溜めたら離す = 溜め打ちを繰り返す、という遊び方にする。 */
+            player_pick((uint8_t)(swing_pow < CHARGE_MAX));
         }
         coal_shake_tick();
         bomb_update();
