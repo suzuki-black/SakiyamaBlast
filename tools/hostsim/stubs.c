@@ -89,3 +89,7 @@ uint16_t kill_value(uint8_t n, uint8_t by_rock)
     if (n > 5)  { n = 5; }
     return by_rock ? (uint16_t)(kill_pts[n] * 2) : kill_pts[n];
 }
+
+/* --- 一括転送。ホストでは描かないので何もしない --- */
+uint16_t vdp_blklen;
+void vdp_wblock(const uint8_t *p) { (void)p; }
