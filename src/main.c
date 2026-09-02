@@ -118,6 +118,7 @@ static void start_stage(void)
        snd_tick() が回らないので、鳴っていた音を PSG が保持し続けてしまう。
        止めておかないと「ピー」と鳴りっぱなしになり、固まったように聞こえる。 */
     snd_stop();
+    field_fx_reset();      /* 揺れ・閃光・閃き・連鎖を落としてから組み直す */
     /* パレットの差し替えと面の描き起こしは見せない。描き切ってから幕を上げる。 */
     vdp_display(0);
     set_game_palette();
@@ -126,7 +127,6 @@ static void start_stage(void)
     player_start();
     enemy_stage_reset();
     bonus_stage_reset();
-    combo = 0;
     debris_clear();
     hud_reset();
     hud_draw();

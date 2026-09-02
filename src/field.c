@@ -219,6 +219,26 @@ void draw_swing_fx(uint8_t cx, uint8_t cy, uint8_t dir, uint8_t phase)
     vdp_fill((uint16_t)(x + (uint8_t)hx + 3), (uint16_t)(y + (uint8_t)hy + 2), 2, 3, COL_FUSE);
 }
 
+/*
+ * 演出の状態を全部落とす。面の切り替えとミスの前に呼ぶ。
+ * **揺れ (R#18) は面を組み直しても元に戻らない。** 揺れている最中に面がクリアに
+ * なると、そのずれたまま次の面が始まる (実際にそうなっていた)。
+ * 閃光のパレットや採掘の閃きも、残ると次の面へ持ち越される。
+ */
+void field_fx_reset(void)
+{
+    shake_t = 0;
+    flash_t = 0;
+    get_t = 0;
+    get_n = 0;
+    sweat_lv = 0;
+    combo = 0;
+    combo_t = 0;
+    hitstop = 0;
+    vdp_adjust(0, 0);          /* 画面を中央へ戻す */
+    popup_clear();
+}
+
 /* 外から画面を揺らす。すでに揺れているときは長いほうを残す。 */
 void field_shake(uint8_t frames)
 {

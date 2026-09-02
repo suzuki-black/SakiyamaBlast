@@ -120,6 +120,12 @@ void score_popup(uint8_t cx, uint8_t cy, uint16_t v)
               pop_s, COL_WHITE, COL_TUNNEL, (uint8_t)(v >= 800 ? 2 : 1));
 }
 
+/* 得点表示を消さずに面が変わると、次の面の升を古い座標で塗ってしまう。 */
+void popup_clear(void)
+{
+    pop_t = 0;
+}
+
 void popup_tick(void)
 {
     if (!pop_t) {

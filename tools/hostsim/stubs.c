@@ -100,3 +100,5 @@ void debris_clear(void) { }
 void debris_spawn(uint8_t cx, uint8_t cy) { (void)cx; (void)cy; debris_n++; }
 void debris_tick(void)  { }
 void debris_draw(void)  { }
+
+void popup_clear(void) { }
