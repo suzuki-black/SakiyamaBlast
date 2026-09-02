@@ -202,9 +202,14 @@ static void goto_ending(uint8_t to_ura)
     vdp_display(0);
     set_game_palette();          /* タイトル1枚絵のパレットから戻す */
     vdp_fill(0, 0, 256, SCR_H, COL_TUNNEL);
+    /* **「掘り尽くす」ではなく「帰る」で書く。** docs/HISTORY.md §8 の通り、
+       この人物は炭鉱町がにぎわう中をまっすぐ家へ帰る側の人だった。勝利や達成では
+       なく、番方を終えて帰るのが結びとして合う。
+       名前も実名 (TANNO SANJI) ではなくキャラクター名にしてある。実名を公開物へ
+       載せるかは作者が検討中のため、決まるまでは出さない。 */
     text_draw(48, 40, "CONGRATULATIONS", COL_FUSE, COL_TUNNEL, 1);
-    text_draw(24, 72, "TANNO SANJI HAS DUG OUT", COL_WHITE, COL_TUNNEL, 1);
-    text_draw(24, 88, "ALL THE BLACK DIAMONDS.", COL_WHITE, COL_TUNNEL, 1);
+    text_draw(24, 72, "TANNO 3JI FINISHED HIS SHIFT", COL_WHITE, COL_TUNNEL, 1);
+    text_draw(72, 88, "AND WENT HOME.", COL_WHITE, COL_TUNNEL, 1);
     text_draw(96, 128, "THE END", COL_WHITE, COL_TUNNEL, 2);
     text_draw(56, 176, "PUSH SPACE KEY", COL_DIA, COL_TUNNEL, 1);
     vdp_display(1);

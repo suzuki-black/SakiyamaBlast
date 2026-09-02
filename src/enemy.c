@@ -209,6 +209,27 @@ uint8_t enemy_at(int8_t cx, int8_t cy)
  * 「先頭を潰して次を潰す」という組み立てができない。
  * 全員が最深なら、一番手前へ当てたことにして空振り扱いにはしない。
  */
+/*
+ * 落盤で盤面の敵をまとめてよろけさせる。
+ * 「並べた場所へ岩を持ってくる」より「岩の下で敵を止める」ほうが安い、という発想。
+ * 位置合わせが要らないので、落ちてくる岩の命中率が跳ね上がる。
+ */
+void enemy_stun_all(uint8_t power)
+{
+    uint8_t i;
+    for (i = 0; i < ENEMY_MAX; i++) {
+        if (!en_state[i] || en_warm[i]) {
+            continue;
+        }
+        en_stun[i] = (uint8_t)(en_stun[i] + power);
+        if (en_stun[i] > STUN_MAX) {
+            en_stun[i] = STUN_MAX;
+        }
+        en_stun_t[i] = STUN_STEP;
+        en_acc[i] = 0;
+    }
+}
+
 uint8_t enemy_stun_at(int8_t cx, int8_t cy, int8_t dx, int8_t dy, uint8_t power)
 {
     uint8_t i, k;

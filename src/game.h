@@ -103,6 +103,11 @@
    ディグダグの「膨らむ」の逆にしてあるのは、真似に見せないため。 */
 #define STUN_MAX       3      /* 潰れ具合の段数 */
 #define STUN_STEP    120      /* 1段戻るまでのフレーム数 (2秒) */
+/* 落盤で盤面の全部の敵をよろけさせる深さ。よろけている敵は触れても無害なので、
+   深くすると**全画面が安全な時間**になる。最深(3段)だと6秒 x 炭柱2本 = 12秒で、
+   面のクリア時間 15〜30秒の半分近くを占めてしまう。1段(2秒)から試す。
+   岩は45フレーム揺れてから沈むので、2秒あれば沈む瞬間には足りている。 */
+#define STUN_CAVEIN    1
 
 #define SPAWN_WARM   120      /* 2秒 */
 
@@ -431,6 +436,8 @@ extern uint8_t  en_warm[ENEMY_MAX];    /* 1 = 湧いて点滅中でまだ当た�
 extern uint8_t  en_stun[ENEMY_MAX];    /* 0 = 通常 / 1..STUN_MAX = よろけ (深いほど長い) */
 /* 敵をよろけさせる。倒した数ではなく、当たった敵が居たかを返す。 */
 uint8_t enemy_stun_at(int8_t cx, int8_t cy, int8_t dx, int8_t dy, uint8_t power);
+/* 落盤。盤面の敵をまとめてよろけさせる (位置合わせが要らないので命中率が上がる)。 */
+void    enemy_stun_all(uint8_t power);
 uint8_t enemy_kill_at(int8_t cx, int8_t cy, uint8_t by_rock);  /* 倒した数を返す */
 uint8_t enemy_at(int8_t cx, int8_t cy);        /* その升に敵が居るか (投げたダイナマイトの判定) */
 
