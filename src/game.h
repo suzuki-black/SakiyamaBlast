@@ -283,8 +283,9 @@ extern uint8_t combo_t;       /* HUD に出しておく残り時間 */
 #define PAT_CHIP 25      /* 石炭のかけら。採った升から自機へ吸い寄せられる */
 /* かけらは「岩でも採掘できる」を絵で説明するためのもの。言葉にしにくい仕組みなので、
    自機へ集まる動きで「いま手に入った」を伝える。 */
-#define DEBRIS_MAX     4
-#define DEBRIS_FRAMES 20
+#define DEBRIS_MAX     6
+#define DEBRIS_FRAMES 34      /* 出しておく時間。短いと一瞬で終わって見えない */
+#define DEBRIS_POP     8      /* 最初に外へ弾けるフレーム数 */
 void    debris_clear(void);
 void    debris_spawn(uint8_t cx, uint8_t cy);
 void    debris_tick(void);
