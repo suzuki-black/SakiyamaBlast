@@ -42,12 +42,36 @@ static char    msg[16];
    既に遅れている場合は待たずに進めることで、落ち方をなだらかにする。 */
 static uint8_t last_j;
 
+/* 前回からいくつ垂直帰線を跨いだか。1 なら 60fps が出ている。 */
+static uint8_t frames_passed;
+
 static void wait_vsync(void)
 {
+    uint8_t j;
     while (JIFFY == last_j) {
         /* まだ次のフレームが来ていない */
     }
-    last_j = JIFFY;
+    j = JIFFY;
+    frames_passed = (uint8_t)(j - last_j);
+    if (frames_passed > 4) {
+        frames_passed = 4;          /* 面の組み立てなど長い停止のあとは追いつかない */
+    }
+    last_j = j;
+}
+
+/*
+ * 音を実時間に合わせる。
+ *
+ * snd_tick() をループ1周に1回だけ呼ぶと、**処理落ちがそのまま曲のテンポになる。**
+ * 実測で、掘っている間は 43回/秒 しか回らず、曲が 72% の速さで鳴っていた。
+ * 跨いだフレーム数だけ回して実時間に追いつかせる。
+ */
+static void snd_catch_up(void)
+{
+    uint8_t i;
+    for (i = 0; i < frames_passed; i++) {
+        snd_tick();
+    }
 }
 
 /* A ボタン (スペース / ジョイスティックのトリガA) の立ち上がり。
@@ -265,7 +289,7 @@ void main(void)
     for (;;) {
         wait_vsync();
         frame_n++;
-        snd_tick();
+        snd_catch_up();
 
         if (state == ST_TITLE) {
             if (konami_check()) {
