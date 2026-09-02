@@ -127,6 +127,7 @@ static void start_stage(void)
     enemy_stage_reset();
     bonus_stage_reset();
     combo = 0;
+    debris_clear();
     hud_reset();
     hud_draw();
     show_stage_msg();        /* 面を描き切ってから開始表示を出す */
@@ -179,6 +180,7 @@ static void draw_actors(void)
     }
     rock_draw();
     enemy_draw();
+    debris_draw();
     oam_flush();
 }
 
@@ -247,6 +249,9 @@ void main(void)
         spr_color_lines(SPR_BOMB, art_colours(PAT_BOMB));
         for (i = 0; i < ROCK_MAX; i++) {
             spr_color_lines((uint8_t)(SPR_ROCK + i), art_colours(PAT_ROCK));
+        }
+        for (i = 0; i < DEBRIS_MAX; i++) {
+            spr_color_lines((uint8_t)(SPR_DEBRIS + i), art_colours(PAT_CHIP));
         }
     }
 
@@ -358,6 +363,7 @@ void main(void)
             coal_shake_tick();
             popup_tick();
             cavein_flash_tick();
+            debris_tick();      /* 止めている間もかけらは動かす。吸い込まれる絵が要る */
             draw_actors();
             hud_draw();
             continue;
@@ -378,6 +384,7 @@ void main(void)
         coal_shake_tick();
         popup_tick();
         cavein_flash_tick();
+        debris_tick();
         bomb_update();
         rock_update();
         enemy_update();

@@ -243,7 +243,8 @@ extern uint8_t combo_t;       /* HUD に出しておく残り時間 */
 #define SPR_BOMB   1
 #define SPR_ROCK   2                        /* 面 2..5 */
 #define SPR_ENEMY  (SPR_ROCK + ROCK_MAX)    /* 面 6..9 */
-#define SPR_ACTIVE (SPR_ENEMY + ENEMY_MAX)  /* 実際に使う面の数。OAM 転送量を抑える */
+#define SPR_DEBRIS (SPR_ENEMY + ENEMY_MAX)  /* 石炭のかけら */
+#define SPR_ACTIVE (SPR_DEBRIS + DEBRIS_MAX) /* 実際に使う面の数。OAM 転送量を抑える */
 
 /* スプライトの絵番号 */
 #define PAT_MINER 0
@@ -274,6 +275,15 @@ extern uint8_t combo_t;       /* HUD に出しておく残り時間 */
 #define PAT_STU  22
 #define PAT_STL  23
 #define PAT_STR  24
+#define PAT_CHIP 25      /* 石炭のかけら。採った升から自機へ吸い寄せられる */
+/* かけらは「岩でも採掘できる」を絵で説明するためのもの。言葉にしにくい仕組みなので、
+   自機へ集まる動きで「いま手に入った」を伝える。 */
+#define DEBRIS_MAX     4
+#define DEBRIS_FRAMES 20
+void    debris_clear(void);
+void    debris_spawn(uint8_t cx, uint8_t cy);
+void    debris_tick(void);
+void    debris_draw(void);
 #define WALK_FRAMES 8    /* 歩きの絵を切り替えるフレーム数 */
 /* 向いている方向で自機の絵を選ぶ。moved=一度でも動いたか、swinging=振っている最中、
    bracing=溜めている、walk=歩きのコマ (0/1)。 */

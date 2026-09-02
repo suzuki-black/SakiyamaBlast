@@ -93,3 +93,10 @@ uint16_t kill_value(uint8_t n, uint8_t by_rock)
 /* --- 一括転送。ホストでは描かないので何もしない --- */
 uint16_t vdp_blklen;
 void vdp_wblock(const uint8_t *p) { (void)p; }
+
+/* --- 石炭のかけら。計測では絵を出さないので数えるだけ --- */
+uint16_t debris_n;
+void debris_clear(void) { }
+void debris_spawn(uint8_t cx, uint8_t cy) { (void)cx; (void)cy; debris_n++; }
+void debris_tick(void)  { }
+void debris_draw(void)  { }

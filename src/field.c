@@ -447,6 +447,7 @@ static void take_one(uint8_t cx, uint8_t cy)
     }
     score_add(pts);
     score_popup(cx, cy, pts);
+    debris_spawn(cx, cy);       /* かけらが自機へ集まる = 手に入ったことの説明 */
     snd_sfx_up(SFX_COAL, (uint8_t)((combo - 1) * 2));
     /* 連鎖が伸びるほど強く手応えを返す。**どれも VDP をほとんど使わない。** */
     {

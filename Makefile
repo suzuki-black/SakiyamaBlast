@@ -23,7 +23,7 @@ LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKD
 # 切り替えている最中なので、バンク側のコードは見えなくなる (vdp / lowlevel / msx は固定)。
 # それ以外は常に DATA_SEG が選ばれているので、コードを置いても同じ速度で動く。
 BANKED_SRC := $(SRCDIR)/art.c $(SRCDIR)/music.c \
-              $(SRCDIR)/hud.c $(SRCDIR)/config.c $(SRCDIR)/bonus.c
+              $(SRCDIR)/hud.c $(SRCDIR)/config.c $(SRCDIR)/bonus.c $(SRCDIR)/debris.c
 
 CSRC      := $(wildcard $(SRCDIR)/*.c)
 HEADERS   := $(wildcard $(SRCDIR)/*.h)
@@ -52,7 +52,7 @@ ART_SPR      := $(BUILDDIR)/sprites.h
 ART_TILE     := $(BUILDDIR)/tiles.h
 PAL_H        := $(BUILDDIR)/palette.h
 # 名前はカンマ区切りで**1行**に書く。行継続で折ると空白が入って別の引数になる。
-ART_SPR_NAMES  := miner,bomb,rock,rat,bat,split,stun1,stun2,stun3,brace,wd1,wd2,wu1,wu2,wl1,wl2,wr1,wr2,bru,brl,brr,std,stu,stl,str
+ART_SPR_NAMES  := miner,bomb,rock,rat,bat,split,stun1,stun2,stun3,brace,wd1,wd2,wu1,wu2,wl1,wl2,wr1,wr2,bru,brl,brr,std,stu,stl,str,chip
 ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar
 
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT
