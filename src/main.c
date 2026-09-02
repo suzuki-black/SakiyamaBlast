@@ -115,16 +115,34 @@ static void show_msg(const char *t, uint8_t n, uint8_t col)
     msg_c1 = (uint8_t)((x + (uint16_t)n * 16 - 1) >> 4);
 }
 
+/*
+ * 面の開始表示「第 n 階層 開始」。
+ * 漢字は自前の 16x16 (src/kanji.c)、数字は BIOS フォントの倍角で高さを合わせる。
+ * 全体を中央へ寄せるため、先に横幅を数えてから描く。
+ */
 static void show_stage_msg(void)
 {
-    uint8_t n = 0, i;
-    const char *a = "STAGE ";
-    const char *b = " START";
-    for (i = 0; a[i]; i++) { msg[n++] = a[i]; }
-    n = (uint8_t)(n + text_u8(&msg[n], stage));
-    for (i = 0; b[i]; i++) { msg[n++] = b[i]; }
-    msg[n] = 0;
-    show_msg(msg, n, COL_WHITE);
+    char num[4];
+    uint8_t nd = text_u8(num, stage);
+    uint16_t w, x;
+    uint16_t y = MSG_ROW * CELL;
+
+    num[nd] = 0;
+    w = (uint16_t)(16 * 5 + (uint16_t)nd * 16);   /* 漢字5文字 + 数字 (倍角=16px) */
+    x = (uint16_t)(((256 - w) >> 1) & 0xFFFE);
+
+    kanji_draw(x, y, KJ_DAI, COL_WHITE, COL_TUNNEL);
+    x += 16;
+    text_draw(x, (uint16_t)(y + 1), num, COL_FUSE, COL_TUNNEL, 2);
+    x += (uint16_t)nd * 16;
+    kanji_draw(x, y, KJ_KAI,  COL_WHITE, COL_TUNNEL); x += 16;
+    kanji_draw(x, y, KJ_SOU,  COL_WHITE, COL_TUNNEL); x += 16;
+    kanji_draw(x, y, KJ_HIRA, COL_WHITE, COL_TUNNEL); x += 16;
+    kanji_draw(x, y, KJ_SHI,  COL_WHITE, COL_TUNNEL); x += 16;
+
+    /* 消す範囲 (升単位)。show_msg と同じ約束。 */
+    msg_c0 = (uint8_t)((((256 - w) >> 1) & 0xFFFE) >> 4);
+    msg_c1 = (uint8_t)((x - 1) >> 4);
 }
 
 static void hide_stage_msg(void)

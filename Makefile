@@ -23,7 +23,7 @@ LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKD
 # 切り替えている最中なので、バンク側のコードは見えなくなる (vdp / lowlevel / msx は固定)。
 # それ以外は常に DATA_SEG が選ばれているので、コードを置いても同じ速度で動く。
 BANKED_SRC := $(SRCDIR)/art.c $(SRCDIR)/music.c \
-              $(SRCDIR)/hud.c $(SRCDIR)/config.c $(SRCDIR)/bonus.c $(SRCDIR)/debris.c
+              $(SRCDIR)/hud.c $(SRCDIR)/config.c $(SRCDIR)/bonus.c $(SRCDIR)/debris.c $(SRCDIR)/kanji.c
 
 CSRC      := $(wildcard $(SRCDIR)/*.c)
 HEADERS   := $(wildcard $(SRCDIR)/*.h)

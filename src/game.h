@@ -363,6 +363,14 @@ void    field_shake(uint8_t frames);   /* 画面を揺らす (岩の着地など
    揺れ (R#18) は面を組み直しても戻らないので、明示的に中央へ戻す必要がある。 */
 void    field_fx_reset(void);
 void    popup_clear(void);
+/* 面の開始に出す漢字。BIOS フォントに漢字が無いので5文字だけ自前で持つ。 */
+#define KJ_DAI   0      /* 第 */
+#define KJ_KAI   1      /* 階 */
+#define KJ_SOU   2      /* 層 */
+#define KJ_HIRA  3      /* 開 */
+#define KJ_SHI   4      /* 始 */
+extern const uint8_t kanji_bits[5][32];
+void    kanji_draw(uint16_t x, uint16_t y, uint8_t idx, uint8_t fg, uint8_t bg);
 /* 溜め中の汗。**スプライトではなく背景に描く。** 自機のスプライトは16x16が
    ほぼ埋まっていて1行1色なので汗を足す余地が無く、面を増やすと横一列8枚の
    制限に触れる。溜め中は必ず静止しているので、背景に描いて離したら消せる。 */
