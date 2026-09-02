@@ -112,11 +112,16 @@ void score_popup(uint8_t cx, uint8_t cy, uint16_t v)
     if (cx + ((n + 1) >> 1) >= COLS) {
         cx = (uint8_t)(COLS - ((n + 1) >> 1) - 1);
     }
+    /* **1つ上の升へ出す。** 採った升そのものに出すと、採掘の閃き (白 -> 水色 ->
+       描き直し) が同じ升を塗り直すので、0.15秒で消えてしまう。上へ浮かせれば
+       閃きと重ならず、1秒ぶんちゃんと見える。 */
     pop_c = cx;
-    pop_r = cy;
+    pop_r = (uint8_t)(cy ? (cy - 1) : (cy + 1));
     pop_t = POPUP_FRAMES;
     /* 大きい点数は倍角で出す。連鎖が伸びたことが数字の大きさでも分かる。 */
-    text_draw((uint16_t)((uint16_t)cx << 4), (uint16_t)(((uint16_t)cy << 4) + 4),
+    /* **描く位置も pop_r。** 消す位置だけ上へずらして描画を元のままにすると、
+       採掘の閃きに塗り潰されて 0.15秒で消える (実際にそうなっていた)。 */
+    text_draw((uint16_t)((uint16_t)pop_c << 4), (uint16_t)(((uint16_t)pop_r << 4) + 4),
               pop_s, COL_WHITE, COL_TUNNEL, (uint8_t)(v >= 800 ? 2 : 1));
 }
 

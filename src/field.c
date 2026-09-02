@@ -466,7 +466,6 @@ static void take_one(uint8_t cx, uint8_t cy)
         pts = CHAIN_PTS_MAX;
     }
     score_add(pts);
-    score_popup(cx, cy, pts);
     debris_spawn(cx, cy);       /* かけらが自機へ集まる = 手に入ったことの説明 */
     snd_sfx_up(SFX_COAL, (uint8_t)((combo - 1) * 2));
     /* 連鎖が伸びるほど強く手応えを返す。**どれも VDP をほとんど使わない。** */
@@ -492,6 +491,9 @@ static void take_one(uint8_t cx, uint8_t cy)
     }
     get_t = COAL_GET_FRAMES;
     vdp_fill((uint16_t)((uint16_t)cx << 4), (uint16_t)((uint16_t)cy << 4), 16, 16, COL_WHITE);
+    /* **点数も描き直しのあとに出す。** 先に出すと、直後の field_redraw_cell に
+       塗り潰されて一度も見えない (実際そうなっていた)。 */
+    score_popup(cx, cy, pts);
 }
 
 /* 入った升から、繋がっている割れた黒ダイヤをすべて同時に採る。
