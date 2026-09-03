@@ -230,6 +230,43 @@ void enemy_stun_all(uint8_t power)
     }
 }
 
+/*
+ * 岩に押された敵を1升ぶん後ろへ下がらせる。doit=0 なら下がれるかを見るだけ。
+ *
+ * **Mr. Do! では、リンゴを押し始めるとモンスターが後ずさりする。横押しでは潰れない。**
+ * 潰せるのは落ちてきた岩だけ。押しは「岩を運ぶ」ためだけの操作にしてある。
+ * 下がる先が無ければ 0 を返し、岩はそこで止まる (敵が壁の役をする)。
+ */
+uint8_t enemy_shove(int8_t cx, int8_t cy, int8_t dx, uint8_t doit)
+{
+    uint8_t i;
+    int8_t nx = (int8_t)(cx + dx);
+    for (i = 0; i < ENEMY_MAX; i++) {
+        if (!en_state[i] || en_ghost[i]) {
+            continue;                    /* 土の中の敵は岩に押されない */
+        }
+        if (!hits_cell(i, cx, cy)) {
+            continue;
+        }
+        if (nx < 0 || nx >= COLS) {
+            return 0;
+        }
+        if (cell_coal(nx, cy) || rock_at(nx, cy) >= 0) {
+            return 0;
+        }
+        if (!cell_dug(nx, cy)) {
+            return 0;                    /* 敵は土の中へは下がれない (自分では掘らない) */
+        }
+        if (doit) {
+            en_x[i] = (uint8_t)((uint8_t)nx << 4);
+            en_y[i] = (uint8_t)((uint8_t)cy << 4);
+            en_dir[i] = (uint8_t)((dx < 0) ? DIR_LEFT : DIR_RIGHT);
+            en_acc[i] = 0;
+        }
+    }
+    return 1;
+}
+
 uint8_t enemy_stun_at(int8_t cx, int8_t cy, int8_t dx, int8_t dy, uint8_t power)
 {
     uint8_t i, k;
@@ -322,8 +359,8 @@ static uint8_t can_go(uint8_t i, uint8_t d)
     }
     ri = rock_at(cx, cy);
     if (ri >= 0) {
-        if (d == DIR_LEFT)  { return rock_can_push(ri, -1); }
-        if (d == DIR_RIGHT) { return rock_can_push(ri, 1); }
+        if (d == DIR_LEFT)  { return rock_can_push(ri, -1, 0); }
+        if (d == DIR_RIGHT) { return rock_can_push(ri, 1, 0); }
         return 0;                        /* 縦には押せない = 岩を避ける */
     }
     if (!cell_dug(cx, cy)) {
@@ -507,9 +544,9 @@ static void enemy_step(uint8_t i)
         if (ri >= 0) {
             /* 岩を横へ押す。押せなければこのフレームは動かない。 */
             if (en_dir[i] == DIR_LEFT) {
-                if (!rock_push(ri, -1)) { return; }
+                if (!rock_push(ri, -1, 0)) { return; }
             } else if (en_dir[i] == DIR_RIGHT) {
-                if (!rock_push(ri, 1)) { return; }
+                if (!rock_push(ri, 1, 0)) { return; }
             } else {
                 return;
             }
@@ -535,6 +572,13 @@ static void enemy_step(uint8_t i)
 
 /* 透明ですり抜けている間: 自機へ向かって斜めに直進し、トンネルに入ったら実体化する。
    土もダイヤも岩も素通りする。倒せないかわりに動きは遅い (Dig Dug 準拠)。 */
+/* 透明化中の敵がいま岩の升に重なっているか。 */
+static uint8_t ghost_blocked(uint8_t i)
+{
+    return (uint8_t)(rock_at((int8_t)((en_x[i] + 8) >> 4),
+                             (int8_t)((en_y[i] + 8) >> 4)) >= 0);
+}
+
 static void ghost_step(uint8_t i)
 {
     uint8_t c, r;
@@ -545,10 +589,17 @@ static void ghost_step(uint8_t i)
     }
     en_acc[i] = (uint8_t)(en_acc[i] - SPD_UNIT);
 
-    if (en_x[i] < px)      { if (en_x[i] < (uint8_t)XMAX) { en_x[i]++; } }
-    else if (en_x[i] > px) { if (en_x[i]) { en_x[i]--; } }
-    if (en_y[i] < py)      { if (en_y[i] < (uint8_t)YMAX) { en_y[i]++; } }
-    else if (en_y[i] > py) { if (en_y[i]) { en_y[i]--; } }
+    /* **岩は土の中でも岩なので、透明化していても通り抜けられない。**
+       軸ごとに戻すので、塞がれていない側へは回り込める。 */
+    {
+        uint8_t ox = en_x[i], oy = en_y[i];
+        if (en_x[i] < px)      { if (en_x[i] < (uint8_t)XMAX) { en_x[i]++; } }
+        else if (en_x[i] > px) { if (en_x[i]) { en_x[i]--; } }
+        if (ghost_blocked(i)) { en_x[i] = ox; }
+        if (en_y[i] < py)      { if (en_y[i] < (uint8_t)YMAX) { en_y[i]++; } }
+        else if (en_y[i] > py) { if (en_y[i]) { en_y[i]--; } }
+        if (ghost_blocked(i)) { en_y[i] = oy; }
+    }
 
     c = (uint8_t)((en_x[i] + 8) >> 4);
     r = (uint8_t)((en_y[i] + 8) >> 4);

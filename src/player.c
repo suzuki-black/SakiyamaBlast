@@ -378,10 +378,10 @@ static uint8_t blocked_ahead(void)
         return 0;
     }
     if (cdir == DIR_LEFT) {
-        return (uint8_t)(rock_push(i, -1) ? 0 : 1);
+        return (uint8_t)(rock_push(i, -1, 1) ? 0 : 1);   /* 自機は土の中へも押し込める */
     }
     if (cdir == DIR_RIGHT) {
-        return (uint8_t)(rock_push(i, 1) ? 0 : 1);
+        return (uint8_t)(rock_push(i, 1, 1) ? 0 : 1);
     }
     return 1;
 }

@@ -423,8 +423,8 @@ extern uint8_t rock_x[ROCK_MAX], rock_y[ROCK_MAX];
 void    rock_clear(void);
 void    rock_place(uint8_t c, uint8_t r);
 int8_t  rock_at(int8_t cx, int8_t cy);          /* そのセルの岩の番号 / 無ければ -1 */
-uint8_t rock_can_push(int8_t i, int8_t dx);    /* 押せるか調べるだけ */
-uint8_t rock_push(int8_t i, int8_t dx);         /* 1=押せた 0=押せない */
+uint8_t rock_can_push(int8_t i, int8_t dx, uint8_t into_dirt);    /* 押せるか調べるだけ */
+uint8_t rock_push(int8_t i, int8_t dx, uint8_t into_dirt);   /* 1=押せた 0=押せない */
 uint8_t rock_crush_check(uint8_t cx, uint8_t cy);
 void    rock_destroy_at(int8_t cx, int8_t cy);  /* 爆風で吹き飛ばす */
 void    rock_update(void);
@@ -454,6 +454,8 @@ extern uint8_t  en_stun[ENEMY_MAX];    /* 0 = 通常 / 1..STUN_MAX = よろけ (
 uint8_t enemy_stun_at(int8_t cx, int8_t cy, int8_t dx, int8_t dy, uint8_t power);
 /* 落盤。盤面の敵をまとめてよろけさせる (位置合わせが要らないので命中率が上がる)。 */
 void    enemy_stun_all(uint8_t power);
+/* 岩に押された敵を1升下がらせる。doit=0 なら可否を見るだけ。1=下がれる 0=下がれない */
+uint8_t enemy_shove(int8_t cx, int8_t cy, int8_t dx, uint8_t doit);
 uint8_t enemy_kill_at(int8_t cx, int8_t cy, uint8_t by_rock);  /* 倒した数を返す */
 uint8_t enemy_at(int8_t cx, int8_t cy);        /* その升に敵が居るか (投げたダイナマイトの判定) */
 

@@ -104,7 +104,10 @@ static uint8_t supported(uint8_t i)
     return rock_solid_at(c, (int8_t)(r + 1));
 }
 
-uint8_t rock_can_push(int8_t i, int8_t dx)
+/* into_dirt=1 のときだけ土の中へ押し込める。**これを許すのは自機だけ。**
+   敵にも許すと、敵が岩を土の中へ好き勝手に押し出してしまい、
+   「自分で岩の X 座標を決めて連鎖を組む」という遊びが成立しなくなる。 */
+uint8_t rock_can_push(int8_t i, int8_t dx, uint8_t into_dirt)
 {
     int8_t c, r, nc;
     if (i < 0 || rock_state[i] == ROCK_NONE || rock_state[i] == ROCK_FALL) {
@@ -116,39 +119,42 @@ uint8_t rock_can_push(int8_t i, int8_t dx)
     if (nc < 0 || nc >= COLS) {
         return 0;                       /* 場外へは押せない */
     }
-    if (!cell_dug(nc, r)) {
-        return 0;                       /* 土へは押し込めない (Mr. Do! 準拠) */
+    /* **土の中へも押し込める (Mr. Do! 準拠)。** 押し込んだ先は土のまま残り、
+       岩が退いた升は自機が入って掘る。これで岩の X 座標を好きな位置へ運べる。 */
+    if (cell_coal(nc, r)) {
+        return 0;                       /* 黒ダイヤ・炭柱は押しのけられない */
+    }
+    if (!into_dirt && !cell_dug(nc, r)) {
+        return 0;                       /* 敵は坑道の中でしか岩を動かせない */
     }
     if (rock_at(nc, r) >= 0) {
         return 0;                       /* 別の岩があれば押せない */
     }
-    return 1;
+    if (bath_on && (int8_t)bath_c == nc && (int8_t)bath_r == r) {
+        return 0;                       /* 水風呂は押し潰さない (落ちてきた岩だけが壊す) */
+    }
+    if ((int8_t)player_cell_c() == nc && (int8_t)player_cell_r() == r) {
+        return 0;                       /* 敵が押してきても、横押しでは潰されない */
+    }
+    return enemy_shove(nc, r, dx, 0);   /* 敵が居たら下がらせる。下がれなければ押せない */
 }
 
-uint8_t rock_push(int8_t i, int8_t dx)
+uint8_t rock_push(int8_t i, int8_t dx, uint8_t into_dirt)
 {
     int8_t c, r, nc;
-    if (!rock_can_push(i, dx)) {
+    if (!rock_can_push(i, dx, into_dirt)) {
         return 0;
     }
     c = (int8_t)(rock_x[i] >> 4);
     r = (int8_t)(rock_y[i] >> 4);
     nc = (int8_t)(c + dx);
+    /* **横押しでは何も潰れない (Mr. Do! 準拠)。** 敵は後ろへ下がる。
+       潰せるのは落ちてきた岩だけで、押しは「岩を運ぶ」ためだけの操作。
+       運んだ先で落とせば連鎖が伸びる、という組み立てにする。 */
+    enemy_shove(nc, r, dx, 1);
     rock_x[i] = (uint8_t)((uint8_t)nc << 4);
     rock_state[i] = ROCK_WAIT;          /* 支えの有無は次の更新で見る */
     jig_t[i] = 0;
-    /* 横へ押し込んだ先に居るものは潰れる。落とさなくても岩を武器にできるので、
-       ダイナマイトを温存できる。押した岩は割れずに残る (何度でも押して使える)。 */
-    {
-        uint8_t killed = enemy_kill_at(nc, r, DROP_BY_ROCK);
-        if (killed) {
-            score_kills(killed, 1);
-        }
-    }
-    if (!invuln && !dead
-        && (int8_t)player_cell_c() == nc && (int8_t)player_cell_r() == r) {
-        dead = 1;                       /* 敵が押した岩に潰されることもある */
-    }
     return 1;
 }
 
