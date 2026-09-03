@@ -60,6 +60,38 @@ void rock_place(uint8_t c, uint8_t r)
     }
 }
 
+/* **岩は横にドット単位で動く。** だから升は中心で決める。半分を越えた時点で
+   次の升の住人になり、支えの判定もそこで切り替わる
+   (Mr. Do! の「縁からせり出しても、越えるまでは落ちない」がこれで出る)。 */
+static int8_t rcx(uint8_t i)
+{
+    return (int8_t)(((uint16_t)rock_x[i] + 8) >> 4);
+}
+
+/* (x,y) に居るものが dx の向きへ進むとき、押すことになる岩。
+   升ではなくドットで見る。**升で見ると、岩が升の半分を越えた瞬間に
+   見失って押し手だけが進み、めり込む。** */
+int8_t rock_ahead_of(uint8_t x, uint8_t y, int8_t dx)
+{
+    uint8_t i;
+    int8_t r = (int8_t)(y >> 4);
+    for (i = 0; i < ROCK_MAX; i++) {
+        if (rock_state[i] != ROCK_WAIT && rock_state[i] != ROCK_JIG) {
+            continue;
+        }
+        if ((int8_t)(rock_y[i] >> 4) != r) {
+            continue;
+        }
+        if (dx > 0 && rock_x[i] > x && (uint8_t)(rock_x[i] - x) <= 16) {
+            return (int8_t)i;
+        }
+        if (dx < 0 && rock_x[i] < x && (uint8_t)(x - rock_x[i]) <= 16) {
+            return (int8_t)i;
+        }
+    }
+    return -1;
+}
+
 int8_t rock_at(int8_t cx, int8_t cy)
 {
     uint8_t i;
@@ -68,7 +100,7 @@ int8_t rock_at(int8_t cx, int8_t cy)
     }
     for (i = 0; i < ROCK_MAX; i++) {
         if (rock_state[i] != ROCK_NONE && rock_state[i] != ROCK_SPLIT) {
-            if ((int8_t)(rock_x[i] >> 4) == cx && (int8_t)(rock_y[i] >> 4) == cy) {
+            if (rcx(i) == cx && (int8_t)(rock_y[i] >> 4) == cy) {
                 return (int8_t)i;
             }
         }
@@ -90,7 +122,7 @@ static uint8_t rock_solid_at(int8_t cx, int8_t cy)
    **真下の升目に自機が居る場合も支え**とする (Dig Dug 準拠)。 */
 static uint8_t supported(uint8_t i)
 {
-    int8_t c = (int8_t)(rock_x[i] >> 4);
+    int8_t c = rcx(i);
     int8_t r = (int8_t)(rock_y[i] >> 4);
     if (r + 1 >= ROWS) {
         return 1;
@@ -113,7 +145,7 @@ uint8_t rock_can_push(int8_t i, int8_t dx, uint8_t into_dirt)
     if (i < 0 || rock_state[i] == ROCK_NONE || rock_state[i] == ROCK_FALL) {
         return 0;
     }
-    c = (int8_t)(rock_x[i] >> 4);
+    c = rcx(i);
     r = (int8_t)(rock_y[i] >> 4);
     nc = (int8_t)(c + dx);
     if (nc < 0 || nc >= COLS) {
@@ -141,18 +173,19 @@ uint8_t rock_can_push(int8_t i, int8_t dx, uint8_t into_dirt)
 
 uint8_t rock_push(int8_t i, int8_t dx, uint8_t into_dirt)
 {
-    int8_t c, r, nc;
+    int8_t r, nc;
     if (!rock_can_push(i, dx, into_dirt)) {
         return 0;
     }
-    c = (int8_t)(rock_x[i] >> 4);
     r = (int8_t)(rock_y[i] >> 4);
-    nc = (int8_t)(c + dx);
+    nc = (int8_t)(rcx(i) + dx);
     /* **横押しでは何も潰れない (Mr. Do! 準拠)。** 敵は後ろへ下がる。
        潰せるのは落ちてきた岩だけで、押しは「岩を運ぶ」ためだけの操作。
-       運んだ先で落とせば連鎖が伸びる、という組み立てにする。 */
+       敵はもう nc に居なくなるので、毎ドット呼んでも二重には効かない。 */
     enemy_shove(nc, r, dx, 1);
-    rock_x[i] = (uint8_t)((uint8_t)nc << 4);
+    /* **1ドットだけ動かす。** 押し手 (自機・敵) が1ドット進むたびに呼ばれるので、
+       升単位で瞬間移動せず、押し手と同じ速さで並んで動く。 */
+    rock_x[i] = (uint8_t)((uint8_t)rock_x[i] + (uint8_t)dx);
     rock_state[i] = ROCK_WAIT;          /* 支えの有無は次の更新で見る */
     jig_t[i] = 0;
     return 1;
@@ -217,11 +250,11 @@ static void rock_fall_step(uint8_t i)
     }
     /* 落下中の岩は縦一列の敵をまとめて潰す (Mr. Do! 準拠) */
     {
-        uint8_t killed = enemy_kill_at((int8_t)(rock_x[i] >> 4),
+        uint8_t killed = enemy_kill_at(rcx(i),
                                        (int8_t)((rock_y[i] + 8) >> 4), DROP_BY_ROCK);
         if (killed) {
             if (!kills[i]) {                     /* 得点は最初に潰した升へ出す */
-                kill_c[i] = (uint8_t)(rock_x[i] >> 4);
+                kill_c[i] = (uint8_t)rcx(i);
                 kill_r[i] = (uint8_t)((rock_y[i] + 8) >> 4);
             }
             crushed[i] = 1;
@@ -232,7 +265,7 @@ static void rock_fall_step(uint8_t i)
     if (rock_y[i] & 15) {
         return;                         /* セル境界でだけ着地判定 */
     }
-    c = (int8_t)(rock_x[i] >> 4);
+    c = rcx(i);
     r = (int8_t)(rock_y[i] >> 4);
     link_smash((uint8_t)c, (uint8_t)r); /* 通り抜けた升の間の膜を割る */
     bath_destroy_at(c, r);              /* 落ちてきた岩は風呂を壊す */
@@ -300,7 +333,7 @@ void rock_collapse(uint8_t blocks)
             rock_break(i);              /* 一番下。落ちる先が無いので消える */
             continue;
         }
-        c = (uint8_t)(rock_x[i] >> 4);
+        c = (uint8_t)rcx(i);
         if (cell_coal((int8_t)c, (int8_t)(r + 1))) {
             /* **岩が載っている黒ダイヤを割る。** 支えを失うので普通に落ちる。
                沈み込みではないので、落ちた距離で普通に割れ判定される。 */
@@ -363,6 +396,9 @@ void rock_update(void)
         } else {
             jig_t[i]--;
             if (jig_t[i] == 0) {
+                /* 落ちる瞬間に升へ寄せる。落下中の判定はすべて升前提なので、
+                   せり出したまま落とすと着地判定が合わなくなる。 */
+                rock_x[i] = (uint8_t)((uint8_t)rcx(i) << 4);
                 rock_state[i] = ROCK_FALL;
                 fall_r0[i] = (uint8_t)(rock_y[i] >> 4);
                 crushed[i] = 0;

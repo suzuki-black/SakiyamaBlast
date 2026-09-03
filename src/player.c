@@ -357,6 +357,17 @@ static void update_chewing(void)
     chewing = cell_dug(cx, cy) ? 0 : 1;
 }
 
+/* 目の前に岩があれば1ドットだけ一緒に動かす。動かせなければ自機も進まない。
+   **自機と同じ速さで並んで動く**ので、押している間だけ岩が自機に付いてくる。 */
+static uint8_t push_step(int8_t dx)
+{
+    int8_t i = rock_ahead_of(px, py, dx);
+    if (i < 0) {
+        return 1;
+    }
+    return rock_push(i, dx, 1);         /* 自機は土の中へも押し込める */
+}
+
 /* 進行先セルが通れないか。ダイヤモンドブロックは掘れも通れもしない。
    岩は横向きなら押しを試み、押せなければ止まる。縦向きには押せない (Mr. Do! 準拠)。 */
 static uint8_t blocked_ahead(void)
@@ -377,11 +388,13 @@ static uint8_t blocked_ahead(void)
     if (i < 0) {
         return 0;
     }
+    /* **ここでは押さない。可否を見るだけ。** 実際の押しは1ドット進むたびに
+       push_step() が行う。ここで升ごと動かすと岩が瞬間移動してしまう。 */
     if (cdir == DIR_LEFT) {
-        return (uint8_t)(rock_push(i, -1, 1) ? 0 : 1);   /* 自機は土の中へも押し込める */
+        return (uint8_t)(rock_can_push(i, -1, 1) ? 0 : 1);
     }
     if (cdir == DIR_RIGHT) {
-        return (uint8_t)(rock_push(i, 1, 1) ? 0 : 1);
+        return (uint8_t)(rock_can_push(i, 1, 1) ? 0 : 1);
     }
     return 1;
 }
@@ -561,9 +574,11 @@ void player_update(void)
         if (py < YMAX) { py++; }
         break;
     case DIR_LEFT:
+        if (!push_step(-1)) { return; }
         if (px) { px--; }
         break;
     default:
+        if (!push_step(1)) { return; }
         if (px < XMAX) { px++; }
         break;
     }

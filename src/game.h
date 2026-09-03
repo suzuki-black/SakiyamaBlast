@@ -424,7 +424,9 @@ void    rock_clear(void);
 void    rock_place(uint8_t c, uint8_t r);
 int8_t  rock_at(int8_t cx, int8_t cy);          /* そのセルの岩の番号 / 無ければ -1 */
 uint8_t rock_can_push(int8_t i, int8_t dx, uint8_t into_dirt);    /* 押せるか調べるだけ */
-uint8_t rock_push(int8_t i, int8_t dx, uint8_t into_dirt);   /* 1=押せた 0=押せない */
+uint8_t rock_push(int8_t i, int8_t dx, uint8_t into_dirt);   /* 1ドットだけ動かす。1=押せた */
+/* (x,y) の者が dx へ進むとき押すことになる岩。無ければ -1。升ではなくドットで見る。 */
+int8_t  rock_ahead_of(uint8_t x, uint8_t y, int8_t dx);
 uint8_t rock_crush_check(uint8_t cx, uint8_t cy);
 void    rock_destroy_at(int8_t cx, int8_t cy);  /* 爆風で吹き飛ばす */
 void    rock_update(void);

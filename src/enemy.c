@@ -541,17 +541,10 @@ static void enemy_step(uint8_t i)
             return;
         }
         ri = rock_at(cx, cy);
-        if (ri >= 0) {
-            /* 岩を横へ押す。押せなければこのフレームは動かない。 */
-            if (en_dir[i] == DIR_LEFT) {
-                if (!rock_push(ri, -1, 0)) { return; }
-            } else if (en_dir[i] == DIR_RIGHT) {
-                if (!rock_push(ri, 1, 0)) { return; }
-            } else {
-                return;
-            }
+        if (ri >= 0 && en_dir[i] != DIR_LEFT && en_dir[i] != DIR_RIGHT) {
+            return;                      /* 縦には押せない */
         }
-        if (!cell_dug(cx, cy)) {
+        if (!cell_dug(cx, cy) && ri < 0) {
             return;                      /* 敵は掘れない。坑道の中だけを歩く。 */
         }
     }
@@ -561,6 +554,15 @@ static void enemy_step(uint8_t i)
         return;
     }
     en_acc[i] = (uint8_t)(en_acc[i] - SPD_UNIT);
+
+    /* 岩は1ドットずつ押す (自機と同じ)。押せなければこのフレームは動かない。 */
+    if (en_dir[i] == DIR_LEFT || en_dir[i] == DIR_RIGHT) {
+        int8_t d = (int8_t)((en_dir[i] == DIR_LEFT) ? -1 : 1);
+        int8_t ri2 = rock_ahead_of(en_x[i], en_y[i], d);
+        if (ri2 >= 0 && !rock_push(ri2, d, 0)) {
+            return;                      /* 敵は坑道の中でしか岩を動かせない */
+        }
+    }
 
     switch (en_dir[i]) {
     case DIR_UP:    if (en_y[i]) { en_y[i]--; } break;
