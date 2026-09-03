@@ -10,6 +10,12 @@
 
 static uint16_t cgtbl;
 
+/* **疑似ボールド。** 1ドット右へずらした自分自身を重ねて太らせる。
+   BIOS のフォントは 8x8 の**右2列を使っていない**（openMSX で 0-9 A-Z を吸い出して
+   確認済み）ので、右へずらしても隣の字とくっつかない。ROM に太字のフォントを持たずに
+   字面だけ重くできる。0 にすれば元の細い字に戻る。 */
+uint8_t text_bold = 1;
+
 void text_init(void)
 {
     cgtbl = *(volatile uint16_t *)0x0004;
@@ -29,6 +35,9 @@ void text_draw(uint16_t x, uint16_t y, const char *s,
             while (*p) {
                 const uint8_t *g = (const uint8_t *)(cgtbl + ((uint16_t)(uint8_t)*p << 3));
                 uint8_t bits = g[row];
+                if (text_bold) {
+                    bits = (uint8_t)(bits | (uint8_t)(bits >> 1));
+                }
                 if (scale == 2) {
                     for (j = 0; j < 8; j++) {
                         uint8_t c = (uint8_t)((bits & (0x80 >> j)) ? fg : bg);
