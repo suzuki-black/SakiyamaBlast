@@ -13,7 +13,7 @@ ROOT = __file__.rsplit('/tools/', 1)[0]
 MK = ROOT + '/tools/mkkanji.py'
 
 
-def to_grid(path, thresh, cover, badge, square, pad):
+def to_grid(path, thresh, cover, badge, square, pad, align, shift):
     im = Image.open(path).convert('L')
     w, h = im.size
     px = im.load()
@@ -40,20 +40,22 @@ def to_grid(path, thresh, cover, badge, square, pad):
     x0, x1, y0, y1 = xs[0], xs[-1] + 1, ys[0], ys[-1] + 1
 
     cw, ch = x1 - x0, y1 - y0
-    if square and cw and ch and not 0.8 < cw / float(ch) < 1.25:
-        print('警告: 字のある範囲が %dx%d で正方形から外れている。'
-              '字面いっぱいに描かれていない字 (一 二 十 など) は、'
-              'この道具では余白の取り方まで復元できない。'
-              '--no-square と --pad で合わせるか、手で直すこと。'
-              % (cw, ch), file=sys.stderr)
-
-    if square:  # 漢字の字面は正方形前提。短い側を中心に広げる
-        if cw > ch:
-            d = cw - ch
-            y0 -= d // 2; y1 += d - d // 2
-        elif ch > cw:
-            d = ch - cw
-            x0 -= d // 2; x1 += d - d // 2
+    if square:
+        # マスは正方形。広いほうの辺から一辺 (16分の1) を決め、
+        # 狭いほうは --align で寄せる。縦横で別々に伸ばすと字が歪む。
+        p16 = max(cw, ch)
+        if cw < p16:
+            d = p16 - cw
+            x0 -= d if align == 'end' else (d // 2 if align == 'center' else 0)
+        if ch < p16:
+            d = p16 - ch
+            y0 -= d if align == 'end' else (d // 2 if align == 'center' else 0)
+        x1, y1 = x0 + p16, y0 + p16
+        if abs(cw - ch) > p16 / 12.0:
+            print('警告: 字のある範囲が %dx%d で正方形から外れている。'
+                  '狭いほうを --align start|center|end で寄せた (いまは %s)。'
+                  '見て合わなければ他の寄せ方も試すこと。' % (cw, ch, align),
+                  file=sys.stderr)
 
     if pad:  # 余白ぶん外へ広げる (セル数で指定)
         s = (x1 - x0) / 16.0 * pad
@@ -75,6 +77,15 @@ def to_grid(path, thresh, cover, badge, square, pad):
                         n += 1
             line += '#' if tot and n / tot >= cover else '.'
         rows.append(line)
+
+    if shift:                      # マス単位でずらす (寄せの微調整)
+        dx, dy = shift
+        blank = '.' * 16
+        rows = ([blank] * dy + rows)[:16] if dy > 0 else (rows[-dy:] + [blank] * -dy)
+        if dx > 0:
+            rows = [(('.' * dx) + r)[:16] for r in rows]
+        elif dx < 0:
+            rows = [(r[-dx:] + '.' * -dx) for r in rows]
     return rows
 
 
@@ -97,12 +108,18 @@ def main():
     p.add_argument('--cover', type=float, default=0.5, help='マスを塗る占有率 (0-1)')
     p.add_argument('--badge', type=float, default=0.45,
                    help='右上のこの幅を無視する (0 で無効)')
-    p.add_argument('--no-square', dest='square', action='store_false')
+    p.add_argument('--no-square', dest='square', action='store_false',
+                   help='縦横を別々に伸ばして枠いっぱいにする（字は歪む）')
+    p.add_argument('--align', default='center', choices=['start', 'center', 'end'],
+                   help='正方形にするとき狭い側をどこへ寄せるか')
     p.add_argument('--pad', type=float, default=0.0, help='外へ広げる余白 (マス)')
+    p.add_argument('--shift', default='0,0',
+                   help='結果をマス単位でずらす (例: 0,1 で1マス下へ)')
     p.add_argument('--patch', action='store_true', help='mkkanji.py を書き換える')
     a = p.parse_args()
 
-    rows = to_grid(a.png, a.thresh, a.cover, a.badge, a.square, a.pad)
+    rows = to_grid(a.png, a.thresh, a.cover, a.badge, a.square, a.pad, a.align,
+                   tuple(int(v) for v in a.shift.split(',')))
     for r in rows:
         print(r.replace('#', '██').replace('.', '  '))
     print()
