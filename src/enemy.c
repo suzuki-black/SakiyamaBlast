@@ -43,6 +43,13 @@ void rnd_seed(uint16_t s)
     rnd_state = s ? s : 0xACE1;
 }
 
+/* いまの乱数の状態。面の配置を組むあいだだけ種を差し替えて、
+   終わったら元へ戻すために使う (build_stage を参照)。 */
+uint16_t rnd_get(void)
+{
+    return rnd_state;
+}
+
 uint8_t rnd8(void)
 {
     rnd_state ^= (uint16_t)(rnd_state << 7);

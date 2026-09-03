@@ -199,6 +199,9 @@ static uint8_t scored_stock;
 
 static void new_game(void)
 {
+    /* **これは面の配置には効かない。** 配置は面番号だけで決まる (build_stage)。
+       ここで撒くのは遊んでいる最中の揺らぎ (敵の 1/16 の気まぐれ、ボーナスの抽選) で、
+       同じ面でも敵の動きまで完全に同じにはならないようにするため。 */
     rnd_seed((uint16_t)((uint16_t)JIFFY << 8 | (uint16_t)JIFFY));
     lives = cfg_lives;
     stage = cfg_start_stage;

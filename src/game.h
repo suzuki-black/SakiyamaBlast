@@ -448,6 +448,7 @@ extern uint16_t en_rest[ENEMY_MAX];  /* 倒された敵が洞窟にこもる残�
 
 uint8_t rnd8(void);
 void    rnd_seed(uint16_t s);
+uint16_t rnd_get(void);          /* いまの乱数の状態 */
 void    enemy_clear(void);
 void    enemy_stage_reset(void);      /* 面開始時に出現数と湧きタイマを仕込む */
 void    enemy_update(void);

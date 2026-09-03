@@ -1387,7 +1387,20 @@ void build_stage(void)
         cell_link[i] = 0;
     }
     rock_clear();
-    set_stage_layout();
+
+    /* **面の配置は面番号だけで決まる。毎回同じ盤面になる。**
+       以前は起動時のタイマーを種にしていたので、同じ面でも遊ぶたびに黒ダイヤも岩も
+       炭柱も並びが変わり、**覚えて組み立てるという遊びが成立しなかった**
+       (作者の指摘「毎回変わったら戦略性もくそもない」)。
+       配置を組むあいだだけ種を差し替え、終わったら元へ戻す。**戻すのが要点で**、
+       戻さないと敵の揺らぎやボーナスの抽選まで固定され、
+       ツール側 (tools/hostsim の --seed) も効かなくなる。 */
+    {
+        uint16_t keep = rnd_get();
+        rnd_seed((uint16_t)(0x9E37u * (uint16_t)stage + 0x1234u));
+        set_stage_layout();
+        rnd_seed(keep);
+    }
 
     dug_n = 0;
     for (i = 0; i < NCELL; i++) {
