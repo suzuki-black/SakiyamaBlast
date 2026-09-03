@@ -21,6 +21,7 @@ uint8_t rock_state[ROCK_MAX];
 uint8_t rock_x[ROCK_MAX], rock_y[ROCK_MAX];
 
 static uint8_t jig_t[ROCK_MAX];     /* 揺れの残りフレーム */
+static uint8_t pushed[ROCK_MAX];    /* 押されて動いた直後か。揺れの長さを変える */
 static uint8_t fall_r0[ROCK_MAX];   /* 落下を開始した行 (落下距離で割れ判定) */
 static uint8_t crushed[ROCK_MAX];   /* 落下中に何かを潰したか */
 /* 1回の落下で潰した敵の数。**升ごとに1体ずつ計上すると、縦一列をまとめて
@@ -52,6 +53,7 @@ void rock_place(uint8_t c, uint8_t r)
             rock_y[i] = (uint8_t)(r << 4);
             rock_state[i] = ROCK_WAIT;
             jig_t[i] = 0;
+            pushed[i] = 0;
             crushed[i] = 0;
             sink_to[i] = 0xFF;
             spr_color_lines((uint8_t)(SPR_ROCK + i), art_colours(PAT_ROCK));
@@ -162,9 +164,6 @@ uint8_t rock_can_push(int8_t i, int8_t dx, uint8_t into_dirt)
     if (rock_at(nc, r) >= 0) {
         return 0;                       /* 別の岩があれば押せない */
     }
-    if (bath_on && (int8_t)bath_c == nc && (int8_t)bath_r == r) {
-        return 0;                       /* 水風呂は押し潰さない (落ちてきた岩だけが壊す) */
-    }
     if ((int8_t)player_cell_c() == nc && (int8_t)player_cell_r() == r) {
         return 0;                       /* 敵が押してきても、横押しでは潰されない */
     }
@@ -186,8 +185,11 @@ uint8_t rock_push(int8_t i, int8_t dx, uint8_t into_dirt)
     /* **1ドットだけ動かす。** 押し手 (自機・敵) が1ドット進むたびに呼ばれるので、
        升単位で瞬間移動せず、押し手と同じ速さで並んで動く。 */
     rock_x[i] = (uint8_t)((uint8_t)rock_x[i] + (uint8_t)dx);
-    rock_state[i] = ROCK_WAIT;          /* 支えの有無は次の更新で見る */
-    jig_t[i] = 0;
+    pushed[i] = 1;
+    /* **状態には触らない。** 1ドットごとに ROCK_WAIT へ戻して jig_t を 0 にすると、
+       押している間ずっと秒読みが振り出しに戻り、**支えの無い升の上を素通りして
+       落ちなくなる。** 支えの有無は rock_update() が毎フレーム見ているので、
+       縁を越えれば勝手に揺れ始めて落ちる (Mr. Do! の「押して落とす」がこれ)。 */
     return 1;
 }
 
@@ -391,11 +393,12 @@ void rock_update(void)
         if (supported(i) && sink_to[i] == 0xFF) {
             rock_state[i] = ROCK_WAIT;
             jig_t[i] = 0;
+            pushed[i] = 0;
             continue;
         }
         if (rock_state[i] != ROCK_JIG) {
             rock_state[i] = ROCK_JIG;
-            jig_t[i] = ROCK_JIG_FRAMES;
+            jig_t[i] = (uint8_t)(pushed[i] ? ROCK_JIG_PUSH : ROCK_JIG_FRAMES);
         } else {
             jig_t[i]--;
             if (jig_t[i] == 0) {
