@@ -167,17 +167,24 @@ static void spawn_tick(void)
  * 半分はみ出している敵をダイナマイトがすり抜けてしまう。16x16 同士の
  * 重なりで見て、4px 以上重なっていれば当たりとする。
  */
-static uint8_t hits_cell(uint8_t i, int8_t cx, int8_t cy)
+/* その升に重なっているか。**土の中に居るかは見ない。**
+   つるはしは土ごと叩くので、透明化している敵にも届く (Dig Dug 準拠)。 */
+static uint8_t near_cell(uint8_t i, int8_t cx, int8_t cy)
 {
-    int16_t dx, dy;
-    if (!en_state[i] || (en_ghost[i] && !cell_dug(cx, cy))) {
-        return 0;
-    }
-    dx = (int16_t)((int16_t)en_x[i] - ((int16_t)cx << 4));
-    dy = (int16_t)((int16_t)en_y[i] - ((int16_t)cy << 4));
+    int16_t dx = (int16_t)((int16_t)en_x[i] - ((int16_t)cx << 4));
+    int16_t dy = (int16_t)((int16_t)en_y[i] - ((int16_t)cy << 4));
     if (dx < 0) { dx = (int16_t)-dx; }
     if (dy < 0) { dy = (int16_t)-dy; }
     return (uint8_t)((dx < 12 && dy < 12) ? 1 : 0);
+}
+
+/* こちらは坑道の中だけ。飛んでいるダイナマイトの当たり判定に使う。 */
+static uint8_t hits_cell(uint8_t i, int8_t cx, int8_t cy)
+{
+    if (!en_state[i] || (en_ghost[i] && !cell_dug(cx, cy))) {
+        return 0;
+    }
+    return near_cell(i, cx, cy);
 }
 
 /* その升に敵が居るか。投げたダイナマイトが当たるかどうかの判定に使う。
@@ -275,10 +282,14 @@ uint8_t enemy_stun_at(int8_t cx, int8_t cy, int8_t dx, int8_t dy, uint8_t power)
 
     for (k = 0; k < PICK_REACH && best < 0; k++) {
         for (i = 0; i < ENEMY_MAX; i++) {
-            if (!en_state[i] || en_warm[i] || en_ghost[i]) {
+            /* **透明化している敵にも当たる (Dig Dug 準拠)。**
+               透明の間まで無敵だと、こちらは手も足も出ずにただ待つしかない。
+               つるはしは土ごと叩くもの、と考えれば筋も通る。
+               ダイナマイトは坑道の中しか飛ばないので、そちらは当たらないまま。 */
+            if (!en_state[i] || en_warm[i]) {
                 continue;
             }
-            if (!hits_cell(i, x, y)) {
+            if (!near_cell(i, x, y)) {
                 continue;
             }
             if (any < 0) {
@@ -726,7 +737,10 @@ void enemy_draw(void)
         /* 透明化中は色を抜く。よろけているときは潰れた絵に差し替え、
            白い帯の位置も体に合わせて下げる。**色そのものは変えない** —
            色は敵のアルゴリズムを表す情報なので、状態表示に使ってはいけない。 */
-        col = (uint8_t)(en_ghost[i] ? 0xFF : (uint8_t)(en_kind[i] + (en_stun[i] << 2)));
+        /* **よろけている間は透明でも実体の色で描く。** そうしないと、叩いた手応えが
+           画面に出ず「効いていない」と見える。潰れた姿 (PAT_STUN*) は元から出る。 */
+        col = (uint8_t)((en_ghost[i] && !en_stun[i])
+                        ? 0xFF : (uint8_t)(en_kind[i] + (en_stun[i] << 2)));
         if (col != en_col[i]) {
             en_col[i] = col;
             if (col == 0xFF) {
