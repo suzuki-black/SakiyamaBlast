@@ -13,7 +13,7 @@ BUILDDIR  := build
 CC        := sdcc
 AS        := sdasz80
 CFLAGS    := -mz80 --std-c99 --sdcccall 1 --opt-code-speed -I$(SRCDIR) -I$(BUILDDIR)
-LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKDATA=0xA000
+LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKDATA=0xA000 -Wl-b_RAMCODE=0xD000
 
 # 固定領域 (0x4000-0x9FFF) は 24KB しかない。絵と曲は**ただのデータ**なので、
 # 0xA000 の窓へリンクして ROM のセグメント3へ置き、固定領域を空ける。
@@ -23,8 +23,16 @@ LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKD
 # 切り替えている最中なので、バンク側のコードは見えなくなる (vdp / lowlevel / msx は固定)。
 # それ以外は常に DATA_SEG が選ばれているので、コードを置いても同じ速度で動く。
 BANKED_SRC := $(SRCDIR)/art.c $(SRCDIR)/music.c \
-              $(SRCDIR)/hud.c $(SRCDIR)/config.c $(SRCDIR)/bonus.c $(SRCDIR)/debris.c $(SRCDIR)/kanji.c \
+              $(SRCDIR)/config.c $(SRCDIR)/bonus.c $(SRCDIR)/debris.c $(SRCDIR)/kanji.c \
               $(SRCDIR)/sprite.c
+
+# **RAM へ写して実行するモジュール。**
+# 0x4000-0xBFFF の 32KB はもう埋まっていて、並べ替えでは空きが作れない。
+# RAM (ページ3) は変数が 0xC000 から約2.5KB、スタックが 0xF380 から下へ
+# 約350バイト (openMSX で実測) しか使っていないので、0xD000-0xEDFF が丸ごと空いている。
+# 起動時に main() が ROM のセグメント8 から写す。
+# **写す前に呼ばれるものは置けない** (crt0 / lowlevel / main の冒頭)。
+RAM_SRC   := $(SRCDIR)/enemy.c $(SRCDIR)/rock.c
 
 CSRC      := $(wildcard $(SRCDIR)/*.c)
 HEADERS   := $(wildcard $(SRCDIR)/*.h)
@@ -84,14 +92,16 @@ $(ART_TILE): $(ART_TILE_SRC) tools/png2art.py tools/palette.py | $(BUILDDIR)
 # ヘッダにも依存させる。これが無いと game.h の定数を変えても再ビルドされず、
 # 古い ROM のまま「直したつもり」になる。
 $(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(HEADERS) $(MAKEFILE) $(TITLE_PAL) $(ART_SPR) $(ART_TILE) $(PAL_H) | $(BUILDDIR)
-	$(CC) $(CFLAGS) $(if $(filter $<,$(BANKED_SRC)),--codeseg BANKDATA --constseg BANKDATA) -c -o $@ $<
+	$(CC) $(CFLAGS) \
+	  $(if $(filter $<,$(BANKED_SRC)),--codeseg BANKDATA --constseg BANKDATA) \
+	  $(if $(filter $<,$(RAM_SRC)),--codeseg RAMCODE --constseg RAMCODE) -c -o $@ $<
 
 # crt0 が必ず先頭に来るようにリンク順を固定する
 $(IHX): $(BUILDDIR)/crt0.rel $(AOBJ) $(COBJ)
 	$(CC) $(LDFLAGS) -o $@ $(BUILDDIR)/crt0.rel $(filter-out $(BUILDDIR)/crt0.rel,$(AOBJ)) $(COBJ)
 
 $(ROM): $(IHX) $(TITLE_BIN) tools/ihx2rom.py
-	python3 tools/ihx2rom.py $(IHX) $(ROM) 64 $(TITLE_SEG):$(TITLE_BIN)
+	python3 tools/ihx2rom.py $(IHX) $(ROM) 128 $(TITLE_SEG):$(TITLE_BIN)
 
 run: $(ROM)
 	openmsx -machine $(MACHINE) -carta $(ROM) -romtype ASCII8

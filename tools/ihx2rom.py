@@ -8,6 +8,13 @@ ROM 配置:
     seg3 -> 0xA000-0xBFFF  絵と曲 (0xA000 へリンクしたもの。既定で選んでおく)
     seg4以降 -> 0xA000 の窓へ bank_select() で差し替えて使う (タイトル画像など)
 
+RAM 実行コード:
+    0xD000-0xEDFF へリンクされたものは RAMCODE。**ROM の RAMCODE_SEG に置き、
+    起動時に main() が RAM へ写して、そこで実行する。** 0x4000-0xBFFF の 32KB は
+    もう埋まっており、並べ替えでは空きが作れないため。RAM は 0xC000-0xF37F の
+    ページ3で、変数が 0xC000 から約2.5KB、スタックが 0xF380 から下へ約350バイト
+    (実測) しか使っていないので、間の 0xD000-0xEDFF が空いている。
+
 固定コードは 0x4000-0x9FFF (24KB) に収まらなければならない。はみ出したら
 バンク切り替えなしでは届かないので、エラーにして気づけるようにする。
 """
@@ -18,6 +25,9 @@ FIXED_END = 0xA000        # ここより後ろは可変窓なので固定コー�
 WINDOW_END = 0xC000
 DATA_SEG = 3              # 0xA000 の窓へリンクしたデータを置くセグメント
 SEG_SIZE = 0x2000
+RAMCODE_BASE = 0xD000     # RAM で実行するコードのリンク先
+RAMCODE_END = 0xEE00      # ここより上はスタックのために空けておく
+RAMCODE_SEG = 8           # その中身を置く ROM セグメント
 
 
 def parse_ihx(path):
@@ -61,12 +71,19 @@ def main(argv):
     if lo < ROM_BASE:
         print(f"error: 0x{lo:04X} は ROM 領域 (0x4000-) の外です", file=sys.stderr)
         return 1
-    if hi >= WINDOW_END:
-        print(f"error: 0x{hi:04X} は ROM 領域 (-0xBFFF) を超えています", file=sys.stderr)
+    ramcode = {a: v for a, v in mem.items() if RAMCODE_BASE <= a < RAMCODE_END}
+    stray = [a for a in mem if WINDOW_END <= a < RAMCODE_BASE or a >= RAMCODE_END]
+    if stray:
+        print(f"error: 0x{min(stray):04X} は ROM にも RAMCODE にも置けません",
+              file=sys.stderr)
+        return 1
+    if len(ramcode) > SEG_SIZE:
+        print(f"error: RAMCODE が {len(ramcode)} バイトで 1 セグメント (8192) を超えます",
+              file=sys.stderr)
         return 1
     # 0xA000-0xBFFF は可変窓。ここへリンクされたもの (絵・曲) はセグメント3へ置く。
     fixed_hi = max((a for a in mem if a < FIXED_END), default=ROM_BASE - 1)
-    banked = {a: v for a, v in mem.items() if a >= FIXED_END}
+    banked = {a: v for a, v in mem.items() if FIXED_END <= a < WINDOW_END}
 
     total = size_kb * 1024
     if total % SEG_SIZE:
@@ -77,9 +94,12 @@ def main(argv):
     for addr, val in mem.items():
         if addr < FIXED_END:
             rom[addr - ROM_BASE] = val
-        else:
+        elif addr < WINDOW_END:
             # 窓 0xA000 の内容 = セグメント3 の中身
             rom[DATA_SEG * SEG_SIZE + (addr - FIXED_END)] = val
+        else:
+            # RAM で走らせるコード。起動時に窓から RAM へ写す
+            rom[RAMCODE_SEG * SEG_SIZE + (addr - RAMCODE_BASE)] = val
 
     # 可変バンク側へ載せるデータ (タイトル画像など)。seg:file の形で指定する。
     for spec in blobs:
@@ -106,6 +126,11 @@ def main(argv):
     print(f"{out}: {total // 1024}KB ({total // SEG_SIZE} segments) / "
           f"fixed 0x{lo:04X}-0x{fixed_hi:04X} = {used} bytes, "
           f"free {FIXED_END - fixed_hi - 1} bytes")
+    if ramcode:
+        rhi = max(ramcode)
+        print(f"  seg{RAMCODE_SEG}: RAM実行コード 0xD000-0x{rhi:04X} = "
+              f"{rhi - RAMCODE_BASE + 1} バイト "
+              f"(RAM の空き {RAMCODE_END - RAMCODE_BASE} バイト中)")
     if banked:
         bhi = max(banked)
         print(f"  seg{DATA_SEG}: 絵と曲 0xA000-0x{bhi:04X} = {bhi - FIXED_END + 1} バイト"

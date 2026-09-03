@@ -747,18 +747,6 @@ void draw_bonus(uint8_t cx, uint8_t cy, uint8_t kind)
     draw_tile(cx, cy, art_tile_of((uint8_t)(TILE_BSCORE + kind)), 2);
 }
 
-void bath_destroy_at(int8_t cx, int8_t cy)
-{
-    if (!bath_on) {
-        return;
-    }
-    if ((int8_t)bath_c != cx || (int8_t)bath_r != cy) {
-        return;
-    }
-    bath_on = 0;
-    draw_cell_dirt(cx, cy);
-    draw_dug_cell(cx, cy);
-}
 
 /* セル1枚を「土 → 坑道 → 火薬 → 風呂」の順で描き直す。文字を消すときや
    爆風の跡を戻すときに使う。 */

@@ -29,5 +29,16 @@ void bank_select(uint8_t seg) __z88dk_fastcall;
 /* 0xA000 の窓の既定の中身。絵 (art.c) と曲 (music.c) がここへリンクされている。
    タイトル画像を読むときだけ一時的に切り替え、読み終わったら必ずここへ戻すこと。 */
 #define DATA_SEG 3
+/* **RAM へ写して実行するコードを置いた ROM セグメント。**
+   0x4000-0xBFFF の 32KB が埋まりきったので、はみ出したモジュール (enemy / rock) は
+   起動時に 0xD000 へ写して RAM で走らせる。写す手順は main() の冒頭。
+   RAM (ページ3) は変数が 0xC000 から約2.5KB、スタックが 0xF380 から下へ約350バイト
+   (openMSX で実測) しか使っておらず、0xD000-0xEDFF が丸ごと空いている。 */
+#define RAMCODE_SEG 8
+#define RAMCODE_ADDR 0xD000
+/* 写す量。**リンカの l_RAMCODE は C から参照できない**ので、領域の大きさを
+   決め打ちで写す。0xD000-0xEDFF の 7680 バイト = tools/ihx2rom.py の
+   RAMCODE_BASE..RAMCODE_END と一致させること。余りは 0xFF で埋まっている。 */
+#define RAMCODE_LEN 0x1E00
 
 #endif

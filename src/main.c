@@ -289,6 +289,18 @@ static void goto_title(void)
 
 void main(void)
 {
+    /* **RAM で走らせるコードを写す。いちばん先。**
+       0x4000-0xBFFF の 32KB はもう埋まっていて、並べ替えでは空きが作れない。
+       **これより前に enemy / rock の関数を呼んではいけない。** */
+    {
+        uint8_t *d = (uint8_t *)RAMCODE_ADDR;
+        const uint8_t *s = (const uint8_t *)0xA000;
+        uint16_t n = RAMCODE_LEN;
+        bank_select(RAMCODE_SEG);
+        while (n--) {
+            *d++ = *s++;
+        }
+    }
     bank_select(DATA_SEG);      /* 0xA000 の窓を絵と曲へ向けておく */
     vdp_screen5();
     vdp_adjust_init();

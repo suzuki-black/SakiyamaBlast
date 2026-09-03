@@ -544,7 +544,7 @@ static void enemy_step(uint8_t i)
         if (ri >= 0 && en_dir[i] != DIR_LEFT && en_dir[i] != DIR_RIGHT) {
             return;                      /* 縦には押せない */
         }
-        if (!cell_dug(cx, cy) && ri < 0) {
+        if (!cell_dug(cx, cy)) {
             return;                      /* 敵は掘れない。坑道の中だけを歩く。 */
         }
     }

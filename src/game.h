@@ -351,7 +351,6 @@ void    draw_cave(uint8_t cx, uint8_t cy);
 uint8_t cell_coal(int8_t cx, int8_t cy);         /* 立ちはだかる黒ダイヤなら1 (割れたものは0) */
 uint8_t coal_hit(int8_t cx, int8_t cy);          /* つるはし1回。割れたら1を返す */
 void    coal_take(uint8_t cx, uint8_t cy);       /* 割れた黒ダイヤを採掘する */
-void    bath_destroy_at(int8_t cx, int8_t cy);   /* 岩・爆風で壊れる (敵では壊れない) */
 void    field_redraw_cell(int8_t cx, int8_t cy);
 void    build_stage(void);
 void    set_dirt_palette(void);
