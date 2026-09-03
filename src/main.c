@@ -120,21 +120,36 @@ static void show_msg(const char *t, uint8_t n, uint8_t col)
  * 漢字は自前の 16x16 (src/kanji.c)、数字は BIOS フォントの倍角で高さを合わせる。
  * 全体を中央へ寄せるため、先に横幅を数えてから描く。
  */
+/* 面番号を漢数字で。1〜9 は一字、10 は十、11〜15 は十＋一の位。 */
+static uint8_t stage_kanji(uint8_t *out)
+{
+    uint8_t n = 0;
+    if (stage >= 10) {
+        out[n++] = KJ_TEN;
+    }
+    if (stage % 10) {
+        out[n++] = (uint8_t)(KJ_NUM + (stage % 10) - 1);
+    }
+    return n;
+}
+
 static void show_stage_msg(void)
 {
-    char num[4];
-    uint8_t nd = text_u8(num, stage);
+    uint8_t num[2];
+    uint8_t nd = stage_kanji(num);
+    uint8_t i;
     uint16_t w, x;
     uint16_t y = MSG_ROW * CELL;
 
-    num[nd] = 0;
-    w = (uint16_t)(16 * 5 + (uint16_t)nd * 16);   /* 漢字5文字 + 数字 (倍角=16px) */
+    w = (uint16_t)(16 * 5 + (uint16_t)nd * 16);   /* 漢字5文字 + 漢数字 */
     x = (uint16_t)(((256 - w) >> 1) & 0xFFFE);
 
     kanji_draw(x, y, KJ_DAI, COL_WHITE, COL_TUNNEL);
     x += 16;
-    text_draw(x, (uint16_t)(y + 1), num, COL_FUSE, COL_TUNNEL, 2);
-    x += (uint16_t)nd * 16;
+    for (i = 0; i < nd; i++) {
+        kanji_draw(x, y, num[i], COL_FUSE, COL_TUNNEL);
+        x += 16;
+    }
     kanji_draw(x, y, KJ_KAI,  COL_WHITE, COL_TUNNEL); x += 16;
     kanji_draw(x, y, KJ_SOU,  COL_WHITE, COL_TUNNEL); x += 16;
     kanji_draw(x, y, KJ_HIRA, COL_WHITE, COL_TUNNEL); x += 16;

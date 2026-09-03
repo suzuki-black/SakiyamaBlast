@@ -369,7 +369,10 @@ void    popup_clear(void);
 #define KJ_SOU   2      /* 層 */
 #define KJ_HIRA  3      /* 開 */
 #define KJ_SHI   4      /* 始 */
-extern const uint8_t kanji_bits[5][32];
+#define KJ_NUM   5      /* ここから 一二三四五六七八九十。KJ_NUM + (n-1) で引ける */
+#define KJ_TEN  14      /* 十 */
+#define KJ_N    15      /* 字数。**tools/mkkanji.py の order と一致させること** */
+extern const uint8_t kanji_bits[KJ_N][32];
 void    kanji_draw(uint16_t x, uint16_t y, uint8_t idx, uint8_t fg, uint8_t bg);
 /* 溜め中の汗。**スプライトではなく背景に描く。** 自機のスプライトは16x16が
    ほぼ埋まっていて1行1色なので汗を足す余地が無く、面を増やすと横一列8枚の
