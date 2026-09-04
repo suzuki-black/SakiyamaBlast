@@ -358,6 +358,9 @@ uint8_t coal_hit(int8_t cx, int8_t cy);          /* つるはし1回。割れた
 void    coal_take(uint8_t cx, uint8_t cy);       /* 割れた黒ダイヤを採掘する */
 void    field_redraw_cell(int8_t cx, int8_t cy);
 void    build_stage(void);
+extern const uint16_t stage_seed[15];   /* 面ごとの盤面の種 (0=既定式) */
+extern uint16_t layout_seed_force;      /* 0 以外なら強制的にこの種を使う (道具用) */
+uint16_t layout_seed(void);
 void    set_dirt_palette(void);
 void    cavein_flash(void);        /* 落盤の閃光を始める */
 void    cavein_flash_tick(void);   /* 毎フレーム呼ぶ。終わったら色を戻す */   /* 面ごとの土の色 */

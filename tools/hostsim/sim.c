@@ -340,9 +340,74 @@ static uint8_t bot_greedy_decide(void)
 extern uint16_t en_morph[ENEMY_MAX];
 extern uint8_t  en_ghost[ENEMY_MAX];
 
+/*
+ * 盤面を**静的に**測る。ボットを走らせない。
+ *
+ * 貪欲ボットは面1すらクリアできないので、盤面の良し悪しの判定には使えない。
+ * 代わりに「岩と炭層の位置関係」だけを見る。ここが遊びの手応えを決めている:
+ *
+ *   free  : 岩の真下（同じ列）にある黒ダイヤの数。落ちる岩は列を貫いて全部採るので、
+ *           **これがそのまま「何もしなくても手に入る連鎖の長さ」**になる
+ *   haul  : 一番長い列へ岩を寄せるのに要る横移動の升数。**岩の移動の面倒さ**
+ *   colmax: 一番長い縦の炭層。一気の連鎖の上限
+ *   veins : 繋がった炭層の塊の数。多いほど散らばっていて一気に採りにくい
+ */
+static void analyse(int st, unsigned sd)
+{
+    int col[COLS], c, r, i, best = 0, bestc = 0, free_max = 0, haul = 99, nrock = 0;
+    int seen[NCELL], veins = 0, vmax = 0;
+    for (c = 0; c < COLS; c++) { col[c] = 0; }
+    for (r = 0; r < ROWS; r++) {
+        for (c = 0; c < COLS; c++) {
+            if (coal[r * COLS + c]) { col[c]++; }
+        }
+    }
+    for (c = 0; c < COLS; c++) { if (col[c] > best) { best = col[c]; bestc = c; } }
+
+    for (i = 0; i < ROCK_MAX; i++) {
+        int rc, rr, n = 0, d;
+        if (rock_state[i] == 0) { continue; }
+        nrock++;
+        rc = rock_x[i] >> 4; rr = rock_y[i] >> 4;
+        for (r = rr + 1; r < ROWS; r++) { if (coal[r * COLS + rc]) { n++; } }
+        if (n > free_max) { free_max = n; }
+        d = rc - bestc; if (d < 0) { d = -d; }
+        if (d < haul) { haul = d; }
+    }
+    if (haul == 99) { haul = 0; }
+
+    /* 繋がった炭層の塊を数える (4近傍) */
+    for (i = 0; i < NCELL; i++) { seen[i] = 0; }
+    for (i = 0; i < NCELL; i++) {
+        int stack[NCELL], sp = 0, n = 0;
+        if (!coal[i] || seen[i]) { continue; }
+        stack[sp++] = i; seen[i] = 1;
+        while (sp) {
+            int q = stack[--sp], qc = q % COLS, qr = q / COLS, k;
+            const int dc[4] = { -1, 1, 0, 0 }, dr[4] = { 0, 0, -1, 1 };
+            n++;
+            for (k = 0; k < 4; k++) {
+                int nc = qc + dc[k], nr = qr + dr[k], ni;
+                if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) { continue; }
+                ni = nr * COLS + nc;
+                if (coal[ni] && !seen[ni]) { seen[ni] = 1; stack[sp++] = ni; }
+            }
+        }
+        veins++;
+        if (n > vmax) { vmax = n; }
+    }
+
+    printf("{\"stage\":%d,\"seed\":%u,\"coal\":%d,\"rocks\":%d,"
+           "\"free\":%d,\"haul\":%d,\"colmax\":%d,\"veins\":%d,\"veinmax\":%d,"
+           "\"dug0\":%u}\n",
+           st, sd, coal_left, nrock, free_max, haul, best, veins, vmax, dug_n0);
+}
+
 int main(int argc, char **argv)
 {
     int want_stage = 1, seed = 1, max_frames = 5400, greedy = 1, i, f;
+    int do_analyse = 0, sweep = 0;
+    unsigned lseed = 0;
     uint32_t prev_score = 0;
 
     for (i = 1; i < argc; i++) {
@@ -351,6 +416,9 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc) { max_frames = atoi(argv[++i]); }
         else if (!strcmp(argv[i], "--bot") && i + 1 < argc) { greedy = !strcmp(argv[++i], "greedy"); }
         else if (!strcmp(argv[i], "--safe") && i + 1 < argc) { safe_steps = atoi(argv[++i]); }
+        else if (!strcmp(argv[i], "--layout-seed") && i + 1 < argc) { lseed = (unsigned)atoi(argv[++i]); }
+        else if (!strcmp(argv[i], "--analyse")) { do_analyse = 1; }
+        else if (!strcmp(argv[i], "--sweep") && i + 1 < argc) { sweep = atoi(argv[++i]); }
     }
 
     /* 乱数の種。実機は起動からの経過で決まるので、ここでは明示的に回して合わせる。 */
@@ -358,7 +426,21 @@ int main(int argc, char **argv)
 
     stage = (uint8_t)want_stage;
     lives = 3;
+    if (sweep) {                 /* 種を総当たりして盤面だけ測る */
+        unsigned sd;
+        for (sd = 1; sd <= (unsigned)sweep; sd++) {
+            layout_seed_force = (uint16_t)sd;
+            build_stage();
+            analyse(want_stage, sd);
+        }
+        return 0;
+    }
+    layout_seed_force = (uint16_t)lseed;
     build_stage();
+    if (do_analyse) {
+        analyse(want_stage, lseed ? lseed : layout_seed());
+        return 0;
+    }
     bomb_clear();
     player_start();
     enemy_stage_reset();

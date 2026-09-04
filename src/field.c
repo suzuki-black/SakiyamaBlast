@@ -1372,6 +1372,26 @@ static void set_stage_layout(void)
     place_pillars();
 }
 
+/* **面ごとの盤面の種。** ここを変えるとその面の並びが丸ごと変わる。
+   0 のものはまだ選んでいないので `0x9E37 * 面番号 + 0x1234` を使う。
+   選び方は tools/hostsim/pick_seeds.py（盤面を静的に測って総当たりする）。 */
+const uint16_t stage_seed[15] = {
+      133,    83,    87,   473,   805,
+       13,   157,   769,   149,    89,
+      392,  2533, 10997,  8000, 46377,
+};
+uint16_t layout_seed_force;      /* 0 以外なら強制的にこの種を使う (道具用) */
+
+uint16_t layout_seed(void)
+{
+    uint16_t s;
+    if (layout_seed_force) {
+        return layout_seed_force;
+    }
+    s = (stage >= 1 && stage <= 15) ? stage_seed[stage - 1] : 0;
+    return s ? s : (uint16_t)(0x9E37u * (uint16_t)stage + 0x1234u);
+}
+
 void build_stage(void)
 {
     uint16_t i;
@@ -1397,7 +1417,7 @@ void build_stage(void)
        ツール側 (tools/hostsim の --seed) も効かなくなる。 */
     {
         uint16_t keep = rnd_get();
-        rnd_seed((uint16_t)(0x9E37u * (uint16_t)stage + 0x1234u));
+        rnd_seed(layout_seed());
         set_stage_layout();
         rnd_seed(keep);
     }

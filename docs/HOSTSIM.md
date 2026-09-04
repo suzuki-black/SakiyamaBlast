@@ -27,11 +27,28 @@ tools/hostsim/sim --stage 1 --seed 3          # 生ログ (JSONL) を見る
 - **面ごとの盤面が1つしかない以上、その1つが悪ければ出荷される。**
   配置の種を総当たりして良い盤面を選ぶ仕組みが要る（TODO）
 
-### TODO: 盤面の種を探す
+### 盤面の種を探す（実装済み）
 
-`build_stage` の種は `0x9E37 * stage + 0x1234`。ここを外から差し替えられるように
-して、面ごとに種を総当たりし、**しきい値を満たす盤面を選んで固定する**のが次の一手。
-面エディタ（TODO §1）とも噛み合う。
+```bash
+tools/hostsim/sim --stage 5 --analyse            # その面の盤面を測る
+tools/hostsim/sim --stage 5 --sweep 60000        # 種を総当たりして全部測る (0.5秒)
+tools/hostsim/sim --stage 5 --layout-seed 805    # 種を指定して走らせる
+python3 tools/hostsim/pick_seeds.py              # 面ごとに選んで表を出す
+python3 tools/hostsim/pick_seeds.py --write      # src/field.c の stage_seed[] に書く
+```
+
+`--analyse` は**ボットを走らせない**。貪欲ボットは面1すらクリアできず盤面の良し悪しを
+判定できないので、**岩と炭層の位置関係だけを静的に測る**。
+
+| 指標 | 意味 |
+|---|---|
+| `free` | 岩の真下（同じ列）にある黒ダイヤの数＝**何もしなくても手に入る連鎖の長さ** |
+| `haul` | 一番長い列へ岩を寄せるのに要る横移動の升数＝**岩の移動の面倒さ** |
+| `colmax` | 一番長い縦の炭層＝一気に狙える連鎖の上限 |
+| `veins` | 繋がった炭層の塊の数。多いほど散らばっている |
+
+狙いの表は `pick_seeds.py` の `TARGET`。低次は `free` 大 / `haul` 0、
+高次は `free` 0 / `haul` 大 / `colmax` 小。結果は `docs/GAME_RULES.md` §11 にある。
 
 ## 仕組み
 
