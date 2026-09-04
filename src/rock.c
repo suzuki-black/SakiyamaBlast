@@ -147,9 +147,13 @@ uint8_t rock_can_push(int8_t i, int8_t dx, uint8_t into_dirt)
     if (i < 0 || rock_state[i] == ROCK_NONE || rock_state[i] == ROCK_FALL) {
         return 0;
     }
-    c = rcx(i);
     r = (int8_t)(rock_y[i] >> 4);
-    nc = (int8_t)(c + dx);
+    /* **これから踏み込む升は「進む側の端」で決める。中心ではない。**
+       中心で見ると、中心が隣の升へ入れないぶん**半升 (8ドット) 手前で止まり**、
+       岩と壁のあいだに隙間が残る。支え (supported) は中心で見るのが正しいが
+       (Mr. Do! の「縁を越えたら落ちる」)、ぶつかり判定は端で見る。 */
+    nc = (dx > 0) ? (int8_t)(((uint16_t)rock_x[i] + 16) >> 4)
+                  : (int8_t)(((int16_t)rock_x[i] - 1) >> 4);
     if (nc < 0 || nc >= COLS) {
         return 0;                       /* 場外へは押せない */
     }
@@ -161,8 +165,14 @@ uint8_t rock_can_push(int8_t i, int8_t dx, uint8_t into_dirt)
     if (!into_dirt && !cell_dug(nc, r)) {
         return 0;                       /* 敵は坑道の中でしか岩を動かせない */
     }
-    if (rock_at(nc, r) >= 0) {
-        return 0;                       /* 別の岩があれば押せない */
+    {
+        /* **自分自身を数えないこと。** 升は中心で決めるので、8ドット進んだ時点で
+           自分の中心が nc の升へ入り、`rock_at(nc)` が**自分を返して**しまう。
+           そのままだと、どの岩も半升だけ動いて止まる。 */
+        int8_t o = rock_at(nc, r);
+        if (o >= 0 && o != i) {
+            return 0;                   /* 別の岩があれば押せない */
+        }
     }
     if ((int8_t)player_cell_c() == nc && (int8_t)player_cell_r() == r) {
         return 0;                       /* 敵が押してきても、横押しでは潰されない */
