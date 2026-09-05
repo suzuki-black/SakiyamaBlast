@@ -741,6 +741,15 @@ void enemy_draw(void)
             spr_park((uint8_t)(SPR_ENEMY + i));
             continue;
         }
+        /* **透明化の予兆。** あと GHOST_WARN フレームですり抜けてくる敵を速く点滅させる。
+           OAM の座標を動かすだけで VRAM は1バイトも触らない。
+           よろけている間は en_morph が止まる (更新の手前で continue する) ので、
+           予兆を出すと嘘になる。よろけの表示を優先する。 */
+        if (!en_ghost[i] && !en_stun[i] && en_morph[i] && en_morph[i] <= GHOST_WARN
+            && (frame_n & GHOST_BLINK)) {
+            spr_park((uint8_t)(SPR_ENEMY + i));
+            continue;
+        }
         /* 透明化中は色を抜く。よろけているときは潰れた絵に差し替え、
            白い帯の位置も体に合わせて下げる。**色そのものは変えない** —
            色は敵のアルゴリズムを表す情報なので、状態表示に使ってはいけない。 */
