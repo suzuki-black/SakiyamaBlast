@@ -502,11 +502,16 @@ static void take_one(uint8_t cx, uint8_t cy)
     field_redraw_cell((int8_t)(cx - 1), (int8_t)cy);
     field_redraw_cell((int8_t)(cx + 1), (int8_t)cy);
     /* **描き直しのあとで**光らせる。先に塗ると、この直後の描き直しに消される。 */
-    if (get_n < CHAIN_MAX) {
-        get_cs[get_n] = cx;
-        get_rs[get_n] = cy;
-        get_n++;
+    /* **溜まりきったら先に片付ける。** 記録できないまま塗ると、その升だけ
+       誰にも描き直されずに白いまま残る。連鎖の窓は3秒あって get_t は採るたびに
+       延びるので、**1回の連鎖で CHAIN_MAX を超えることは普通に起きる**
+       (岩が4升貫いた直後に自分でも採りに走る、が狙いの遊びなので)。 */
+    if (get_n >= CHAIN_MAX) {
+        get_flash_clear();
     }
+    get_cs[get_n] = cx;
+    get_rs[get_n] = cy;
+    get_n++;
     get_t = COAL_GET_FRAMES;
     vdp_fill((uint16_t)((uint16_t)cx << 4), (uint16_t)((uint16_t)cy << 4), 16, 16, COL_WHITE);
     /* **点数も描き直しのあとに出す。** 先に出すと、直後の field_redraw_cell に
