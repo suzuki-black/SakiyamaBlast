@@ -337,6 +337,14 @@ void main(void)
     for (;;) {
         wait_vsync();
         frame_n++;
+        /* **体温が上がるほど曲が速くなる。** 体温が制限時間であることを音で伝える。
+           水風呂で冷えれば戻るので、そのまま解放の合図にもなる。
+           **遊んでいる間だけ。** 体温は面をまたいで残るので、外すとクリアの
+           ファンファーレやタイトル曲まで速くなる。 */
+        snd_set_tempo((uint8_t)(state != ST_PLAY ? TEMPO_UNIT
+                              : temp >= TEMPO_T3 ? 22
+                              : temp >= TEMPO_T2 ? 20
+                              : temp >= TEMPO_T1 ? 18 : TEMPO_UNIT));
         snd_catch_up();
 
         if (state == ST_TITLE) {

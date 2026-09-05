@@ -400,6 +400,11 @@ extern uint8_t dead_cause;    /* 0=接触や潰し 1=オーバーヒート */
 #define DEAD_HEAT 1
 extern uint8_t invuln;
 extern uint8_t temp;          /* 体温 0..TEMP_MAX */
+/* 体温で曲が速くなるしきい値 (TEMP_MAX 240 に対して 50% / 75% / 90%)。
+   倍率は 16 分の n。18=1.13倍 20=1.25倍 22=1.38倍。 */
+#define TEMPO_T1     120
+#define TEMPO_T2     180
+#define TEMPO_T3     216
 
 void player_start(void);
 void player_update(void);

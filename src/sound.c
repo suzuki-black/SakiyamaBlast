@@ -54,6 +54,8 @@ static uint8_t ch_vol0[3];
 static uint8_t ch_dec[3];      /* 音量の減衰速度 (右シフト量。小さいほど速く減衰) */
 static uint8_t ch_lastvol[3];  /* 直前に書いた音量。変わっていなければ書かない */
 static uint8_t mode;
+uint8_t snd_tempo = TEMPO_UNIT;   /* 曲のテンポ。TEMPO_UNIT で等倍 */
+static uint8_t tempo_acc;         /* テンポの端数 */
 static uint8_t mixer_base;
 static uint8_t drum_on;        /* 1 = チャンネルC をノイズのドラムとして使う */
 
@@ -195,6 +197,8 @@ static void sfx_tick(void)
 
 static void snd_start(const uint8_t *a, const uint8_t *b, const uint8_t *c, uint8_t m)
 {
+    snd_tempo = TEMPO_UNIT;      /* タイトルやファンファーレは常に等倍 */
+    tempo_acc = 0;
     ch_base[0] = ch_p[0] = a;
     ch_base[1] = ch_p[1] = b;
     ch_base[2] = ch_p[2] = c;
@@ -270,13 +274,12 @@ uint8_t snd_busy(void)
     return (uint8_t)(mode == SND_SFX);
 }
 
-void snd_tick(void)
+/* 曲を1ステップ進める。全チャンネルが終わっていたら1を返す。
+   **テンポを上げるときは、これを1フレームに複数回呼ぶ。**
+   音長 (ch_left) も減衰 (ch_t) も一緒に進むので、速くしても音は破綻しない。 */
+static uint8_t music_step(void)
 {
     uint8_t i, note, ended = 0;
-    if (mode == SND_OFF) {
-        sfx_tick();
-        return;
-    }
     for (i = 0; i < 3; i++) {
         if (ch_left[i] == 0) {
             note = *ch_p[i]++;
@@ -322,8 +325,38 @@ void snd_tick(void)
         }
         ch_left[i]--;
     }
-    if (ended == 3) {
-        mode = SND_OFF;
+    return (uint8_t)(ended == 3);
+}
+
+/*
+ * **体温が上がるほど曲を速くする。**
+ *
+ * 体温は本作の制限時間そのものだが、表現が16目盛りのメーターしかなかった。
+ * テンポを上げると、**プレイ時間の全秒に緊張の勾配が付く**。水風呂で冷えれば
+ * 戻るので、そのまま解放の合図にもなる。新しい音は1つも要らない。
+ *
+ * 1ティックぶんの進みを TEMPO_UNIT 分の n で数え、溜まったぶんだけ music_step()
+ * を回す。**小節の頭を待つ必要はない。** 音長を速く消化するだけなので、
+ * どこで倍率が変わっても曲は繋がったまま速くなる。
+ */
+void snd_set_tempo(uint8_t n)
+{
+    snd_tempo = n;
+}
+
+void snd_tick(void)
+{
+    if (mode == SND_OFF) {
+        sfx_tick();
+        return;
+    }
+    tempo_acc = (uint8_t)(tempo_acc + snd_tempo);
+    while (tempo_acc >= TEMPO_UNIT) {
+        tempo_acc = (uint8_t)(tempo_acc - TEMPO_UNIT);
+        if (music_step()) {
+            mode = SND_OFF;
+            break;
+        }
     }
     sfx_tick();
 }

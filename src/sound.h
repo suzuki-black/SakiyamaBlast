@@ -6,6 +6,12 @@
 
 void    snd_init(void);
 void    snd_tick(void);          /* 毎フレーム1回呼ぶ */
+
+/* 曲のテンポ。TEMPO_UNIT が等倍で、大きいほど速い。
+   体温が上がるほど速くする (main.c)。曲を始めると等倍へ戻る。 */
+#define TEMPO_UNIT 16
+extern uint8_t snd_tempo;
+void    snd_set_tempo(uint8_t n);
 void    snd_play_bgm(void);
 void    snd_play_title(void);    /* タイトル画面の曲 */
 void    snd_play_fanfare(void);
