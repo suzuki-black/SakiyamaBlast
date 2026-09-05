@@ -428,6 +428,8 @@ uint8_t player_cell_r(void);
    盤面全体が動く事件を盤面全体の変化で伝えられる。土の色は面ごとに変わる (茶/灰/青) が、
    白飛ばしならどの色からでも効く。 */
 #define FLASH_CAVEIN  6       /* 光らせるフレーム数 */
+#define FLASH_CHAIN_MAX 10    /* 連鎖の閃光の上限。深くても長すぎないように */
+void    field_flash(uint8_t frames, uint8_t lvl);   /* 土の色を lvl へ飛ばして戻す */
 
 extern uint8_t rock_state[ROCK_MAX];
 extern uint8_t rock_x[ROCK_MAX], rock_y[ROCK_MAX];

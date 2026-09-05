@@ -94,10 +94,18 @@ void link_open(uint8_t cx, uint8_t cy)
    何が起きたか分からない。画面全体の色を変えれば、見ていなくても伝わる。 */
 static uint8_t flash_t;
 
+/* 土の色を lvl の明るさへ飛ばし、frames かけて元へ戻す。
+   **明るさを段階にできるようにしてある。** 連鎖は同じ強さで光らせると
+   1回目も5回目も同じに見えて、せっかくの階段が読めない。 */
+void field_flash(uint8_t frames, uint8_t lvl)
+{
+    flash_t = frames;
+    vdp_set_palette(COL_DIRT, lvl, lvl, lvl);
+}
+
 void cavein_flash(void)
 {
-    flash_t = FLASH_CAVEIN;
-    vdp_set_palette(COL_DIRT, 7, 7, 7);
+    field_flash(FLASH_CAVEIN, 7);      /* 落盤は常に全開 */
 }
 
 void cavein_flash_tick(void)
@@ -467,7 +475,10 @@ static void take_one(uint8_t cx, uint8_t cy)
     }
     score_add(pts);
     debris_spawn(cx, cy);       /* かけらが自機へ集まる = 手に入ったことの説明 */
-    snd_sfx_up(SFX_COAL, (uint8_t)((combo - 1) * 2));
+    /* **音程の刻みは3半音。** 2半音だと4連鎖でも8半音しか上がらず、
+       階段になっていることが耳で分からなかった。表の上限で頭打ちするので
+       連鎖が深くても破綻しない。 */
+    snd_sfx_up(SFX_COAL, (uint8_t)((combo - 1) * 3));
     /* 連鎖が伸びるほど強く手応えを返す。**どれも VDP をほとんど使わない。** */
     {
         uint8_t n = (uint8_t)(HITSTOP_BASE + combo);
@@ -475,7 +486,14 @@ static void take_one(uint8_t cx, uint8_t cy)
     }
     field_shake((uint8_t)(COAL_SHAKE_FRAMES + (combo << 1)));
     if (combo >= 3) {
-        cavein_flash();             /* 3連鎖から画面全体が光る */
+        /* **3連鎖から画面全体が光る。深いほど明るく、長く。**
+           一定の強さで光らせると、貫通中の1回目も5回目も同じに見えて
+           階段が読めない。明るさと長さの両方を段にしてある。 */
+        uint8_t lv = (uint8_t)(2 + combo);
+        uint8_t fr = (uint8_t)(FLASH_CAVEIN + combo - 3);
+        if (lv > 7) { lv = 7; }
+        if (fr > FLASH_CHAIN_MAX) { fr = FLASH_CHAIN_MAX; }
+        field_flash(fr, lv);
     }
     /* 隣の升の「土の膜」の形も変わるので、周囲ごと描き直す。 */
     field_redraw_cell((int8_t)cx, (int8_t)cy);
