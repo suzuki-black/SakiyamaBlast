@@ -72,6 +72,66 @@ void link_carve(uint8_t px_, uint8_t py_)
 /* 割れた黒ダイヤの升と、隣り合う掘れている升との膜を開く。
    割れた升を「本当に通れる通路」にするためのもの。これをやらないと、
    炭層を全部割っても敵は通れず、リスクの無いただの得点になってしまう。 */
+/* 機構③の連続発動よけ。直前に埋め戻した升だけ覚えておく。
+   割り直した直後にまた踏まれると理不尽になるため。 */
+static uint8_t refill_cell = 0xFF;
+static uint16_t refill_t;
+
+/*
+ * 敵が踏み抜けた「割れたまま未採掘の黒ダイヤ」を耐久 REFILL_HP で塞ぎ直す。
+ *
+ * **踏んでいる最中ではなく、踏み抜けたあとに呼ぶこと。** 敵が居る升を塞ぐと、
+ * その敵は掘ってある升しか歩けないので永久に動けなくなる。
+ * 自機が居る升も同じ理由で塞がない。
+ *
+ * **dug_n は減らさない。** 切羽圧は dug_n0 からの増分で測っているので、
+ * ここで減らすと「埋め戻されるほど安全になる」という逆向きの力が働く。
+ */
+uint8_t coal_refill_at(int8_t cx, int8_t cy)
+{
+    uint16_t i;
+    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
+        return 0;
+    }
+    i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
+    if (coal[i] != COAL_CRACKED) {
+        return 0;                       /* 割れて採掘待ちの升だけが対象 */
+    }
+    if (pillar[i]) {
+        return 0;                       /* 炭柱は耐久が高く、割り直しの代償が大きすぎる */
+    }
+    if (refill_t && refill_cell == (uint8_t)i) {
+        return 0;                       /* 同じ升を続けて塞がない */
+    }
+    if ((int8_t)player_cell_c() == cx && (int8_t)player_cell_r() == cy) {
+        return 0;                       /* 自機を土に埋めない */
+    }
+    if (enemy_home_at(cx, cy)) {
+        return 0;                       /* 別の敵が居座っている升も塞がない */
+    }
+    coal[i] = REFILL_HP;
+    dug[i] = 0;                         /* 通れなくなる。dug_n は据え置き */
+    cell_link[i] = 0;                   /* 土の膜も閉じる */
+    if (cx > 0) {
+        cell_link[i - 1] &= (uint8_t)~LINK_RIGHT;
+    }
+    if (cy > 0) {
+        cell_link[i - COLS] &= (uint8_t)~LINK_DOWN;
+    }
+    refill_cell = (uint8_t)i;
+    refill_t = REFILL_COOLDOWN;
+    field_redraw_cell(cx, cy);
+    field_redraw_cell(cx, (int8_t)(cy - 1));
+    field_redraw_cell(cx, (int8_t)(cy + 1));
+    field_redraw_cell((int8_t)(cx - 1), cy);
+    field_redraw_cell((int8_t)(cx + 1), cy);
+    /* **何が起きたか分からないまま仕込みが消えるのが最悪。**
+       低い「コツン」で、盤面を取り返されたことを知らせる。優先度は最低なので
+       採掘音や破砕音を潰さない。 */
+    snd_sfx(SFX_NOPE);
+    return 1;
+}
+
 void link_open(uint8_t cx, uint8_t cy)
 {
     uint16_t k = (uint16_t)cy * COLS + cx;
@@ -137,6 +197,7 @@ static uint8_t shake_t;
 static uint8_t get_t, get_n;
 static uint8_t get_cs[CHAIN_MAX], get_rs[CHAIN_MAX];
 static void get_flash_clear(void);
+
 
 /* 溜め中の汗。段が上がるほど滴が増える。体温を払っていることが絵で伝わる。 */
 static uint8_t sweat_c, sweat_r, sweat_lv;
@@ -239,6 +300,8 @@ void field_fx_reset(void)
     flash_t = 0;
     get_t = 0;
     get_n = 0;
+    refill_t = 0;
+    refill_cell = 0xFF;
     sweat_lv = 0;
     combo = 0;
     combo_t = 0;
@@ -278,6 +341,9 @@ void coal_shake_tick(void)
 
     /* 採掘した升の閃き。白 -> 黒ダイヤの色 と2段で光らせてから元へ戻す。
        自機が升の上に乗っているので、周りがふちどられるように見える。 */
+    if (refill_t) {
+        refill_t--;
+    }
     if (get_t) {
         uint8_t k;
         get_t--;

@@ -29,6 +29,9 @@ static uint16_t scatter_t;                /* 散開/追跡の切り替えタイ�
 static uint8_t  scattering;               /* 1 = 散開中 (各自の隅へ向かう) */
 uint16_t en_rest[ENEMY_MAX];              /* 洞窟で静養している残りフレーム。0 で出られる */
 static uint8_t  en_pool;                  /* この面のプール数 (先頭から en_pool 体を使う) */
+/* 直前に居た升。**踏み抜けた**升を埋め戻すのに使う (機構③)。0xFF = まだ無し。
+   踏んでいる最中に塞ぐと、その敵が土の中に閉じ込められて動けなくなる。 */
+static uint8_t en_pc[ENEMY_MAX];
 uint8_t  en_warm[ENEMY_MAX];              /* 湧いて点滅中 (まだ当たらない)。計測用に公開 */
 uint8_t  en_stun[ENEMY_MAX];              /* よろけの深さ 0..STUN_MAX */
 static uint16_t en_stun_t[ENEMY_MAX];     /* 次に1段戻るまで */
@@ -64,6 +67,7 @@ void enemy_clear(void)
     for (i = 0; i < ENEMY_MAX; i++) {
         en_state[i] = 0;
         en_warm[i] = 0;
+        en_pc[i] = 0xFF;
         en_stun[i] = 0;
         en_stun_t[i] = 0;
         en_col[i] = 0xFF;
@@ -196,6 +200,23 @@ static uint8_t hits_cell(uint8_t i, int8_t cx, int8_t cy)
 
 /* その升に敵が居るか。投げたダイナマイトが当たるかどうかの判定に使う。
    飛んでいるのは坑道の中だけなので、土をすり抜けている敵はそもそも当たらない。 */
+/* その升を**自分の升としている**敵が居るか。
+   enemy_at() は 12px の重なりで見るので、**升を抜けたばかりの本人まで拾う。**
+   埋め戻し (機構③) では「抜けた本人」を除きたいので、中心の升で見るこちらを使う。 */
+uint8_t enemy_home_at(int8_t cx, int8_t cy)
+{
+    uint8_t i;
+    for (i = 0; i < ENEMY_MAX; i++) {
+        if (!en_state[i] || en_ghost[i]) {
+            continue;
+        }
+        if ((int8_t)((en_x[i] + 8) >> 4) == cx && (int8_t)((en_y[i] + 8) >> 4) == cy) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 uint8_t enemy_at(int8_t cx, int8_t cy)
 {
     uint8_t i;
@@ -694,6 +715,21 @@ void enemy_update(void)
                 } else {
                     enemy_step(i);
                 }
+            }
+        }
+        /* **踏み抜けた升の割れた黒ダイヤを埋め戻す。**
+           割った升は通れて膜も開くので、仕込んだ連鎖はそのまま敵の通り道になる。
+           放置した仕込みは敵に奪われる、という代償にする。
+           土の中をすり抜けている敵は盤面を歩いていないので対象外。 */
+        if (!en_warm[i] && !en_ghost[i]) {
+            uint8_t cur = (uint8_t)((((en_y[i] + 8) >> 4) << 4)
+                                    + ((en_x[i] + 8) >> 4));
+            if (en_pc[i] != cur) {
+                if (en_pc[i] != 0xFF) {
+                    coal_refill_at((int8_t)(en_pc[i] & 15),
+                                   (int8_t)(en_pc[i] >> 4));
+                }
+                en_pc[i] = cur;
             }
         }
         if (!invuln && !dead && touches_player(i)) {

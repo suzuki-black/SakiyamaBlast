@@ -174,6 +174,21 @@
 #define PICK_FRAMES   18      /* 1回振り切るまで (0.3秒) */
 #define COAL_CRACKED  255     /* coal[] のこの値は「割れて採掘待ち」 */
 #define COAL_HP_MAX   8
+/*
+ * **敵が踏み抜けた「割れたまま未採掘の黒ダイヤ」は塞がり直す。**
+ *
+ * 割った升は通れるようになり土の膜も開くので、炭層を全部割ると
+ * COAL_VEIN_MAX 升の直線通路が開通する = **仕込んだ連鎖はそのまま敵の通り道**。
+ * 3個目を割っている間に1個目を踏まれたら仕込みが崩れる。
+ *
+ * Dig Dug で「1列に集めた敵が散ってしまう」に相当する部分で、
+ * **代償を面番号ではなく野心の大きさに連動させる**ための中心。
+ * 1個ずつ割って即座に採る人には**一度も発動しない**（放置時間が0だから）。
+ *
+ * 詰まない: 耐久1で戻るだけなので1振りで割り直せる。coal_left も変わらない。
+ */
+#define REFILL_HP        1    /* 埋め戻された黒ダイヤの耐久 */
+#define REFILL_COOLDOWN 300   /* 同じ升が再び埋め戻されるまで (5秒) */
 /* 黒ダイヤは1個ずつばらまかず、**繋がった炭層**として置く。掘って辿り着く距離が
    減り、鉱脈を掘り当てて一息に採る感じが出る。1本の長さは 1..COAL_VEIN_MAX。 */
 #define COAL_VEIN_MAX 4
@@ -366,6 +381,8 @@ uint8_t coal_hit(int8_t cx, int8_t cy);          /* つるはし1回。割れた
 void    coal_take(uint8_t cx, uint8_t cy);       /* 割れた黒ダイヤを採掘する */
 void    field_redraw_cell(int8_t cx, int8_t cy);
 void    build_stage(void);
+/* 敵が踏み抜けた割れた黒ダイヤを塞ぎ直す。埋め戻したら1。 */
+uint8_t coal_refill_at(int8_t cx, int8_t cy);
 extern const uint16_t stage_seed[15];   /* 面ごとの盤面の種 (0=既定式) */
 extern uint16_t layout_seed_force;      /* 0 以外なら強制的にこの種を使う (道具用) */
 uint16_t layout_seed(void);
@@ -483,6 +500,9 @@ void    enemy_stun_all(uint8_t power);
 uint8_t enemy_shove(int8_t cx, int8_t cy, int8_t dx, uint8_t doit);
 uint8_t enemy_kill_at(int8_t cx, int8_t cy, uint8_t by_rock);  /* 倒した数を返す */
 uint8_t enemy_at(int8_t cx, int8_t cy);        /* その升に敵が居るか (投げたダイナマイトの判定) */
+/* その升を自分の升としている敵が居るか。**中心で判定するので、
+   升を抜けたばかりの本人は拾わない**（enemy_at は 12px の重なりで拾ってしまう）。 */
+uint8_t enemy_home_at(int8_t cx, int8_t cy);
 
 /* --- bomb.c --- */
 extern uint8_t stock;        /* ダイナマイトのストック (次ステージへ持ち越し) */

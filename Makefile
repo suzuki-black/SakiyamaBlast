@@ -32,7 +32,7 @@ BANKED_SRC := $(SRCDIR)/art.c $(SRCDIR)/music.c \
 # 約350バイト (openMSX で実測) しか使っていないので、0xD000-0xEDFF が丸ごと空いている。
 # 起動時に main() が ROM のセグメント8 から写す。
 # **写す前に呼ばれるものは置けない** (crt0 / lowlevel / main の冒頭)。
-RAM_SRC   := $(SRCDIR)/enemy.c $(SRCDIR)/rock.c
+RAM_SRC   := $(SRCDIR)/enemy.c
 
 CSRC      := $(wildcard $(SRCDIR)/*.c)
 HEADERS   := $(wildcard $(SRCDIR)/*.h)
