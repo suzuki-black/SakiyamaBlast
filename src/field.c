@@ -420,6 +420,14 @@ uint8_t coal_smash(int8_t cx, int8_t cy)
         return 0;
     }
     pillar[i] = 0;                  /* 落盤を再帰させない */
+    /* **先に「割れた」扱いにしてから掘る。** dig_sweep は cell_coal() を見て
+       「黒ダイヤは掘れない」と撥ねるので、**割れていない升をそのまま渡すと
+       掘られないまま take_one で炭だけ消え、採ったのに土のまま残る。**
+       見た目には「鉱脈があった場所が手つかずの土に見える」になり、
+       実際そこを通り抜けることもできない。
+       落盤で先に割れた升 (coal_crack_by_rock) だけが掘られて穴になるので、
+       縦2升の鉱脈を貫くと**上だけ穴・下は土**という食い違いが出ていた。 */
+    coal[i] = COAL_CRACKED;
     dig_sweep((uint8_t)cx, (uint8_t)cy);
     link_open((uint8_t)cx, (uint8_t)cy);
     take_one((uint8_t)cx, (uint8_t)cy);
