@@ -355,7 +355,7 @@ extern uint8_t  en_ghost[ENEMY_MAX];
 static void analyse(int st, unsigned sd)
 {
     int col[COLS], c, r, i, best = 0, bestc = 0, free_max = 0, haul = 99, nrock = 0;
-    int slide = 0, best_combo = 0, coal0 = 0, slide_gain = 0;
+    int slide = 0, best_combo = 0, coal0 = 0, slide_gain = 0, best_drop = 0;
     int seen[NCELL], veins = 0, vmax = 0;
     for (c = 0; c < COLS; c++) { col[c] = 0; }
     for (r = 0; r < ROWS; r++) {
@@ -402,37 +402,53 @@ static void analyse(int st, unsigned sd)
 
     /* **落盤を実際に起こして、横滑りが出るかを測る。**
        静的には数えられない。岩どうしがぶつかり、下の岩の左右のうち坑道が
-       ちょうど一方だけ、という条件が要るため。 */
+       ちょうど一方だけ、という条件が要るため。
+
+       **沈み込みブロック数は炭柱ごとに違う。** 決め打ちで測ると、実際には
+       起きない現象を「起きる」と報告してしまう (一度それで面を選んで、
+       作者に別の炭柱を案内する事故を起こした)。**盤面にある炭柱の値を全部試し、
+       いちばん良い結果を採る。** どれを壊すかはプレイヤーが選べるため。 */
     {
-        uint8_t sn[ROCK_MAX], was[ROCK_MAX];
-        int fr, k;
-        for (k = 0; k < ROCK_MAX; k++) { sn[k] = 0; was[k] = rock_state[k]; }
-        rock_collapse(2);
-        for (fr = 0; fr < 500; fr++) {
-            for (k = 0; k < ROCK_MAX; k++) {
-                if (rock_state[k] == ROCK_SLIDE && !sn[k]) { sn[k] = 1; slide++; }
-                /* **滑り終わった瞬間に、その岩の列の下に黒ダイヤが何個あるか。**
-                   落ちる岩は列を貫いて全部採るので、これが「滑ったことで
-                   手に入る炭の数」になる。**滑っただけで何も採らない盤面と
-                   区別するために要る。** */
-                if (was[k] == ROCK_SLIDE && rock_state[k] != ROCK_SLIDE) {
-                    int cc = (rock_x[k] + 8) >> 4, rr = (rock_y[k] >> 4), q, g = 0;
-                    for (q = rr + 1; q < ROWS; q++) {
-                        if (coal[q * COLS + cc]) { g++; }
+        uint8_t pv[4]; int npv = 0, q;
+        for (i = 0; i < NCELL; i++) {
+            int k, dup = 0;
+            if (!pillar[i]) { continue; }
+            for (k = 0; k < npv; k++) { if (pv[k] == pillar[i]) { dup = 1; } }
+            if (!dup && npv < 4) { pv[npv++] = pillar[i]; }
+        }
+        if (npv == 0) { pv[npv++] = 1; }
+        for (q = 0; q < npv; q++) {
+            uint8_t sn[ROCK_MAX], was[ROCK_MAX];
+            int fr, k, sl = 0, sg = 0, cb = 0;
+            build_stage();                  /* 同じ種で組み直す */
+            for (k = 0; k < ROCK_MAX; k++) { sn[k] = 0; was[k] = rock_state[k]; }
+            rock_collapse(pv[q]);
+            for (fr = 0; fr < 500; fr++) {
+                for (k = 0; k < ROCK_MAX; k++) {
+                    if (rock_state[k] == ROCK_SLIDE && !sn[k]) { sn[k] = 1; sl++; }
+                    if (was[k] == ROCK_SLIDE && rock_state[k] != ROCK_SLIDE) {
+                        int cc = (rock_x[k] + 8) >> 4, rr = (rock_y[k] >> 4), t, g = 0;
+                        for (t = rr + 1; t < ROWS; t++) {
+                            if (coal[t * COLS + cc]) { g++; }
+                        }
+                        if (g > sg) { sg = g; }
                     }
-                    if (g > slide_gain) { slide_gain = g; }
+                    was[k] = rock_state[k];
                 }
-                was[k] = rock_state[k];
+                if (combo > cb) { cb = combo; }
+                rock_update();
+                coal_shake_tick();
             }
-            if (combo > best_combo) { best_combo = combo; }
-            rock_update();
-            coal_shake_tick();
+            if (sl > slide) { slide = sl; }
+            if (sg > slide_gain) { slide_gain = sg; best_drop = pv[q]; }
+            if (cb > best_combo) { best_combo = cb; }
         }
     }
+
     printf("{\"stage\":%d,\"seed\":%u,\"coal\":%d,\"rocks\":%d,"
            "\"free\":%d,\"haul\":%d,\"colmax\":%d,\"veins\":%d,\"veinmax\":%d,"
-           "\"slide\":%d,\"sgain\":%d,\"combo\":%d,\"dug0\":%u}\n",
-           st, sd, coal0, nrock, free_max, haul, best, veins, vmax, slide, slide_gain, best_combo, dug_n0);
+           "\"slide\":%d,\"sgain\":%d,\"drop\":%d,\"combo\":%d,\"dug0\":%u}\n",
+           st, sd, coal0, nrock, free_max, haul, best, veins, vmax, slide, slide_gain, best_drop, best_combo, dug_n0);
 }
 
 int main(int argc, char **argv)
