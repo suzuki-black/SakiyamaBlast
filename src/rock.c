@@ -376,7 +376,11 @@ static void rock_fall_step(uint8_t i)
        上が消えれば動くのは下だけ。下は自分の行の中を横へ動くので行の制約は壊れない。 */
     {
         int8_t below = (r + 1 < ROWS) ? rock_at(c, (int8_t)(r + 1)) : -1;
-        if (below >= 0 && rock_state[below] == ROCK_WAIT) {
+        /* **揺れている岩も滑らせる。** 落盤は上の行から順に落ちるので、
+           追いついた時点で下の岩はまだ揺れている最中であることが普通。
+           ここで WAIT だけを見ると、落盤では横滑りが一度も起きない。 */
+        if (below >= 0
+            && (rock_state[below] == ROCK_WAIT || rock_state[below] == ROCK_JIG)) {
             slide_start((uint8_t)below);
             rock_break(i);              /* 上の岩は落下距離に関わらず必ず割れる */
             return;
@@ -431,7 +435,9 @@ void rock_collapse(uint8_t blocks)
             sink_to[i] = (uint8_t)(r + blocks);   /* 土の中の岩は沈むだけ */
         }
         rock_state[i] = ROCK_JIG;
-        jig_t[i] = ROCK_JIG_FRAMES;
+        /* **上の行から順に落とす。** 同時に落とすと岩どうしがぶつからないので、
+           横滑りが一度も起きない。下の行ほど長く待たせて追いつかせる。 */
+        jig_t[i] = (uint8_t)(ROCK_JIG_FRAMES + (uint8_t)r * CAVEIN_ROW_DELAY);
     }
     snd_sfx(SFX_CAVEIN);   /* 盤面全体が動くので、通常の破砕音とは別の合図を鳴らす */
     enemy_stun_all(STUN_CAVEIN);   /* 天盤が落ちれば敵も足を取られる。岩が当たりやすくなる */
