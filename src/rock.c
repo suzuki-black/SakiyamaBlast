@@ -22,6 +22,8 @@ uint8_t rock_x[ROCK_MAX], rock_y[ROCK_MAX];
 
 static uint8_t jig_t[ROCK_MAX];     /* 揺れの残りフレーム */
 static uint8_t pushed[ROCK_MAX];    /* 押されて動いた直後か。揺れの長さを変える */
+static uint8_t slide_n[ROCK_MAX];   /* 滑りの残りドット */
+static int8_t  slide_d[ROCK_MAX];   /* 滑る向き */
 static uint8_t fall_r0[ROCK_MAX];   /* 落下を開始した行 (落下距離で割れ判定) */
 static uint8_t crushed[ROCK_MAX];   /* 落下中に何かを潰したか */
 /* 1回の落下で潰した敵の数。**升ごとに1体ずつ計上すると、縦一列をまとめて
@@ -117,7 +119,8 @@ static uint8_t rock_solid_at(int8_t cx, int8_t cy)
     if (i < 0) {
         return 0;
     }
-    return (uint8_t)(rock_state[i] != ROCK_FALL);
+    /* 落下中と滑っている最中の岩は支えにならない。 */
+    return (uint8_t)(rock_state[i] != ROCK_FALL && rock_state[i] != ROCK_SLIDE);
 }
 
 /* 真下が支えられているか。地形(未掘の土)・盤面の底・静止した岩に加えて、
@@ -144,8 +147,9 @@ static uint8_t supported(uint8_t i)
 uint8_t rock_can_push(int8_t i, int8_t dx, uint8_t into_dirt)
 {
     int8_t c, r, nc;
-    if (i < 0 || rock_state[i] == ROCK_NONE || rock_state[i] == ROCK_FALL) {
-        return 0;
+    if (i < 0 || rock_state[i] == ROCK_NONE || rock_state[i] == ROCK_FALL
+        || rock_state[i] == ROCK_SLIDE) {
+        return 0;                       /* 落ちている・滑っている岩は押せない */
     }
     r = (int8_t)(rock_y[i] >> 4);
     /* **これから踏み込む升は「進む側の端」で決める。中心ではない。**
@@ -260,6 +264,51 @@ static uint8_t hits_player(uint8_t i)
     return (uint8_t)((dx < 13) && (dy < 13));
 }
 
+/* その升へ岩が滑り込めるか。**土は塞ぐ扱い。**
+   こうしておくと、プレイヤーが片側だけ掘ることで滑る向きを指定できる。 */
+static uint8_t slide_open(int8_t cx, int8_t cy)
+{
+    if (cx < 0 || cx >= COLS) {
+        return 0;
+    }
+    if (!cell_dug(cx, cy) || cell_coal(cx, cy)) {
+        return 0;                       /* 土・黒ダイヤ・炭柱は塞ぐ */
+    }
+    return (uint8_t)(rock_at(cx, cy) < 0);
+}
+
+/* 上から岩が落ちてきた岩を、左右のうち**坑道がちょうど一方だけ**なら滑らせる。
+   両方が坑道、または両方塞がっているときは動かさない。 */
+static void slide_start(uint8_t i)
+{
+    int8_t c = rcx(i), r = (int8_t)(rock_y[i] >> 4);
+    uint8_t l = slide_open((int8_t)(c - 1), r);
+    uint8_t rt = slide_open((int8_t)(c + 1), r);
+    if (l == rt) {
+        return;                         /* 両方開いている / 両方塞がっている */
+    }
+    slide_d[i] = (int8_t)(l ? -1 : 1);
+    slide_n[i] = 16;
+    rock_state[i] = ROCK_SLIDE;
+    jig_t[i] = 0;
+}
+
+/* 滑りを1フレーム進める。滑り終わったら短く揺れてから落ちる。 */
+static void slide_step(uint8_t i)
+{
+    uint8_t n = (slide_n[i] < ROCK_SLIDE_SPD) ? slide_n[i] : ROCK_SLIDE_SPD;
+    rock_x[i] = (uint8_t)((uint8_t)rock_x[i] + (uint8_t)(slide_d[i] * (int8_t)n));
+    slide_n[i] = (uint8_t)(slide_n[i] - n);
+    if (slide_n[i]) {
+        return;
+    }
+    rock_x[i] = (uint8_t)((uint8_t)rcx(i) << 4);   /* 升へ寄せ直す */
+    /* **短い予兆を必ず挟む。** 滑ってそのまま落ちると、見てから逃げられない。 */
+    rock_state[i] = ROCK_JIG;
+    jig_t[i] = ROCK_JIG_PUSH;
+    pushed[i] = 1;
+}
+
 static void rock_fall_step(uint8_t i)
 {
     int8_t c, r;
@@ -321,6 +370,17 @@ static void rock_fall_step(uint8_t i)
     }
     if (r + 1 < ROWS && cell_dug(c, (int8_t)(r + 1)) && !rock_solid_at(c, (int8_t)(r + 1))) {
         return;                         /* まだ落ちる */
+    }
+    /* **岩の上に着地したら、上は必ず割れ、下が横へ1升滑る。**
+       上を残すと同じ行に岩が2つ並びうるので、横一列8枚の制限に触れて岩が消える。
+       上が消えれば動くのは下だけ。下は自分の行の中を横へ動くので行の制約は壊れない。 */
+    {
+        int8_t below = (r + 1 < ROWS) ? rock_at(c, (int8_t)(r + 1)) : -1;
+        if (below >= 0 && rock_state[below] == ROCK_WAIT) {
+            slide_start((uint8_t)below);
+            rock_break(i);              /* 上の岩は落下距離に関わらず必ず割れる */
+            return;
+        }
     }
     /* 着地。自身の高さ超 (2セル以上) 落ちたか、何かを潰したなら割れて消える。 */
     if (crushed[i] || (uint8_t)(r - fall_r0[i]) >= 2) {
@@ -387,7 +447,7 @@ uint8_t rock_busy(void)
     uint8_t i;
     for (i = 0; i < ROCK_MAX; i++) {
         if (rock_state[i] == ROCK_JIG || rock_state[i] == ROCK_FALL
-            || rock_state[i] == ROCK_SPLIT) {
+            || rock_state[i] == ROCK_SPLIT || rock_state[i] == ROCK_SLIDE) {
             return 1;
         }
     }
@@ -407,6 +467,10 @@ void rock_update(void)
                 rock_state[i] = ROCK_NONE;
                 spr_park((uint8_t)(SPR_ROCK + i));
             }
+            continue;
+        }
+        if (rock_state[i] == ROCK_SLIDE) {
+            slide_step(i);
             continue;
         }
         if (rock_state[i] == ROCK_FALL) {
