@@ -9,6 +9,8 @@
 
     free  : 岩の真下（同じ列）にある黒ダイヤの数。落ちる岩は列を貫いて全部採るので、
             **そのまま「何もしなくても手に入る連鎖の長さ」**になる
+    slide : 落盤を実際に起こしたとき、岩が横滑りした回数（静的には測れないので実行する）
+    combo : そのとき届いた連鎖の長さ
     haul  : 一番長い列へ岩を寄せるのに要る横移動の升数＝**岩の移動の面倒さ**
     colmax: 一番長い縦の炭層＝一気に狙える連鎖の上限
 
@@ -35,6 +37,34 @@ TARGET = {
 }
 W_FREE, W_HAUL, W_COLMAX = 5.0, 2.0, 1.0   # free を最優先する (狙いの中心)
 
+# **必ず満たさなければならない条件。** 満たさない種は候補から外す。
+#
+# 面1 の `slide`: 落盤で岩が横滑りする盤面であること。横滑りは「下の岩の左右のうち
+# 坑道がちょうど一方だけ」という条件が要るので、素のままだと 15面で1回しか起きず、
+# **規則の存在にプレイヤーが気づけない**。面1で目の前に見せて教える。
+# **`combo` も要る。** 滑っただけで止まる盤面だと、滑りが何の役にも立っておらず
+# 「だから何なのか」が伝わらない。滑った岩がそのまま落ちて連鎖に加わる盤面を選ぶ。
+REQUIRE = {
+    1: lambda r: r['slide'] >= 1 and r['combo'] >= 4,
+}
+
+# **点数では選べないので、実行して目で見て決めた種。**
+#
+# 面1: 滑る条件を満たす種は 60000 通り中4つ (10051 / 22735 / 25989 / 48540) あり、
+# `free` `haul` `colmax` `slide` `combo` がすべて同点で機械的には区別できない。
+# 落盤を1フレームずつ追って比べたところ、差は**滑りが連鎖に繋がるかどうか**だった。
+#
+#   種6368  … 61f に滑るが、着いた先で止まるだけ。連鎖は2止まり
+#   種10051 … 同上の同点だが未確認
+#   種25989 … 61f に (8,3) の岩が**自機の縦坑 (7列目) へ**滑り込み、
+#             69f に着地、75f にそのまま落下、95f に連鎖4。
+#             **滑った岩がそのまま連鎖に加わる。しかも自機の目の前で起きる**
+#
+# 種を選び直すときは、ここも実行して見比べること。
+PINNED = {
+    1: 25989,
+}
+
 
 def sweep(stage):
     out = subprocess.run([SIM, '--stage', str(stage), '--sweep', str(SWEEP)],
@@ -58,12 +88,24 @@ def main():
     for st in range(1, 16):
         rows = sweep(st)
         want = TARGET[st]
+        need = REQUIRE.get(st)
+        if need:
+            keep = [r for r in rows if need(r)]
+            if not keep:
+                sys.exit('面%d: 必須条件を満たす種が %d 通りの中に無い' % (st, len(rows)))
+            rows = keep
         best = min(rows, key=lambda r: (score(r, want), r['seed']))
+        if st in PINNED:
+            pin = [r for r in rows if r['seed'] == PINNED[st]]
+            if not pin:
+                sys.exit('面%d: 固定した種 %d が条件を満たさない' % (st, PINNED[st]))
+            best = pin[0]
         seeds.append(best['seed'])
         print('%3d %6d %5d %5d %7d %6d %6d  %d/%d/%d%s' %
               (st, best['seed'], best['free'], best['haul'], best['colmax'],
                best['coal'], best['veins'], want[0], want[1], want[2],
-               '' if score(best, want) == 0 else '  (完全一致なし)'))
+               ('  <- 目で見て固定' if st in PINNED
+               else ('' if score(best, want) == 0 else '  (完全一致なし)'))))
     if '--write' in sys.argv:
         src = open(FIELD).read()
         body = ',\n    '.join(', '.join('%5d' % s for s in seeds[i:i + 5])

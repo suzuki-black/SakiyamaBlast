@@ -355,6 +355,7 @@ extern uint8_t  en_ghost[ENEMY_MAX];
 static void analyse(int st, unsigned sd)
 {
     int col[COLS], c, r, i, best = 0, bestc = 0, free_max = 0, haul = 99, nrock = 0;
+    int slide = 0, best_combo = 0, coal0 = 0;
     int seen[NCELL], veins = 0, vmax = 0;
     for (c = 0; c < COLS; c++) { col[c] = 0; }
     for (r = 0; r < ROWS; r++) {
@@ -397,10 +398,29 @@ static void analyse(int st, unsigned sd)
         if (n > vmax) { vmax = n; }
     }
 
+    coal0 = coal_left;      /* 落盤の前に控える (下で盤面を動かすため) */
+
+    /* **落盤を実際に起こして、横滑りが出るかを測る。**
+       静的には数えられない。岩どうしがぶつかり、下の岩の左右のうち坑道が
+       ちょうど一方だけ、という条件が要るため。 */
+    {
+        uint8_t sn[ROCK_MAX];
+        int fr, k;
+        for (k = 0; k < ROCK_MAX; k++) { sn[k] = 0; }
+        rock_collapse(2);
+        for (fr = 0; fr < 500; fr++) {
+            for (k = 0; k < ROCK_MAX; k++) {
+                if (rock_state[k] == ROCK_SLIDE && !sn[k]) { sn[k] = 1; slide++; }
+            }
+            if (combo > best_combo) { best_combo = combo; }
+            rock_update();
+            coal_shake_tick();
+        }
+    }
     printf("{\"stage\":%d,\"seed\":%u,\"coal\":%d,\"rocks\":%d,"
            "\"free\":%d,\"haul\":%d,\"colmax\":%d,\"veins\":%d,\"veinmax\":%d,"
-           "\"dug0\":%u}\n",
-           st, sd, coal_left, nrock, free_max, haul, best, veins, vmax, dug_n0);
+           "\"slide\":%d,\"combo\":%d,\"dug0\":%u}\n",
+           st, sd, coal0, nrock, free_max, haul, best, veins, vmax, slide, best_combo, dug_n0);
 }
 
 int main(int argc, char **argv)
