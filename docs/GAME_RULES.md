@@ -14,6 +14,7 @@ MSX turbo R 向け（SDCC / ASCII8 MegaROM）。1画面固定の掘り＋採掘�
 | `docs/HISTORY.md` | **常磐炭田と先山の史実資料。** 既存仕様（体温・水風呂・岩）の裏付けと演出上の方針。出典と確度つき |
 | `docs/DESIGN_PROPOSALS.md` | **改変案の台帳。** 外部から受け取った提案を検証し、実装済み／推奨／保留／却下の状態を付けたもの |
 | `docs/HOSTSIM.md` | **面を数値化するツール。** ゲームロジックをそのまま gcc でビルドしヘッドレスで走らせる |
+| `docs/ROCK_SLIDE.md` | **岩の横滑りだけを詳しくしたもの。** 発動条件の実測と、単純化の相談事項 |
 | `docs/ART_PATTERNS.md` | **絵とアニメーションの一覧。** スプライト26枚・タイル10枚が、どの状態で何コマ使われるか。増やすときの ROM 予算つき。**描き替えの前に見る** |
 | `docs/GAMEDATA_FORMAT.md` | 絵を JSON で外部ツールとやり取りする形式（`make gamedata` / `gamedata-import`） |
 | `docs/KANJI_FORMAT.md` | 面の開始に出す漢字15字の差し替え手順（16x16 のドット絵） |
