@@ -356,6 +356,7 @@ static void analyse(int st, unsigned sd)
 {
     int col[COLS], c, r, i, best = 0, bestc = 0, free_max = 0, haul = 99, nrock = 0;
     int slide = 0, best_combo = 0, coal0 = 0, slide_gain = 0, best_drop = 0;
+    int taken = 0, crack = 0, topple = 0, side = 0;
     int seen[NCELL], veins = 0, vmax = 0;
     for (c = 0; c < COLS; c++) { col[c] = 0; }
     for (r = 0; r < ROWS; r++) {
@@ -398,6 +399,22 @@ static void analyse(int st, unsigned sd)
         if (n > vmax) { vmax = n; }
     }
 
+    /* **衝撃波の的があるか (静的)。** 岩が 1〜3 升沈んだ先の左右 SHOCK_MAX 升に
+       黒ダイヤが何個あるか。耐久に依存しないので、高次面で「いまは割れないが
+       仕込めば割れる」形になっているかを測れる。 */
+    for (i = 0; i < ROCK_MAX; i++) {
+        int rc, rr, dr, dc;
+        if (rock_state[i] == 0) { continue; }
+        rc = rock_x[i] >> 4; rr = rock_y[i] >> 4;
+        for (dr = 1; dr <= 3; dr++) {
+            for (dc = -3; dc <= 3; dc++) {
+                int x = rc + dc, y = rr + dr;
+                if (!dc || x < 0 || x >= COLS || y >= ROWS) { continue; }
+                if (coal[y * COLS + x]) { side++; }
+            }
+        }
+    }
+
     coal0 = coal_left;      /* 落盤の前に控える (下で盤面を動かすため) */
 
     /* **落盤を実際に起こして、横滑りが出るかを測る。**
@@ -418,14 +435,18 @@ static void analyse(int st, unsigned sd)
         }
         if (npv == 0) { pv[npv++] = 1; }
         for (q = 0; q < npv; q++) {
-            uint8_t sn[ROCK_MAX], was[ROCK_MAX];
-            int fr, k, sl = 0, sg = 0, cb = 0;
+            uint8_t sn[ROCK_MAX], was[ROCK_MAX], tp[ROCK_MAX];
+            int fr, k, sl = 0, sg = 0, cb = 0, tk, cr = 0, tpn = 0;
             build_stage();                  /* 同じ種で組み直す */
-            for (k = 0; k < ROCK_MAX; k++) { sn[k] = 0; was[k] = rock_state[k]; }
+            for (k = 0; k < ROCK_MAX; k++) { sn[k] = 0; tp[k] = 0; was[k] = rock_state[k]; }
             rock_collapse(pv[q]);
             for (fr = 0; fr < 500; fr++) {
                 for (k = 0; k < ROCK_MAX; k++) {
                     if (rock_state[k] == ROCK_SLIDE && !sn[k]) { sn[k] = 1; sl++; }
+                    /* 落下から直に横へ動いたら倒れ込み (衝撃で真横を砕いた結果) */
+                    if (was[k] == ROCK_FALL && rock_state[k] == ROCK_SLIDE && !tp[k]) {
+                        tp[k] = 1; tpn++;
+                    }
                     if (was[k] == ROCK_SLIDE && rock_state[k] != ROCK_SLIDE) {
                         int cc = (rock_x[k] + 8) >> 4, rr = (rock_y[k] >> 4), t, g = 0;
                         for (t = rr + 1; t < ROWS; t++) {
@@ -439,6 +460,9 @@ static void analyse(int st, unsigned sd)
                 rock_update();
                 coal_shake_tick();
             }
+            tk = coal0 - coal_left;
+            for (k = 0; k < NCELL; k++) { if (coal[k] == COAL_CRACKED) { cr++; } }
+            if (tk > taken) { taken = tk; crack = cr; topple = tpn; }
             if (sl > slide) { slide = sl; }
             if (sg > slide_gain) { slide_gain = sg; best_drop = pv[q]; }
             if (cb > best_combo) { best_combo = cb; }
@@ -447,8 +471,10 @@ static void analyse(int st, unsigned sd)
 
     printf("{\"stage\":%d,\"seed\":%u,\"coal\":%d,\"rocks\":%d,"
            "\"free\":%d,\"haul\":%d,\"colmax\":%d,\"veins\":%d,\"veinmax\":%d,"
-           "\"slide\":%d,\"sgain\":%d,\"drop\":%d,\"combo\":%d,\"dug0\":%u}\n",
-           st, sd, coal0, nrock, free_max, haul, best, veins, vmax, slide, slide_gain, best_drop, best_combo, dug_n0);
+           "\"slide\":%d,\"sgain\":%d,\"drop\":%d,\"combo\":%d,"
+           "\"taken\":%d,\"crack\":%d,\"topple\":%d,\"side\":%d,\"dug0\":%u}\n",
+           st, sd, coal0, nrock, free_max, haul, best, veins, vmax, slide, slide_gain, best_drop, best_combo,
+           taken, crack, topple, side, dug_n0);
 }
 
 int main(int argc, char **argv)
