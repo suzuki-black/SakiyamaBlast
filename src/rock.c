@@ -24,6 +24,8 @@ static uint8_t jig_t[ROCK_MAX];     /* 揺れの残りフレーム */
 static uint8_t pushed[ROCK_MAX];    /* 押されて動いた直後か。揺れの長さを変える */
 static uint8_t slide_n[ROCK_MAX];   /* 滑りの残りドット */
 static int8_t  slide_d[ROCK_MAX];   /* 滑る向き */
+static uint8_t shock_s[ROCK_MAX];   /* 沈み込みで止まったときの衝撃の強さ */
+static uint8_t toppled[ROCK_MAX];   /* 衝撃で砕いた升へ倒れ込んだ直後か */
 static uint8_t fall_r0[ROCK_MAX];   /* 落下を開始した行 (落下距離で割れ判定) */
 static uint8_t crushed[ROCK_MAX];   /* 落下中に何かを潰したか */
 /* 1回の落下で潰した敵の数。**升ごとに1体ずつ計上すると、縦一列をまとめて
@@ -277,6 +279,16 @@ static uint8_t slide_open(int8_t cx, int8_t cy)
     return (uint8_t)(rock_at(cx, cy) < 0);
 }
 
+/* 横へ1升動かし始める。滑りと倒れ込みで共通。 */
+static void slide_begin(uint8_t i, int8_t dir)
+{
+    slide_d[i] = dir;
+    slide_n[i] = 16;
+    rock_state[i] = ROCK_SLIDE;
+    jig_t[i] = 0;
+    snd_sfx(SFX_CLICK);             /* 今まで無音で、何が起きたか分からなかった */
+}
+
 /* 上から岩が落ちてきた岩を、左右のうち**坑道がちょうど一方だけ**なら滑らせる。
    両方が坑道、または両方塞がっているときは動かさない。 */
 static void slide_start(uint8_t i)
@@ -287,10 +299,7 @@ static void slide_start(uint8_t i)
     if (l == rt) {
         return;                         /* 両方開いている / 両方塞がっている */
     }
-    slide_d[i] = (int8_t)(l ? -1 : 1);
-    slide_n[i] = 16;
-    rock_state[i] = ROCK_SLIDE;
-    jig_t[i] = 0;
+    slide_begin(i, (int8_t)(l ? -1 : 1));
 }
 
 /* 滑りを1フレーム進める。滑り終わったら短く揺れてから落ちる。 */
@@ -307,6 +316,63 @@ static void slide_step(uint8_t i)
     rock_state[i] = ROCK_JIG;
     jig_t[i] = ROCK_JIG_PUSH;
     pushed[i] = 1;
+    /* **倒れ込みは勢いで落ち続ける。** 砕いた黒ダイヤの升へ倒れ込んでも、
+       その真下がまだ割れていない黒ダイヤだと支えになって止まってしまい、
+       「横へ砕いて、そこへ倒れ込んで、縦に落ちる」の最後が繋がらない。
+       sink_to を1升先に置いて支えの判定を飛ばし、落下を再開させる
+       (落ち始めれば coal_smash が列を貫く)。 */
+    if (toppled[i]) {
+        toppled[i] = 0;
+        /* **倒れ込んだ升そのものも採る。** coal_smash は「入った升」で走るので、
+           落下を再開しただけだと出発した1升を採り損ねる。 */
+        coal_smash(rcx(i), (int8_t)(rock_y[i] >> 4));
+        sink_to[i] = (uint8_t)((rock_y[i] >> 4) + 1);
+    }
+}
+
+/*
+ * 着地の衝撃を左右へ走らせる。**土は通す。距離で減衰するだけ。**
+ * 盤面はほぼ全部が土なので、土で止めると判定材料が盤面にほとんど存在しなくなる。
+ * 判定に使うのは**着地点からの距離**と**黒ダイヤの耐久**だけで、どちらも画面に見えている。
+ */
+static int8_t shock_emit(uint8_t i, int8_t c, int8_t r)
+{
+    int8_t s, d, broke_l = 0, broke_r = 0;
+    uint8_t S = shock_s[i];
+    shock_s[i] = 0;
+    if (!S) {
+        int8_t n = (int8_t)((int8_t)r - (int8_t)fall_r0[i] - 1);
+        if (n <= 0) {
+            return 0;                   /* 1升しか落ちていない岩は衝撃を出さない */
+        }
+        S = (uint8_t)(n > SHOCK_MAX ? SHOCK_MAX : n);
+    }
+    for (s = -1; s <= 1; s = (int8_t)(s + 2)) {
+        for (d = 1; d <= SHOCK_MAX; d++) {
+            int8_t a = (int8_t)((int8_t)S - d + 1);
+            int8_t x = (int8_t)(c + s * d);
+            if (a <= 0) {
+                break;                  /* 減衰しきった */
+            }
+            if (x < 0 || x >= COLS) {
+                break;                  /* 場外 */
+            }
+            if (coal_shock_at(x, r, (uint8_t)a) && d == 1) {
+                if (s < 0) { broke_l = 1; } else { broke_r = 1; }
+            }
+        }
+    }
+    field_shake((uint8_t)(ROCK_LAND_SHAKE + S));
+    snd_sfx(SFX_CLICK);
+    /* **真横の黒ダイヤを砕いたら、岩はそこへ倒れ込む。**
+       「横へ砕いて、そこへ倒れ込んで、縦に落ちる」という一続きの因果になる。
+       岩どうしの衝突と違い、**目が追っている岩がそのまま動く**。
+       両側とも砕けたら自機のいる側へ。岩が自分のほうへ来るので緊張が上がり、
+       立ち位置がそのまま操作になる。 */
+    if (broke_l && broke_r) {
+        return (int8_t)((int8_t)player_cell_c() < c ? -1 : 1);
+    }
+    return (int8_t)(broke_l ? -1 : (broke_r ? 1 : 0));
 }
 
 static void rock_fall_step(uint8_t i)
@@ -386,6 +452,16 @@ static void rock_fall_step(uint8_t i)
             return;
         }
     }
+    {
+        /* **止まった瞬間に左右へ衝撃を送る。** 真横を砕いたらそこへ倒れ込む。 */
+        int8_t topple = shock_emit(i, c, r);
+        if (topple && !crushed[i] && (uint8_t)(r - fall_r0[i]) < 2) {
+            cash_kills(i);
+            toppled[i] = 1;
+            slide_begin(i, topple);
+            return;
+        }
+    }
     /* 着地。自身の高さ超 (2セル以上) 落ちたか、何かを潰したなら割れて消える。 */
     if (crushed[i] || (uint8_t)(r - fall_r0[i]) >= 2) {
         rock_break(i);
@@ -433,6 +509,11 @@ void rock_collapse(uint8_t blocks)
             sink_to[i] = 0xFF;
         } else {
             sink_to[i] = (uint8_t)(r + blocks);   /* 土の中の岩は沈むだけ */
+            /* **沈み込みで止まった岩は、沈み込みブロック数をそのまま衝撃にする。**
+               落下距離で測ると沈み込み2でも強さ1にしかならず弱すぎる。
+               こうすると**炭柱の左下の数字が、盤面全体の破壊力の予告**になり、
+               どちらの炭柱を壊すかが初めて意味のある選択になる。 */
+            shock_s[i] = blocks;
         }
         rock_state[i] = ROCK_JIG;
         /* **上の行から順に落とす。** 同時に落とすと岩どうしがぶつからないので、

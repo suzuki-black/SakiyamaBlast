@@ -398,6 +398,41 @@ uint8_t cell_coal(int8_t cx, int8_t cy)
     return (uint8_t)((v != 0 && v != COAL_CRACKED) ? 1 : 0);
 }
 
+/*
+ * 着地衝撃で黒ダイヤの耐久を a 減らす。0 になったら割れる。
+ *
+ * **炭柱には作用しない。** 炭柱は耐久が高く、割れると落盤が起きるので、
+ * 衝撃で連鎖的に落盤が走ると制御できない現象になる。
+ * 水風呂・土・坑道にも作用しない（衝撃は通り抜けて先へ進む）。
+ */
+uint8_t coal_shock_at(int8_t cx, int8_t cy, uint8_t a)
+{
+    uint16_t i;
+    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
+        return 0;
+    }
+    i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
+    if (!coal[i] || coal[i] == COAL_CRACKED || pillar[i]) {
+        return 0;
+    }
+    if (coal[i] > a) {
+        coal[i] = (uint8_t)(coal[i] - a);
+        draw_coal((uint8_t)cx, (uint8_t)cy);   /* 減った数字を見せる */
+        return 0;
+    }
+    /* 割れる。つるはしで割ったときと同じ後始末をする。 */
+    coal[i] = COAL_CRACKED;
+    dig_sweep((uint8_t)cx, (uint8_t)cy);
+    link_open((uint8_t)cx, (uint8_t)cy);
+    draw_coal((uint8_t)cx, (uint8_t)cy);
+    field_redraw_cell(cx, (int8_t)(cy - 1));
+    field_redraw_cell(cx, (int8_t)(cy + 1));
+    field_redraw_cell((int8_t)(cx - 1), cy);
+    field_redraw_cell((int8_t)(cx + 1), cy);
+    score_add(PTS_COAL_CRACK);
+    return 1;
+}
+
 /* つるはし1回ぶん。耐久度が0になったら割れた絵へ差し替えて1を返す。 */
 uint8_t coal_hit(int8_t cx, int8_t cy)
 {
