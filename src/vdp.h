@@ -30,6 +30,9 @@ void vdp_display(uint8_t on);   /* 0 で画面を消す (幕を下ろす) */
    中立値は BIOS の保存領域から取るので、本体側の調整設定を壊さない。 */
 void vdp_adjust_init(void);
 void vdp_adjust(int8_t dx, int8_t dy);
+/* R#18 の中立値と、いま入れている揺れのぶん。陽炎 (haze.c) が読む。 */
+extern uint8_t vdp_adj_neutral;
+extern int8_t  vdp_adj_dx, vdp_adj_dy;
 void vdp_set_palette(uint8_t idx, uint8_t r, uint8_t g, uint8_t b);
 void vdp_upload(uint16_t addr, const uint8_t *src, uint16_t len);
 void vdp_memset(uint16_t addr, uint8_t val, uint16_t len);

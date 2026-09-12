@@ -22,6 +22,15 @@ typedef signed int     int16_t;
 uint8_t gtstck(uint8_t dev) __z88dk_fastcall;
 uint8_t gttrig(uint8_t dev) __z88dk_fastcall;
 uint8_t snsmat(uint8_t row) __z88dk_fastcall;   /* キーマトリクス1行 (0=押下) */
+/* 機種。0=MSX1 / 1=MSX2 / 2=MSX2+ / 3=turbo R */
+uint8_t msxver(void);
+/* turbo R の CPU 切り替え。**turbo R 以外で呼んではいけない** (0x0180 が別の意味になる)。
+   mode: 0=Z80 / 1=R800 ROM / 2=R800 DRAM。0x80 を足すと本体の LED も変わる。 */
+#define CPU_Z80    0
+#define CPU_R800   1
+#define CPU_R800D  2
+void    chgcpu(uint8_t mode) __z88dk_fastcall;
+uint8_t getcpu(void);
 
 /* ROM データ窓 (0xA000-0xBFFF) のセグメント切り替え */
 void bank_select(uint8_t seg) __z88dk_fastcall;

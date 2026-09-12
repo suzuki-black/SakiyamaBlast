@@ -35,6 +35,7 @@ A_BATHON=$(addr bath_on); A_BATHC=$(addr bath_c); A_BATHR=$(addr bath_r)
 A_POWDER=$(addr powder); A_COAL=$(addr coal); A_DUG=$(addr dug)
 A_COALLEFT=$(addr coal_left)
 A_PILLAR=$(addr pillar)
+A_CHUTE=$(addr chute)
 A_PCT=$(addr dug_pct)
 
 # 面1は掘り抜きが数字の「1」(15升) ＋ 敵の湧き出し口1升 = 16升。
@@ -72,6 +73,26 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
             set pl 0; \
             for {set i 0} {\$i<176} {incr i} { if {[debug read memory [expr {$A_PILLAR+\$i}]]} {incr pl} }; \
             puts \$f \"PILLARN \$pl\"; \
+            set cn 0; set cc -1; set cr -1; \
+            for {set i 0} {\$i<176} {incr i} { \
+                if {[debug read memory [expr {$A_CHUTE+\$i}]]} { \
+                    incr cn; if {\$cc<0} { set cc [expr {\$i%16}]; set cr [expr {\$i/16}] } } }; \
+            puts \$f \"CHUTEN \$cn\"; \
+            set cok 1; \
+            for {set i 0} {\$i<176} {incr i} { \
+                set v [debug read memory [expr {$A_CHUTE+\$i}]]; \
+                if {!\$v} continue; \
+                if {![debug read memory [expr {$A_DUG+\$i}]]} { set cok 0 }; \
+                set x [expr {\$i%16}]; \
+                set nx [expr {\$x + (\$v==1 ? 1 : -1)}]; \
+                if {\$nx>=0 && \$nx<16} { \
+                    if {![debug read memory [expr {$A_DUG+\$i-\$x+\$nx}]]} { set cok 0 } } }; \
+            puts \$f \"CHUTEOPEN \$cok\"; \
+            set w 0; \
+            for {set y 0} {\$y<16} {incr y} { for {set x 0} {\$x<8} {incr x} { \
+                set b [debug read VRAM [expr {(\$cr*16+\$y)*128 + \$cc*8 + \$x}]]; \
+                if {(\$b>>4)==10} {incr w}; if {(\$b&15)==10} {incr w} } }; \
+            puts \$f \"CHUTEWOOD \$w\"; \
             puts \$f \"POWDERN \$p\"; puts \$f \"COALN \$d\"; puts \$f \"COALLEFT [debug read memory $A_COALLEFT]\"; puts \$f \"DUGN \$g\"; \
             puts \$f \"PCT [debug read memory $A_PCT]\"; \
             close \$f; exit }; \
@@ -104,8 +125,10 @@ check R0       6   "SCREEN 5 (GRAPHIC 4) になっている"
 check R1       98  "表示ON・垂直帰線割り込みON・16x16スプライト"
 check DIRT     102 "盤面が土で塗られている (0x66)"
 check TUNNELCELL 17 "自機の出発点が坑道として描かれている (0x11)"
-check DUGN     16  "掘り抜き「1」(15升) ＋ 湧き出し口(1升)"
-check PCT      9   "開始時の採掘率"
+# 掘り抜き「1」(15升) ＋ 湧き出し口(1升) ＝ 16。**樋の升とその落とし先も
+# 最初から開いている**ので、そのぶん増える (樋の位置は面の種で変わる)。
+check_min DUGN 16  "掘り抜き「1」(15升) ＋ 湧き出し口(1升) ＋ 樋のぶん"
+check_min PCT  9   "開始時の採掘率"
 check POWDERN  10  "火薬が10個置かれている"
 # 黒ダイヤは coal_n_tbl[0]=4 個 ＋ 炭柱 (PILLAR_MAX 本まで)。岩の真下が既に
 # 埋まっていれば炭柱は置かれないので、実際に立った本数で照合する。
@@ -121,6 +144,9 @@ check NESTOPEN 1   "湧き出し口が坑道に面している (敵が歩いて�
 check PX       112 "自機のX (= 出発点の列 x16)"
 check PY       16  "自機のY (= 出発点の行 x16)"
 check BATHON   1   "風呂が健在"
+check CHUTEN   2   "樋が2枚置かれている (低次面)"
+check CHUTEOPEN 1  "すべての樋の升と、その落とし先が最初から開いている"
+check_min CHUTEWOOD 20 "樋の板が坑木の色で描かれている"
 
 [ $fail -eq 0 ] && echo "smoketest: PASS" || echo "smoketest: FAIL"
 exit $fail

@@ -11,6 +11,7 @@
 #include "sound.h"
 #include "art.h"
 #include "config.h"
+#include "haze.h"
 #include "palette.h"   /* tools/palette.py から自動生成 */
 
 #define ST_TITLE 0
@@ -41,6 +42,47 @@ static char    msg[16];
    (移動は1フレーム1pxなので、そのまま速度が半分になる)。
    既に遅れている場合は待たずに進めることで、落ち方をなだらかにする。 */
 static uint8_t last_j;
+
+/* 陽炎を出しているか。しきい値の上で出たり消えたりしないよう、
+   入るときと切るときで体温のしきい値を変えてある。 */
+static uint8_t haze_on;
+
+/*
+ * **計測用の画面表示。** 1 にすると盤面の一番上に `CPU R8D FPS 55 HZ 1` を出し、
+ * H キーで陽炎を強制、C キーで CPU モード (Z80 <-> R800 DRAM) を切り替えられる。
+ * turbo R の実機で fps を見るためのもので、出荷する ROM では 0 にしておく。
+ */
+#define DEBUG_HUD 0
+
+#if DEBUG_HUD
+static uint8_t dbg_j0, dbg_fps, dbg_hkey, dbg_ckey, dbg_force;
+static uint16_t dbg_f0;
+
+static void dbg_draw(void)
+{
+    char buf[24];
+    uint8_t n = 0, m;
+    if ((uint8_t)(JIFFY - dbg_j0) < 60) {
+        return;                      /* 1秒たっていない */
+    }
+    dbg_j0 = JIFFY;
+    dbg_fps = (uint8_t)(frame_n - dbg_f0);
+    dbg_f0 = frame_n;
+    buf[n++] = 'C'; buf[n++] = 'P'; buf[n++] = 'U'; buf[n++] = ' ';
+    m = (uint8_t)((msxver() >= 3) ? (getcpu() & 3) : 0);
+    buf[n++] = (uint8_t)((m == 0) ? 'Z' : 'R');
+    buf[n++] = (uint8_t)((m == 0) ? '8' : '8');
+    buf[n++] = (uint8_t)((m == 0) ? '0' : (m == 1) ? 'R' : 'D');
+    buf[n++] = ' ';
+    buf[n++] = 'F'; buf[n++] = 'P'; buf[n++] = 'S'; buf[n++] = ' ';
+    n = (uint8_t)(n + text_u8(&buf[n], dbg_fps));
+    buf[n++] = ' ';
+    buf[n++] = 'H'; buf[n++] = 'Z'; buf[n++] = ' ';
+    buf[n++] = (uint8_t)(haze_n ? '1' : '0');
+    buf[n] = 0;
+    text_draw(0, 0, buf, COL_WHITE, COL_TUNNEL, 1);
+}
+#endif
 
 /* 前回からいくつ垂直帰線を跨いだか。1 なら 60fps が出ている。 */
 static uint8_t frames_passed;
@@ -305,8 +347,39 @@ void main(void)
         }
     }
     bank_select(DATA_SEG);      /* 0xA000 の窓を絵と曲へ向けておく */
+
+    /*
+     * **turbo R なら R800 の DRAM モードへ切り替える。**
+     *
+     * カートリッジは必ず Z80 モードで起動するので、自分で CHGCPU を呼ばない限り
+     * 3.58MHz の Z80 のままになる (実機の turbo R でもそうなっていた)。
+     *
+     * 速くなるのは**内蔵 DRAM にあるものだけ**。DRAM モードでは内蔵 BIOS ROM が
+     * DRAM へ写るので、**BIOS 呼び出しと割り込み処理**が速くなる (陽炎のライン割り込みは
+     * ここが律速)。RAMCODE (0xD000 の enemy) も速くなる。
+     * **カートリッジスロットのクロックは常に 3.58MHz** で、S1990 が外部スロットと
+     * I/O に wait を入れるので、固定領域のコードと VDP 書き込みは速くならない。
+     *
+     * VDP は I/O なので S1990 が wait を入れる (さらに VDP I/O には追加の wait が
+     * 入る)。**だから vdp_wblock の OTIR もそのまま安全。**
+     *
+     * **turbo R 以外では呼んではいけない。** 0x0180 は MSX2+ 以前では別の意味。
+     */
+    if (msxver() >= 3) {
+        chgcpu(CPU_R800D | 0x80);        /* R800 DRAM。0x80 で本体の LED も変える */
+    }
     vdp_screen5();
     vdp_adjust_init();
+    /* **初期値なしの変数はゼロで始まらない。** crt0 の gsinit は「初期値付きを
+       ROM から写す」だけで、初期値なしの領域は起動時の RAM の中身のまま
+       (実測で bomb_state が起動直後 251 だった)。
+       0 で始まってほしい変数は必ず自分で入れること。 */
+    haze_on = 0;
+#if DEBUG_HUD
+    dbg_j0 = 0; dbg_f0 = 0; dbg_fps = 0;
+    dbg_hkey = 0; dbg_ckey = 0; dbg_force = 0;
+#endif
+    haze_init();
     set_game_palette();
     text_init();
     snd_init();
@@ -346,6 +419,37 @@ void main(void)
                               : temp >= TEMPO_T2 ? 20
                               : temp >= TEMPO_T1 ? 18 : TEMPO_UNIT));
         snd_catch_up();
+
+        /* **体温が危険域に入ったら陽炎を出す。**
+           真夏のアスファルトの陽炎のような、ごく小さい振り幅の揺らぎ。
+           BGM が最速になるのと同じしきい値なので、**音と絵が同時に危険を告げる。**
+           遊んでいる間だけ。コンフィグで切れる (重いので) 。 */
+        if (state != ST_PLAY || !cfg_haze) {
+            haze_on = 0;
+        } else if (temp >= HAZE_ON_T) {
+            haze_on = 1;
+        } else if (temp < HAZE_OFF_T) {
+            haze_on = 0;
+        }
+#if DEBUG_HUD
+        /* H = 陽炎を強制 / C = CPU モードを Z80 <-> R800 DRAM で切り替え。
+           row3 は C D E F G H I J なので bit0=C、bit5=H。 */
+        {
+            uint8_t r3 = snsmat(3);
+            uint8_t h = (uint8_t)((r3 & 0x20) ? 0 : 1);
+            uint8_t c = (uint8_t)((r3 & 0x01) ? 0 : 1);
+            if (h && !dbg_hkey) { dbg_force = (uint8_t)!dbg_force; }
+            dbg_hkey = h;
+            if (c && !dbg_ckey && msxver() >= 3) {
+                chgcpu((uint8_t)((((getcpu() & 3) == CPU_R800D) ? CPU_Z80 : CPU_R800D) | 0x80));
+            }
+            dbg_ckey = c;
+        }
+        haze_tick((uint8_t)(state == ST_PLAY && (haze_on || dbg_force)));
+        dbg_draw();
+#else
+        haze_tick(haze_on);
+#endif
 
         if (state == ST_TITLE) {
             if (konami_check()) {
@@ -438,6 +542,15 @@ void main(void)
                     next_stage();
                 }
             }
+            continue;
+        }
+
+        /* **面リセット (R キー)。動作確認用。** コンフィグで ON にしたときだけ効く。
+           ここへ来ているのは ST_PLAY のときだけ (他の状態は上で continue している)。
+           得点・残機・ストックはそのまま残し、面だけ組み直す。連鎖や樋の経路を
+           何度も同じ条件で試すためのもの。 */
+        if (reset_pressed()) {
+            start_stage();
             continue;
         }
 

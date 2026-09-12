@@ -29,6 +29,14 @@ const uint8_t  *art_colours(uint8_t i);   /* mode-2 の行ごとの色 (16バイ
 #define TILE_DYNA   7      /* 投げて落ちたダイナマイト */
 #define TILE_DIACRK 8      /* 割れた黒ダイヤ。通れて、通ると採掘できる */
 #define TILE_PILLAR 9      /* 炭柱。岩を支えている黒ダイヤ。三ツ枠を巻いてある */
+/* 樋 (とい)。石炭を上の坑道から下へ落とすために斜めに架けた木の板。
+   **升は面の最初から開いている**ので、坑道の上へ板だけを重ねて描く。 */
+#define TILE_TOIR   10     /* 右下がり */
+#define TILE_TOIL   11     /* 左下がり */
+/* 使い終わった板。通行にも落下にも影響しない跡で、**向きは残す**
+   (その板がどちらへ落とすはずだったかまで読める)。 */
+#define TILE_TOIBR  12     /* 折れた板 (もとは右下がり) */
+#define TILE_TOIBL  13     /* 折れた板 (もとは左下がり) */
 const uint8_t *art_tile_of(uint8_t i);
 
 #endif

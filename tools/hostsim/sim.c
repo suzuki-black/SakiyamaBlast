@@ -351,12 +351,27 @@ extern uint8_t  en_ghost[ENEMY_MAX];
  *   haul  : 一番長い列へ岩を寄せるのに要る横移動の升数。**岩の移動の面倒さ**
  *   colmax: 一番長い縦の炭層。一気の連鎖の上限
  *   veins : 繋がった炭層の塊の数。多いほど散らばっていて一気に採りにくい
+ *   reach : **樋を通した1回の落下で採れる黒ダイヤの最大数。**
+ *           掘る手間を無視した上限で、樋の置き方の良し悪しはこれで測る
+ *   bend  : 実際に樋で曲がった岩の数。0 なら板が飾りになっている
+ *   hand  : **つるはしを1本入れるだけで採れる最大数（掘らない）。**
+ *           遊んだ感触に一番近い指標。reach と違って上限ではなく実際の取れ高
+ *   hbend : **その最善手の中で岩が樋を通った回数。** 0 なら、一番おいしい手が
+ *           板を一度も使っていない = 盤面が約束している連鎖が嘘になっている
+ *   bump  : 落盤中、落ちてきた岩が**止まっていた岩に追突**した回数 (規則6)
+ *   side  : 落盤中、**樋で横から入ってきた岩**に当たった回数 (相談書の (C))
+ *   cavef : 落盤が終わるまでのフレーム数
+ *   cbend : 落盤中に岩が樋を通った回数
+ *   hpick : **炭柱以外を1枚割って、岩が樋を通って採れた数。**
+ *           炭柱は盤面全体が動くので原因が追えない。普通の黒ダイヤ1枚なら
+ *           「この岩が落ちて、この板で曲がって、ここを採る」の一本の線になる
  */
 static void analyse(int st, unsigned sd)
 {
     int col[COLS], c, r, i, best = 0, bestc = 0, free_max = 0, haul = 99, nrock = 0;
-    int slide = 0, best_combo = 0, coal0 = 0, slide_gain = 0, best_drop = 0;
-    int taken = 0, crack = 0, topple = 0, side = 0;
+    int best_combo = 0, coal0 = 0;
+    int taken = 0, crack = 0, chutes = 0, reach = 0, bend = 0, hand = 0, hbend = 0, hpick = 0;
+    int bump = 0, side = 0, cavef = 0, cbend = 0, nfall = 0, lost = 0, maxline = 0;
     int seen[NCELL], veins = 0, vmax = 0;
     for (c = 0; c < COLS; c++) { col[c] = 0; }
     for (r = 0; r < ROWS; r++) {
@@ -377,6 +392,7 @@ static void analyse(int st, unsigned sd)
         if (d < haul) { haul = d; }
     }
     if (haul == 99) { haul = 0; }
+    for (i = 0; i < NCELL; i++) { if (chute[i]) { chutes++; } }
 
     /* 繋がった炭層の塊を数える (4近傍) */
     for (i = 0; i < NCELL; i++) { seen[i] = 0; }
@@ -399,82 +415,175 @@ static void analyse(int st, unsigned sd)
         if (n > vmax) { vmax = n; }
     }
 
-    /* **衝撃波の的があるか (静的)。** 岩が 1〜3 升沈んだ先の左右 SHOCK_MAX 升に
-       黒ダイヤが何個あるか。耐久に依存しないので、高次面で「いまは割れないが
-       仕込めば割れる」形になっているかを測れる。 */
-    for (i = 0; i < ROCK_MAX; i++) {
-        int rc, rr, dr, dc;
-        if (rock_state[i] == 0) { continue; }
-        rc = rock_x[i] >> 4; rr = rock_y[i] >> 4;
-        for (dr = 1; dr <= 3; dr++) {
-            for (dc = -3; dc <= 3; dc++) {
-                int x = rc + dc, y = rr + dr;
-                if (!dc || x < 0 || x >= COLS || y >= ROWS) { continue; }
-                if (coal[y * COLS + x]) { side++; }
+    coal0 = coal_left;      /* 盤面を動かす前に控える */
+
+    /* **落盤を実際に起こす。** 静的には数えられない。
+       沈み込みブロック数は廃止したので、炭柱はどれを壊しても結果が同じになった
+       (真下の升を抜いて全部の岩が落ちるだけ)。試すのは1回でよい。 */
+    {
+        int fr, k, cr = 0, last = 0;
+        uint8_t was[ROCK_MAX], ox[ROCK_MAX], oy[ROCK_MAX], side_t[ROCK_MAX];
+        build_stage();
+        rock_collapse();
+        for (k = 0; k < ROCK_MAX; k++) {
+            was[k] = rock_state[k]; ox[k] = rock_x[k]; oy[k] = rock_y[k]; side_t[k] = 0;
+            if (rock_state[k] == 2) { nfall++; }   /* ROCK_JIG = 落盤で落ちる岩 */
+        }
+        for (fr = 0; fr < 500; fr++) {
+            static uint8_t pre[NCELL];
+            if (combo > best_combo) { best_combo = combo; }
+            /* **板の状態をこのフレームの前に控える。** 自分が壊した板を
+               「もう壊れていた」と数えないため。 */
+            for (k = 0; k < NCELL; k++) { pre[k] = chute[k]; }
+            rock_update();
+            coal_shake_tick();
+            for (k = 0; k < ROCK_MAX; k++) {
+                /* **板を取り損ねた瞬間。** 落下中の岩が升の境目に着いたとき、
+                   そこの板がこのフレームより前から折れていたら「取り損ね」。
+                   作者が「優先順位がわからない」と言った現象そのもの。 */
+                if ((rock_state[k] == 3 || rock_state[k] == 4)
+                    && (rock_y[k] & 15) == 0 && rock_y[k] != oy[k]) {
+                    int ci = (rock_y[k] >> 4) * COLS + ((rock_x[k] + 8) >> 4);
+                    if (pre[ci] == CHUTE_BR || pre[ci] == CHUTE_BL) { lost++; }
+                }
+                if (side_t[k]) { side_t[k]--; }
+                /* 樋で列を移った直後の岩を覚えておく (この岩に当たったら (C)) */
+                if (rock_state[k] && rock_y[k] == oy[k] && rock_x[k] != ox[k]
+                    && (rock_x[k] & 15) == 0) { side_t[k] = 24; cbend++; }
+                /* **落下中の岩が割れた = 何かに着地した。** 真下に岩が居れば接触。
+                   その岩が直前に樋で横から入ってきたなら (C)、そうでなければ追突 (A)。 */
+                if (was[k] == ROCK_FALL && rock_state[k] == ROCK_SPLIT) {
+                    int c2 = (rock_x[k] + 8) >> 4, r2 = rock_y[k] >> 4;
+                    int b = (r2 + 1 < ROWS) ? rock_at((int8_t)c2, (int8_t)(r2 + 1)) : -1;
+                    if (b >= 0) { if (side_t[b]) { side++; } else { bump++; } }
+                }
+                was[k] = rock_state[k]; ox[k] = rock_x[k]; oy[k] = rock_y[k];
+            }
+            if (rock_busy()) { last = fr; }
+            /* **同じ走査線に岩が何枚かかるか** (横一列8枚制限の確認)。
+               スプライトは16px高なので、y の差が16未満なら重なる。 */
+            for (k = 0; k < ROCK_MAX; k++) {
+                int m = 0, k2;
+                if (!rock_state[k] || rock_state[k] == 4) { continue; }
+                for (k2 = 0; k2 < ROCK_MAX; k2++) {
+                    int d;
+                    if (!rock_state[k2] || rock_state[k2] == 4) { continue; }
+                    d = (int)rock_y[k2] - (int)rock_y[k];
+                    if (d < 0) { d = -d; }
+                    if (d < 16) { m++; }
+                }
+                if (m > maxline) { maxline = m; }
             }
         }
+        cavef = last;
+        taken = coal0 - coal_left;
+        for (k = 0; k < NCELL; k++) { if (coal[k] == COAL_CRACKED) { cr++; } }
+        crack = cr;
     }
 
-    coal0 = coal_left;      /* 落盤の前に控える (下で盤面を動かすため) */
-
-    /* **落盤を実際に起こして、横滑りが出るかを測る。**
-       静的には数えられない。岩どうしがぶつかり、下の岩の左右のうち坑道が
-       ちょうど一方だけ、という条件が要るため。
-
-       **沈み込みブロック数は炭柱ごとに違う。** 決め打ちで測ると、実際には
-       起きない現象を「起きる」と報告してしまう (一度それで面を選んで、
-       作者に別の炭柱を案内する事故を起こした)。**盤面にある炭柱の値を全部試し、
-       いちばん良い結果を採る。** どれを壊すかはプレイヤーが選べるため。 */
-    {
-        uint8_t pv[4]; int npv = 0, q;
-        for (i = 0; i < NCELL; i++) {
-            int k, dup = 0;
-            if (!pillar[i]) { continue; }
-            for (k = 0; k < npv; k++) { if (pv[k] == pillar[i]) { dup = 1; } }
-            if (!dup && npv < 4) { pv[npv++] = pillar[i]; }
+    /*
+     * **reach: 樋を通した1回の落下で採れる黒ダイヤの最大数。**
+     *
+     * これが樋の面を測る唯一の指標。静的には数えられない (板の向き・曲がった先が
+     * 掘れるか・その列に炭があるか、が全部絡む) ので、実際に落として数える。
+     *
+     * 測り方は「プレイヤーが掘りたいだけ掘れたら」の上限。**炭以外の升を全部
+     * 掘ってから、岩を1つだけ残して落とす。** 掘る手間は別の指標 (haul) が持つ。
+     */
+    for (i = 0; i < ROCK_MAX; i++) {
+        uint8_t ox[ROCK_MAX], oy[ROCK_MAX];
+        int fr, k, got, bn = 0;
+        build_stage();
+        if (rock_state[i] == 0) { continue; }
+        for (k = 0; k < ROCK_MAX; k++) { if (k != i) { rock_state[k] = 0; } }
+        for (k = 0; k < NCELL; k++) { if (!coal[k]) { dug[k] = 1; } }
+        for (k = 0; k < NCELL; k++) {
+            int kc = k % COLS, kr = k / COLS;
+            if (!dug[k]) { continue; }
+            if (kc + 1 < COLS && dug[k + 1])    { cell_link[k] |= LINK_RIGHT; }
+            if (kr + 1 < ROWS && dug[k + COLS]) { cell_link[k] |= LINK_DOWN; }
         }
-        if (npv == 0) { pv[npv++] = 1; }
-        for (q = 0; q < npv; q++) {
-            uint8_t sn[ROCK_MAX], was[ROCK_MAX], tp[ROCK_MAX];
-            int fr, k, sl = 0, sg = 0, cb = 0, tk, cr = 0, tpn = 0;
-            build_stage();                  /* 同じ種で組み直す */
-            for (k = 0; k < ROCK_MAX; k++) { sn[k] = 0; tp[k] = 0; was[k] = rock_state[k]; }
-            rock_collapse(pv[q]);
-            for (fr = 0; fr < 500; fr++) {
-                for (k = 0; k < ROCK_MAX; k++) {
-                    if (rock_state[k] == ROCK_SLIDE && !sn[k]) { sn[k] = 1; sl++; }
-                    /* 落下から直に横へ動いたら倒れ込み (衝撃で真横を砕いた結果) */
-                    if (was[k] == ROCK_FALL && rock_state[k] == ROCK_SLIDE && !tp[k]) {
-                        tp[k] = 1; tpn++;
-                    }
-                    if (was[k] == ROCK_SLIDE && rock_state[k] != ROCK_SLIDE) {
-                        int cc = (rock_x[k] + 8) >> 4, rr = (rock_y[k] >> 4), t, g = 0;
-                        for (t = rr + 1; t < ROWS; t++) {
-                            if (coal[t * COLS + cc]) { g++; }
-                        }
-                        if (g > sg) { sg = g; }
-                    }
-                    was[k] = rock_state[k];
-                }
-                if (combo > cb) { cb = combo; }
+        /* **真下が黒ダイヤなら1枚だけ割っておく。** 黒ダイヤは静止した岩の支えなので、
+           割らないと岩は一歩も動かない。これがゲーム側で言う「1枚ぶんの手間」。 */
+        {
+            int rc = (rock_x[i] + 8) >> 4, rr = (rock_y[i] >> 4);
+            if (rr + 1 < ROWS && coal[(rr + 1) * COLS + rc]) {
+                coal_crack_by_rock((int8_t)rc, (int8_t)(rr + 1));
+            }
+        }
+        ox[i] = rock_x[i]; oy[i] = rock_y[i];
+        for (fr = 0; fr < 500; fr++) {
+            rock_update();
+            coal_shake_tick();
+            /* 行が変わらないまま横へ動いたら、樋で曲がった瞬間。 */
+            if (rock_y[i] == oy[i] && rock_x[i] != ox[i]) { bn = 1; }
+            ox[i] = rock_x[i]; oy[i] = rock_y[i];
+        }
+        got = coal0 - coal_left;
+        if (got > reach) { reach = got; }
+        if (bn) { bend++; }
+    }
+
+    /*
+     * **hand: つるはしを1本入れるだけで採れる最大数。掘らない。**
+     *
+     * `reach` は「炭以外の升を全部掘ったら」の上限なので、**遊んだときに実際に
+     * 起きることを測っていない。** 盤面が「岩→炭層→樋→炭柱」と並んでいても、
+     * 途中が土で塞がっていれば岩は止まる（作者の指摘で発覚、2026-09-12）。
+     *
+     * こちらは**盤面をそのまま使い、黒ダイヤ1枚だけを耐久ぶん叩いて**engine を回す。
+     * 盤面上の全部の黒ダイヤを順に試して一番良い結果を採る（どれを叩くかは
+     * プレイヤーが選べるため）。炭柱を叩けば落盤もそこに含まれる。
+     */
+    {
+        int idx[NCELL], n = 0, q;
+        build_stage();                  /* 前の実験で盤面が荒れているので組み直す */
+        for (i = 0; i < NCELL; i++) {
+            if (coal[i] && coal[i] != COAL_CRACKED) { idx[n++] = i; }
+        }
+        for (q = 0; q < n; q++) {
+            int hc = idx[q] % COLS, hr = idx[q] / COLS, fr, got, k, nb = 0, isp;
+            uint8_t ox[ROCK_MAX], oy[ROCK_MAX];
+            build_stage();
+            isp = pillar[idx[q]] ? 1 : 0;
+            while (cell_coal((int8_t)hc, (int8_t)hr)) { coal_hit((int8_t)hc, (int8_t)hr); }
+            for (k = 0; k < ROCK_MAX; k++) { ox[k] = rock_x[k]; oy[k] = rock_y[k]; }
+            for (fr = 0; fr < 400; fr++) {
                 rock_update();
                 coal_shake_tick();
+                /* 行が変わらないまま横へ動いたら、樋で曲がった瞬間 */
+                for (k = 0; k < ROCK_MAX; k++) {
+                    if (rock_state[k] && rock_y[k] == oy[k] && rock_x[k] != ox[k]
+                        && (rock_x[k] & 15) == 0) { nb++; }
+                    ox[k] = rock_x[k]; oy[k] = rock_y[k];
+                }
             }
-            tk = coal0 - coal_left;
-            for (k = 0; k < NCELL; k++) { if (coal[k] == COAL_CRACKED) { cr++; } }
-            if (tk > taken) { taken = tk; crack = cr; topple = tpn; }
-            if (sl > slide) { slide = sl; }
-            if (sg > slide_gain) { slide_gain = sg; best_drop = pv[q]; }
-            if (cb > best_combo) { best_combo = cb; }
+            got = coal0 - coal_left;
+            /* **同じ取れ高なら、樋を通る手を採る。**
+               取れ高だけで選ぶと「炭柱を叩いて落盤」が最善手になり、
+               板が一度も使われない面が出荷される (実際にそうなった)。 */
+            if (got > hand || (got == hand && nb > hbend)) {
+                if (got > hand) { hand = got; hbend = nb; }
+                else { hbend = nb; }
+            }
+            /* **hpick: 炭柱以外を1枚割って、岩が樋を通って採れた数。**
+               炭柱を割ると盤面全体が動くので、樋を通っても**原因が目で追えない**。
+               普通の黒ダイヤ1枚なら「その岩が落ちて、この板で曲がって、ここを採る」
+               という一本の線になり、落とす前に指でなぞれる。
+               作者が示した「岩→炭層→樋→炭柱」の絵が、そのまま遊べる形。 */
+            if (!isp && nb > 0 && got > hpick) { hpick = got; }
         }
     }
 
     printf("{\"stage\":%d,\"seed\":%u,\"coal\":%d,\"rocks\":%d,"
            "\"free\":%d,\"haul\":%d,\"colmax\":%d,\"veins\":%d,\"veinmax\":%d,"
-           "\"slide\":%d,\"sgain\":%d,\"drop\":%d,\"combo\":%d,"
-           "\"taken\":%d,\"crack\":%d,\"topple\":%d,\"side\":%d,\"dug0\":%u}\n",
-           st, sd, coal0, nrock, free_max, haul, best, veins, vmax, slide, slide_gain, best_drop, best_combo,
-           taken, crack, topple, side, dug_n0);
+           "\"chutes\":%d,\"reach\":%d,\"hand\":%d,\"hbend\":%d,\"hpick\":%d,"
+           "\"bend\":%d,\"combo\":%d,\"bump\":%d,\"side\":%d,"
+           "\"cavef\":%d,\"cbend\":%d,\"nfall\":%d,\"lost\":%d,\"maxline\":%d,"
+           "\"taken\":%d,\"crack\":%d,\"dug0\":%u}\n",
+           st, sd, coal0, nrock, free_max, haul, best, veins, vmax,
+           chutes, reach, hand, hbend, hpick, bend, best_combo,
+           bump, side, cavef, cbend, nfall, lost, maxline, taken, crack, dug_n0);
 }
 
 int main(int argc, char **argv)

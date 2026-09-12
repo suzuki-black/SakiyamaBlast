@@ -10,6 +10,7 @@ uint8_t  powder[NCELL];
 uint8_t  bombdrop[NCELL];
 uint8_t  ume[NCELL];
 uint8_t  pillar[NCELL];
+uint8_t  chute[NCELL];
 uint8_t  coal[NCELL];
 uint8_t  coal_left;
 uint8_t  cell_link[NCELL];
@@ -198,6 +199,13 @@ static uint8_t get_t, get_n;
 static uint8_t get_cs[CHAIN_MAX], get_rs[CHAIN_MAX];
 static void get_flash_clear(void);
 
+/* **採掘音の順番待ち。** 落盤で岩が同時に落ちると、同じフレームに複数の升を採る。
+   効果音は1つしか鳴らないので、そのままだと連鎖の階段が耳で聞こえない。
+   **処理は同時のまま、音だけを COAL_SND_GAP フレームおきに1つずつ出す。**
+   升が違えば表示 (白い閃き・得点) は重ならないので、ずらすのは音だけでよい。 */
+static uint8_t csnd_p[8];       /* 順番待ちの音程 (リング) */
+static uint8_t csnd_h, csnd_n, csnd_t;
+
 
 /* 溜め中の汗。段が上がるほど滴が増える。体温を払っていることが絵で伝わる。 */
 static uint8_t sweat_c, sweat_r, sweat_lv;
@@ -300,6 +308,9 @@ void field_fx_reset(void)
     flash_t = 0;
     get_t = 0;
     get_n = 0;
+    csnd_n = 0;
+    csnd_h = 0;
+    csnd_t = 0;
     refill_t = 0;
     refill_cell = 0xFF;
     sweat_lv = 0;
@@ -348,6 +359,17 @@ void coal_shake_tick(void)
        自機が升の上に乗っているので、周りがふちどられるように見える。 */
     if (refill_t) {
         refill_t--;
+    }
+    /* 順番待ちの採掘音を1つ出す。 */
+    if (csnd_n) {
+        if (csnd_t) {
+            csnd_t--;
+        } else {
+            snd_sfx_up(SFX_COAL, csnd_p[csnd_h]);
+            csnd_h = (uint8_t)((csnd_h + 1) & 7);
+            csnd_n--;
+            csnd_t = COAL_SND_GAP;
+        }
     }
     if (get_t) {
         uint8_t k;
@@ -399,39 +421,41 @@ uint8_t cell_coal(int8_t cx, int8_t cy)
 }
 
 /*
- * 着地衝撃で黒ダイヤの耐久を a 減らす。0 になったら割れる。
+ * 樋 (とい)。坑内で石炭を上の坑道から下へ落とすために斜めに架けた木の板。
  *
- * **炭柱には作用しない。** 炭柱は耐久が高く、割れると落盤が起きるので、
- * 衝撃で連鎖的に落盤が走ると制御できない現象になる。
- * 水風呂・土・坑道にも作用しない（衝撃は通り抜けて先へ進む）。
+ * **絵そのものが規則になっている。** 右下がりの板なら岩は右へ、左下がりなら左へ。
+ * 落とす前に、盤面を見るだけで岩の通り道を最後まで指でなぞれる。
+ * つるはしでは壊せない。壊すのは落ちてきた岩だけ。
  */
-uint8_t coal_shock_at(int8_t cx, int8_t cy, uint8_t a)
+uint8_t cell_chute(int8_t cx, int8_t cy)
 {
-    uint16_t i;
+    uint8_t v;
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
         return 0;
     }
-    i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
-    if (!coal[i] || coal[i] == COAL_CRACKED || pillar[i]) {
-        return 0;
-    }
-    if (coal[i] > a) {
-        coal[i] = (uint8_t)(coal[i] - a);
-        draw_coal((uint8_t)cx, (uint8_t)cy);   /* 減った数字を見せる */
-        return 0;
-    }
-    /* 割れる。つるはしで割ったときと同じ後始末をする。 */
-    coal[i] = COAL_CRACKED;
-    dig_sweep((uint8_t)cx, (uint8_t)cy);
-    link_open((uint8_t)cx, (uint8_t)cy);
-    draw_coal((uint8_t)cx, (uint8_t)cy);
-    field_redraw_cell(cx, (int8_t)(cy - 1));
-    field_redraw_cell(cx, (int8_t)(cy + 1));
-    field_redraw_cell((int8_t)(cx - 1), cy);
-    field_redraw_cell((int8_t)(cx + 1), cy);
-    score_add(PTS_COAL_CRACK);
-    return 1;
+    v = chute[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx];
+    /* **折れた板 (CHUTE_BR / CHUTE_BL) は働かない。** 絵だけが跡として残る。 */
+    return (uint8_t)((v == CHUTE_R || v == CHUTE_L) ? v : 0);
 }
+
+/* 落ちてきた岩が板を踏み抜いた。**曲がれたかどうかに関わらず必ず壊れる。**
+   「板は必ず壊れる。曲がれれば曲がる」の1文で済ませるため。 */
+void chute_break(int8_t cx, int8_t cy)
+{
+    uint16_t i;
+    uint8_t v = cell_chute(cx, cy);
+    if (!v) {
+        return;
+    }
+    i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
+    /* **消さずに「折れた板」として残す。** 通行にも落下にも影響しない、ただの跡。
+       これが無いと、あとから来た岩が曲がらずに真っ直ぐ落ちた理由が
+       **画面のどこにも書かれていない**ことになる。 */
+    chute[i] = (uint8_t)((v == CHUTE_R) ? CHUTE_BR : CHUTE_BL);
+    field_redraw_cell(cx, cy);
+    snd_sfx(SFX_WOOD);
+}
+
 
 /* つるはし1回ぶん。耐久度が0になったら割れた絵へ差し替えて1を返す。 */
 uint8_t coal_hit(int8_t cx, int8_t cy)
@@ -444,11 +468,11 @@ uint8_t coal_hit(int8_t cx, int8_t cy)
     coal[i]--;
     if (coal[i] == 0) {
         {
-            uint8_t drop = pillar[i];          /* この柱が抜けると岩が何ブロック沈むか */
+            uint8_t was_pillar = pillar[i];
             coal[i] = COAL_CRACKED;
             pillar[i] = 0;                     /* 割れたらもう支えではない */
-            if (drop) {
-                rock_collapse(drop);           /* 天盤を支える柱が消えた = 落盤 */
+            if (was_pillar) {
+                rock_collapse();               /* 天盤を支える柱が消えた = 落盤 */
             }
         }
         shake_t = COAL_SHAKE_FRAMES;           /* 砕けた瞬間、画面を揺らす */
@@ -592,7 +616,10 @@ static void take_one(uint8_t cx, uint8_t cy)
     /* **音程の刻みは3半音。** 2半音だと4連鎖でも8半音しか上がらず、
        階段になっていることが耳で分からなかった。表の上限で頭打ちするので
        連鎖が深くても破綻しない。 */
-    snd_sfx_up(SFX_COAL, (uint8_t)((combo - 1) * 3));
+    if (csnd_n < 8) {
+        csnd_p[(uint8_t)((csnd_h + csnd_n) & 7)] = (uint8_t)((combo - 1) * 3);
+        csnd_n++;
+    }
     /* 連鎖が伸びるほど強く手応えを返す。**どれも VDP をほとんど使わない。** */
     {
         uint8_t n = (uint8_t)(HITSTOP_BASE + combo);
@@ -767,8 +794,8 @@ static uint8_t can_drop(int8_t cx, int8_t cy)
         return 0;
     }
     i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
-    if (!dug[i] || coal[i] || powder[i] || bombdrop[i] || ume[i]) {
-        return 0;
+    if (!dug[i] || coal[i] || chute[i] || powder[i] || bombdrop[i] || ume[i]) {
+        return 0;                       /* 樋の升は板が占めている */
     }
     if (bath_on && (uint8_t)cx == bath_c && (uint8_t)cy == bath_r) {
         return 0;
@@ -843,15 +870,23 @@ void draw_coal(uint8_t cx, uint8_t cy)
            下地を坑木の色にして「梁に彫った数字」に見せる。 */
         text_draw((uint16_t)((uint16_t)cx << 4) + 8, (uint16_t)((uint16_t)cy << 4) + 1,
                   buf, COL_TUNNEL, is_p ? COL_FUSE : COL_DIA, 1);
-        if (is_p) {
-            /* 左下に「壊すと岩が何ブロック沈むか」。右上の耐久度と読み違えないよう、
-               白抜きにして色を変えてある。 */
-            text_u8(buf, is_p);
-            buf[1] = 0;
-            text_draw((uint16_t)((uint16_t)cx << 4), (uint16_t)((uint16_t)cy << 4) + 8,
-                      buf, COL_WHITE, COL_DARK, 1);
-        }
     }
+}
+
+/*
+ * 樋 (とい)。坑道の上へ斜めの板を重ねて描く。
+ * **樋の升は面の最初から開いている**（板は土の塊ではなく落とし口なので）。
+ * 使い終わった板は「折れた板」の絵に変わる。向きは残すので、
+ * **その板がどちらへ落とすはずだったか**まで跡から読める。
+ */
+void draw_chute(uint8_t cx, uint8_t cy)
+{
+    static const uint8_t tbl[4] = { TILE_TOIR, TILE_TOIL, TILE_TOIBR, TILE_TOIBL };
+    uint8_t k = chute[(uint16_t)cy * COLS + cx];
+    if (!k || k > CHUTE_BL) {
+        return;
+    }
+    draw_tile(cx, cy, art_tile_of(tbl[k - 1]), 2);
 }
 
 /* 風呂 (温泉)。触れると体温が一気に下がる。 */
@@ -902,6 +937,13 @@ void field_redraw_cell(int8_t cx, int8_t cy)
     }
     draw_cell_dirt(cx, cy);
     draw_dug_cell(cx, cy);
+    /* **板を描いてから、置いてある物を上に重ねる。** 落とし物は置かれないように
+       してあるが (can_drop)、投げたダイナマイトだけは板の升へ落ちうる。
+       ここで return すると**そのダイナマイトが見えなくなる**ので、重ねて描く。
+       拾えばこの関数がもう一度走って板が戻る。 */
+    if (chute[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
+        draw_chute((uint8_t)cx, (uint8_t)cy);
+    }
     if (powder[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
         draw_powder((uint8_t)cx, (uint8_t)cy);
     }
@@ -981,7 +1023,7 @@ static uint8_t cell_ok(uint16_t i, uint8_t kind)
     if (kind == 0) {
         return (uint8_t)(dug[i] && !used[i]);
     }
-    if (dug[i] || coal[i] || rock_at((int8_t)c, (int8_t)r) >= 0) {
+    if (dug[i] || coal[i] || chute[i] || rock_at((int8_t)c, (int8_t)r) >= 0) {
         return 0;
     }
     if (near_key_cell(i)) {
@@ -1245,8 +1287,7 @@ static void place_pillars(void)
             return;
         }
         coal[i] = hp;
-        /* 壊したとき岩が何ブロック沈むか。柱ごとに違うので、升の左下に数字で出す。 */
-        pillar[i] = (uint8_t)(1 + (rnd8() % PILLAR_DROP_MAX));
+        pillar[i] = 1;
         coal_left++;
     }
 }
@@ -1269,41 +1310,127 @@ static void keep_above_coal(void)
 }
 
 /*
- * **落ちた先の横に黒ダイヤがある候補だけ残す。** 着地衝撃波の的になる位置。
+ * 列ごとの「一番上に居る岩の行」。0xFF = その列に岩が無い。
  *
- * 岩は落盤で 1〜3 升沈むので、置いた行そのものではなく **その 1〜3 行下**の
- * 左右 SHOCK_MAX 升に黒ダイヤがあるかを見る。どの炭柱を壊すかで沈み込み量が
- * 変わるため、3通りとも当たりうる位置を候補にする。
- *
- * **真上に置く (keep_above_coal) と衝撃波の出番が消える。** 岩が着地する頃には
- * 真下の炭を縦に貫いて採り終えていて、横に何も残っていないため。
- * 縦の連鎖と横の連鎖が同じ資源を奪い合う。
+ * **候補を絞るたびに rock_at() で上の行を全部探すと、面の組み立てが約3秒伸びる**
+ * (実測。R キーの面リセットを計測していて見つけた)。候補は最大176升あり、
+ * その1つごとに 行数 x 岩8個 を走査していた。岩は8個しかないので、
+ * 先に列ごとの表を作れば1回の照合で済む。
  */
-static void keep_beside_coal(void)
+static uint8_t rock_top[COLS];
+
+static void build_rock_top(void)
 {
-    uint8_t k = 0, m = 0;
-    while (k < cand_n) {
-        uint16_t i = cand[k];
-        int8_t c = (int8_t)(i % COLS), r = (int8_t)(i / COLS);
-        int8_t dr, dc;
-        uint8_t hit = 0;
-        for (dr = 1; dr <= SHOCK_MAX && !hit; dr++) {
-            for (dc = -SHOCK_MAX; dc <= SHOCK_MAX && !hit; dc++) {
-                int8_t x = (int8_t)(c + dc), y = (int8_t)(r + dr);
-                if (!dc || x < 0 || x >= COLS || y >= ROWS) {
-                    continue;
-                }
-                if (coal[(uint16_t)y * COLS + x]) {
-                    hit = 1;
-                }
-            }
-        }
-        if (hit) {
-            cand[m++] = cand[k];
-        }
-        k++;
+    uint8_t c, i;
+    for (c = 0; c < COLS; c++) {
+        rock_top[c] = 0xFF;
     }
-    cand_n = m;
+    for (i = 0; i < ROCK_MAX; i++) {
+        uint8_t rc, rr;
+        if (rock_state[i] == ROCK_NONE || rock_state[i] == ROCK_SPLIT) {
+            continue;
+        }
+        rc = (uint8_t)(((uint16_t)rock_x[i] + 8) >> 4);
+        rr = (uint8_t)(rock_y[i] >> 4);
+        if (rock_top[rc] == 0xFF || rr < rock_top[rc]) {
+            rock_top[rc] = rr;
+        }
+    }
+}
+
+/* (c,r) の上の同じ列に岩が居るか。樋は「岩が通る列」に置かないと意味が無い。 */
+static uint8_t rock_above(uint8_t c, uint8_t r)
+{
+    return (uint8_t)(rock_top[c] != 0xFF && rock_top[c] < r);
+}
+
+/* (c,r) に置く板が d の向きへ曲げられるか。need_coal なら、曲がった先の列の
+   下方に黒ダイヤがあることまで求める (通せば必ず何かを採れる置き方)。 */
+static uint8_t chute_dir_ok(uint8_t c, uint8_t r, int8_t d, uint8_t need_coal)
+{
+    int8_t nc = (int8_t)((int8_t)c + d);
+    uint8_t rr;
+    if (nc < 0 || nc >= COLS) {
+        return 0;
+    }
+    {
+        uint16_t j = (uint16_t)r * COLS + (uint8_t)nc;
+        if (coal[j] || chute[j]) {
+            return 0;               /* 曲がった先が黒ダイヤ / 板が隣り合うと読めない */
+        }
+    }
+    /* **落とす先の真上に岩を残さない。** 落とす先を開けるので、真上の岩が
+       面の開始と同時に落ちてしまう。 */
+    if (r > 0 && rock_at(nc, (int8_t)(r - 1)) >= 0) {
+        return 0;
+    }
+    if (!need_coal) {
+        return 1;
+    }
+    for (rr = (uint8_t)(r + 1); rr < ROWS; rr++) {
+        if (coal[(uint16_t)rr * COLS + (uint8_t)nc]) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/*
+ * 樋を置く。**低次面2枚、高次面4枚。**
+ *
+ * 3段構えで探す。
+ *   1. 上の列に岩が居て、曲がった先の下に黒ダイヤがある升 (通せば必ず採れる)
+ *   2. 上の列に岩が居る升
+ *   3. どこでも
+ * 1 が本命で、これが取れると「岩の下を掘る → 曲がる → 炭層を貫く」が
+ * 掘る前から目で追える形になる。
+ */
+static void place_chutes(void)
+{
+    uint8_t want = (uint8_t)((stage >= CHUTE_HIGH_ST) ? CHUTE_HIGH : CHUTE_LOW);
+    uint8_t made = 0, need;
+
+    build_rock_top();               /* 岩は置き終わっているので1回で足りる */
+    /* **候補の一覧は段ごとに1回だけ作る。** 板1枚ごとに作り直すと
+       176升 x cell_ok を最大12回繰り返すことになり、面の組み立てが目に見えて遅れる。
+       選んだ升は一覧から抜けるので、作り直さなくても二重には置かない。 */
+    for (need = 0; need < 3 && made < want; need++) {
+        build_candidates(1);
+        while (made < want && cand_n) {
+            uint16_t i = take_candidate();
+            uint8_t c = (uint8_t)(i % COLS), r = (uint8_t)(i / COLS);
+            int8_t d0 = (int8_t)((rnd8() & 1) ? 1 : -1);
+            uint8_t dir;
+            if (need < 2 && !rock_above(c, r)) {
+                continue;           /* 岩の通らない列に置いても意味が無い */
+            }
+            if (r > 0 && rock_at((int8_t)c, (int8_t)(r - 1)) >= 0) {
+                continue;           /* 真上の岩が開始と同時に落ちてしまう */
+            }
+            if (chute_dir_ok(c, r, d0, (uint8_t)(need == 0))) {
+                dir = (uint8_t)((d0 > 0) ? CHUTE_R : CHUTE_L);
+            } else if (chute_dir_ok(c, r, (int8_t)-d0, (uint8_t)(need == 0))) {
+                dir = (uint8_t)((d0 > 0) ? CHUTE_L : CHUTE_R);
+            } else {
+                continue;
+            }
+            /* **板の升と、板が落とす先の升を開ける。**
+               樋は土の塊ではなく落とし口なので、最初から通れている。
+               こうしないと「黒ダイヤを4枚貫いた岩が土に止められる」ことになり、
+               しかも曲がった先も土だと板が一度も働かない (作者の指摘、2026-09-12)。
+               開けておけば**落とす前に岩の通り道を最後まで目で追える**。 */
+            {
+                uint8_t nc = (uint8_t)((int8_t)c + ((dir == CHUTE_R) ? 1 : -1));
+                dug[i] = 1;
+                dug[(uint16_t)r * COLS + nc] = 1;
+                link_open(c, r);
+                link_open(nc, r);
+            }
+            chute[i] = dir;
+            used[i] = 1;
+            made++;
+        }
+    }
 }
 
 /* 指定した行の候補を落とす。
@@ -1334,24 +1461,18 @@ static void place_rocks(void)
        面の組み立てが目に見えて遅くなる (画面が暗いままの時間が伸びる)。
        岩どうしの「真下は土」条件は行ごと落とすことで自然に満たされる。 */
     /*
-     * **置き方は3段構え。**
-     *   1. 落ちた先の横に黒ダイヤが来る位置 (着地衝撃波の的)
-     *   2. 黒ダイヤの真上 (縦に貫く従来の遊び)
-     *   3. どこでも
+     * **置き方は2段構え。**
+     *   1. 黒ダイヤの真上 (割ればそのまま落ちて縦に貫く)
+     *   2. どこでも
      *
-     * 1 を先に食わせるのが要点。**全部を真上に置くと衝撃波の出番が消える**
-     * (着地する頃には真下の炭を採り終えていて、横に何も残っていない)。
-     * 縦と横で同じ炭層を奪い合うので、横を先に確保する。
+     * 横方向は樋が引き受けるので、岩の置き場に横の条件は要らない
+     * (樋は岩を置いたあとで、岩の下の列へ置く)。
      */
     build_candidates(2);
-    keep_beside_coal();
+    keep_above_coal();
     while (n) {
         if (cand_n == 0) {
-            build_candidates(2);
-            keep_above_coal();      /* 横が尽きたら真上へ */
-            if (cand_n == 0) {
-                build_candidates(2);    /* それも尽きたらどこでも */
-            }
+            build_candidates(2);    /* 真上が尽きたらどこでも */
             if (cand_n == 0) {
                 return;
             }
@@ -1514,6 +1635,31 @@ static void connect_to_reach(uint8_t c, uint8_t r)
     dug[(uint16_t)r * COLS + c] = 1;
 }
 
+/*
+ * **置く工程ごとに種を振り直す。**
+ *
+ * 乱数は1本の流れなので、途中の工程が食う回数が変わると**それより後の工程が
+ * 全部ずれる**。実際に樋の置き方を書き直したとき、樋しか触っていないのに
+ * 面11の盤面が必須条件を割った (2026-09-11)。
+ * 工程ごとに独立した種から始めれば、**ある工程のコードを触っても他の工程の配置は
+ * 動かない。** 樋の置き方を変えても黒ダイヤと岩はそのまま残る。
+ *
+ * 種は面ごとの種から決めるので、「盤面は面番号だけで決まる」ことは変わらない。
+ * 0x9E37 を掛けているのは工程ごとに離れた種にするため (xorshift は近い種でも
+ * 数回で散るが、念のため)。rnd_seed() は 0 を弾くので零状態にはならない。
+ */
+#define PH_CAVE   1
+#define PH_POWDER 2
+#define PH_COAL   3
+#define PH_ROCK   4
+#define PH_PILLAR 5
+#define PH_CHUTE  6
+
+static void phase_seed(uint8_t k)
+{
+    rnd_seed((uint16_t)(layout_seed() + (uint16_t)k * 0x9E37u));
+}
+
 static void set_stage_layout(void)
 {
     uint16_t i;
@@ -1536,6 +1682,7 @@ static void set_stage_layout(void)
     /* 敵の湧き出し口: 数字の掘り抜きとは別に、土の中へ独立した1ブロックの穴を開ける。
        掘り抜きの上に置くと、掘り進めた先から敵が飛び出してきて理不尽な死に方になる。
        自機の出発点からは十分に離す。 */
+    phase_seed(PH_CAVE);
     place_cave();
 
     /* 風呂: 掘ってある箇所の重心に近く、かつ自機の出発点の隣にはならないところ */
@@ -1553,34 +1700,35 @@ static void set_stage_layout(void)
     flood_from(start_c, start_r);
     connect_to_reach(nest_c, nest_r);
 
+    phase_seed(PH_POWDER);
     place_powder(POWDER_PER_STAGE);
     /* **黒ダイヤを先に置く。** 岩を炭層の真上へ寄せるので、置く対象が先に要る。 */
+    phase_seed(PH_COAL);
     place_coal();
+    phase_seed(PH_ROCK);
     place_rocks();
+    phase_seed(PH_PILLAR);
     place_pillars();
+    /* **樋は最後。** 岩の列と炭層の位置が決まってからでないと、
+       「岩が通って、曲がった先で炭を貫く」置き方を選べない。 */
+    phase_seed(PH_CHUTE);
+    place_chutes();
 }
 
 /* **面ごとの盤面の種。** ここを変えるとその面の並びが丸ごと変わる。
    0 のものはまだ選んでいないので `0x9E37 * 面番号 + 0x1234` を使う。
    選び方は tools/hostsim/pick_seeds.py（盤面を静的に測って総当たりする）。 */
-/* **面1だけは「横滑りした岩が、そのまま炭の列へ入って採る」条件でも選んである。**
-   横滑り (ROCK_SLIDE) は「下の岩の左右のうち坑道がちょうど一方だけ」という
-   条件が要るので、素のままだと 15面で1回しか起きず、**規則の存在に気づけない**。
-   面1で目の前に見せて教える。
+/* **全面に「樋を通した1回の落下で4個以上採れる」ことを課してある** (pick_seeds の
+   REQUIRE)。板が飾りにならないよう「実際に曲がる岩が1つ以上」も必須。
+   測り方は tools/hostsim/sim.c の analyse: 炭以外の升を全部掘ってから、岩を1つだけ
+   残して落とし、採れた数を数える (reach)。**掘る手間を無視した上限**なので、
+   「掘りさえすれば大連鎖の余地がある盤面か」を測っていることになる。
 
-   **「滑った」だけでは足りない。** 滑った先が土や坑道だと岩は何も採らずに止まり、
-   プレイヤーからは「今のは何だったのか」で終わる (一度それで選んで指摘された)。
-   種10051 では 71f に岩が岩へ着地して下の岩が横滑り、79f に**4升の炭層がある
-   12列目へ着地**、85f に落下して 101f に連鎖3。**滑った岩が炭を採るのが目で見える。**
-
-   **壊す炭柱は左の (3,2)。沈み込み2のほう。** 右上の (13,1) は沈み込み1で、
-   岩どうしが届かず横滑りは起きない。**沈み込みブロック数は炭柱ごとに違い、
-   落盤の結果もそれで変わる。** 作者の求めた「正しい炭柱を壊したら連鎖する」が
-   ここで成立している。 */
+   落盤で採れる数 (taken) は 面1〜3 で4個、面15 で0個。難易度の軸はこちら。 */
 const uint16_t stage_seed[15] = {
-    41070, 23445,  8465,  6663,  8451,
-    15672, 52532, 16110, 35772, 32743,
-    34097, 35058, 20956,   361, 14583,
+    31254, 38797,  1513,  3343,   378,
+      465,   504, 36306, 19743, 58472,
+     1391, 56710,  9922,  1869,  1673,
 };
 uint16_t layout_seed_force;      /* 0 以外なら強制的にこの種を使う (道具用) */
 
@@ -1605,6 +1753,7 @@ void build_stage(void)
         bombdrop[i] = 0;
         ume[i] = 0;
         pillar[i] = 0;
+        chute[i] = 0;
         coal[i] = 0;
         cell_link[i] = 0;
     }
@@ -1659,6 +1808,10 @@ void build_stage(void)
                 continue;
             }
             draw_dug_cell((int8_t)c, (int8_t)r);
+            if (chute[(uint16_t)r * COLS + c]) {
+                draw_chute(c, r);
+                continue;
+            }
             if (powder[(uint16_t)r * COLS + c]) {
                 draw_powder(c, r);
             }

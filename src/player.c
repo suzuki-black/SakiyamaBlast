@@ -214,6 +214,8 @@ void player_carve(void)
                 draw_bombdrop(c, r);
             } else if (bonus_on && c == bonus_c && r == bonus_r) {
                 draw_bonus(c, r, bonus_kind);
+            } else if (chute[i]) {
+                draw_chute(c, r);
             }
         }
     }

@@ -7,10 +7,17 @@
 	.globl	_gtstck
 	.globl	_gttrig
 	.globl	_snsmat
+	.globl	_msxver
+	.globl	_chgcpu
+	.globl	_getcpu
 
 GTSTCK		= 0x00D5		; A=装置番号 -> A=方向 0..8
 GTTRIG		= 0x00D8		; A=装置番号 -> A=0 or 0xFF
 SNSMAT		= 0x0141		; A=行番号 -> A=その行の8キー (ビット0=押されている)
+; turbo R の CPU 切り替え。**MSX2+ 以前には存在しないので、機種を見てから呼ぶこと。**
+CHGCPU		= 0x0180		; A=モード (bit0-1) | 0x80 でLEDも変える
+GETCPU		= 0x0183		; -> A=いまのモード
+MSXVER		= 0x002D		; 0=MSX1 1=MSX2 2=MSX2+ 3=turbo R
 
 	.area _CODE
 
@@ -49,3 +56,33 @@ _snsmat::
 	ld	l, a
 	ret
 
+
+; uint8_t msxver(void);
+;   ページ0 はカート起動後も BIOS のままなので、そのまま読める。
+;   0=MSX1 / 1=MSX2 / 2=MSX2+ / 3=turbo R
+_msxver::
+	ld	a, (#MSXVER)
+	ld	l, a
+	ret
+
+; void chgcpu(uint8_t mode) __z88dk_fastcall;
+;   mode: 0=Z80 / 1=R800 ROM / 2=R800 DRAM。0x80 を足すと本体のLEDも変わる。
+;   **turbo R 以外で呼ぶと 0x0180 は別の意味なので暴走する。必ず msxver() で確かめる。**
+_chgcpu::
+	push	ix
+	push	iy
+	ld	a, l
+	call	CHGCPU
+	pop	iy
+	pop	ix
+	ret
+
+; uint8_t getcpu(void);
+_getcpu::
+	push	ix
+	push	iy
+	call	GETCPU
+	pop	iy
+	pop	ix
+	ld	l, a
+	ret

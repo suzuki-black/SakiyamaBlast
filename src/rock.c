@@ -11,6 +11,10 @@
  *  - 押しは横方向のみ。押し先が開いている(掘り済み)セルの時だけ。土へは押し込めない。
  *    **押し込んだ先に居る敵は潰れる**（落とさなくても岩を武器にできる）。押した岩は割れない。
  *  - 自身の高さ超 (2セル以上) 落ちるか、何かを潰すと割れて消える。1セルなら割れず存続。
+ *
+ * 本作の追加は **樋 (とい)** だけ。落ちてきた岩が樋の升を通ると、板を壊して
+ * 傾いている方向へ1升ずれ、そこから落下を続ける (docs/GAME_RULES.md §6)。
+ * 岩に付いていた沈み込み・横滑り・衝撃波・倒れ込みは全部これに置き換えた。
  */
 #include "game.h"
 #include "sprite.h"
@@ -22,10 +26,8 @@ uint8_t rock_x[ROCK_MAX], rock_y[ROCK_MAX];
 
 static uint8_t jig_t[ROCK_MAX];     /* 揺れの残りフレーム */
 static uint8_t pushed[ROCK_MAX];    /* 押されて動いた直後か。揺れの長さを変える */
-static uint8_t slide_n[ROCK_MAX];   /* 滑りの残りドット */
-static int8_t  slide_d[ROCK_MAX];   /* 滑る向き */
-static uint8_t shock_s[ROCK_MAX];   /* 沈み込みで止まったときの衝撃の強さ */
-static uint8_t toppled[ROCK_MAX];   /* 衝撃で砕いた升へ倒れ込んだ直後か */
+static uint8_t chute_n[ROCK_MAX];   /* 樋で横へずれる残りドット。0 = ずれていない */
+static int8_t  chute_d[ROCK_MAX];   /* ずれる向き (板の傾き) */
 static uint8_t fall_r0[ROCK_MAX];   /* 落下を開始した行 (落下距離で割れ判定) */
 static uint8_t crushed[ROCK_MAX];   /* 落下中に何かを潰したか */
 /* 1回の落下で潰した敵の数。**升ごとに1体ずつ計上すると、縦一列をまとめて
@@ -33,9 +35,6 @@ static uint8_t crushed[ROCK_MAX];   /* 落下中に何かを潰したか */
    まとめて score_kills() に渡すことで、倍々の表がやっと効く。 */
 static uint8_t kills[ROCK_MAX];
 static uint8_t kill_c[ROCK_MAX], kill_r[ROCK_MAX];   /* 最初に潰した升 (得点を出す場所) */
-/* 落盤で沈み込む先の行。0xFF = 沈み込み中でない。
-   ここへ着くまでは土でも突き抜けて落ち、着いた時点で落下距離を数え直す。 */
-static uint8_t sink_to[ROCK_MAX];
 static uint8_t split_t[ROCK_MAX];   /* 割れた姿を出しておく残りフレーム */
 
 void rock_clear(void)
@@ -43,7 +42,7 @@ void rock_clear(void)
     uint8_t i;
     for (i = 0; i < ROCK_MAX; i++) {
         rock_state[i] = ROCK_NONE;
-        sink_to[i] = 0xFF;
+        chute_n[i] = 0;
         spr_park((uint8_t)(SPR_ROCK + i));
     }
 }
@@ -59,7 +58,7 @@ void rock_place(uint8_t c, uint8_t r)
             jig_t[i] = 0;
             pushed[i] = 0;
             crushed[i] = 0;
-            sink_to[i] = 0xFF;
+            chute_n[i] = 0;
             spr_color_lines((uint8_t)(SPR_ROCK + i), art_colours(PAT_ROCK));
             return;
         }
@@ -121,8 +120,8 @@ static uint8_t rock_solid_at(int8_t cx, int8_t cy)
     if (i < 0) {
         return 0;
     }
-    /* 落下中と滑っている最中の岩は支えにならない。 */
-    return (uint8_t)(rock_state[i] != ROCK_FALL && rock_state[i] != ROCK_SLIDE);
+    /* 落下中の岩は支えにならない。 */
+    return (uint8_t)(rock_state[i] != ROCK_FALL);
 }
 
 /* 真下が支えられているか。地形(未掘の土)・盤面の底・静止した岩に加えて、
@@ -148,10 +147,9 @@ static uint8_t supported(uint8_t i)
    「自分で岩の X 座標を決めて連鎖を組む」という遊びが成立しなくなる。 */
 uint8_t rock_can_push(int8_t i, int8_t dx, uint8_t into_dirt)
 {
-    int8_t c, r, nc;
-    if (i < 0 || rock_state[i] == ROCK_NONE || rock_state[i] == ROCK_FALL
-        || rock_state[i] == ROCK_SLIDE) {
-        return 0;                       /* 落ちている・滑っている岩は押せない */
+    int8_t r, nc;
+    if (i < 0 || rock_state[i] == ROCK_NONE || rock_state[i] == ROCK_FALL) {
+        return 0;                       /* 落ちている岩は押せない */
     }
     r = (int8_t)(rock_y[i] >> 4);
     /* **これから踏み込む升は「進む側の端」で決める。中心ではない。**
@@ -241,7 +239,7 @@ static void rock_break(uint8_t i)
     cash_kills(i);
     rock_state[i] = ROCK_SPLIT;
     split_t[i] = ROCK_SPLIT_FRAMES;
-    sink_to[i] = 0xFF;
+    chute_n[i] = 0;
     field_shake(ROCK_LAND_SHAKE);
     /* 割れた絵は岩と行ごとの色が違うので、色表も差し替える。 */
     spr_color_lines((uint8_t)(SPR_ROCK + i), art_colours(PAT_SPLIT));
@@ -266,122 +264,47 @@ static uint8_t hits_player(uint8_t i)
     return (uint8_t)((dx < 13) && (dy < 13));
 }
 
-/* その升へ岩が滑り込めるか。**土は塞ぐ扱い。**
-   こうしておくと、プレイヤーが片側だけ掘ることで滑る向きを指定できる。 */
-static uint8_t slide_open(int8_t cx, int8_t cy)
+/*
+ * 樋 (とい) の升へ落ちてきた。**板は必ず壊れる。曲がれれば曲がる。**
+ *
+ * 曲がった先が塞がっている (場外・土・黒ダイヤ) なら、曲がらずそのまま真下へ
+ * 落ち続ける。土で止めるのは「掘っておけば曲がる」を成立させるため
+ * (掘るという既存の動詞だけで経路を作れる)。
+ * 曲がった先に岩が居たら、規則どおり**落ちてきたほう**が割れる。
+ *
+ * 戻り値: 1 = 岩がもう居ない (割れた)。呼び出し側はそこで打ち切る。
+ */
+static void rock_enter_chute(uint8_t i, int8_t c, int8_t r)
 {
-    if (cx < 0 || cx >= COLS) {
-        return 0;
-    }
-    if (!cell_dug(cx, cy) || cell_coal(cx, cy)) {
-        return 0;                       /* 土・黒ダイヤ・炭柱は塞ぐ */
-    }
-    return (uint8_t)(rock_at(cx, cy) < 0);
-}
-
-/* 横へ1升動かし始める。滑りと倒れ込みで共通。 */
-static void slide_begin(uint8_t i, int8_t dir)
-{
-    slide_d[i] = dir;
-    slide_n[i] = 16;
-    rock_state[i] = ROCK_SLIDE;
-    jig_t[i] = 0;
-    snd_sfx(SFX_CLICK);             /* 今まで無音で、何が起きたか分からなかった */
-}
-
-/* 上から岩が落ちてきた岩を、左右のうち**坑道がちょうど一方だけ**なら滑らせる。
-   両方が坑道、または両方塞がっているときは動かさない。 */
-static void slide_start(uint8_t i)
-{
-    int8_t c = rcx(i), r = (int8_t)(rock_y[i] >> 4);
-    uint8_t l = slide_open((int8_t)(c - 1), r);
-    uint8_t rt = slide_open((int8_t)(c + 1), r);
-    if (l == rt) {
-        return;                         /* 両方開いている / 両方塞がっている */
-    }
-    slide_begin(i, (int8_t)(l ? -1 : 1));
-}
-
-/* 滑りを1フレーム進める。滑り終わったら短く揺れてから落ちる。 */
-static void slide_step(uint8_t i)
-{
-    uint8_t n = (slide_n[i] < ROCK_SLIDE_SPD) ? slide_n[i] : ROCK_SLIDE_SPD;
-    rock_x[i] = (uint8_t)((uint8_t)rock_x[i] + (uint8_t)(slide_d[i] * (int8_t)n));
-    slide_n[i] = (uint8_t)(slide_n[i] - n);
-    if (slide_n[i]) {
+    int8_t d = (cell_chute(c, r) == CHUTE_R) ? 1 : -1;
+    int8_t nc = (int8_t)(c + d);
+    chute_break(c, r);                  /* 通れば必ず壊れる */
+    /* **曲がった先を塞ぐものに岩も含める。** 横から押しても岩は岩を通り抜けられない
+       ので、押しの挙動と一致する。塞がっていれば曲がらず、そのまま真下へ落ちる
+       (板は壊れたまま残るので、真っ直ぐ落ちた理由が画面に出ている)。 */
+    if (nc < 0 || nc >= COLS || !cell_dug(nc, r) || cell_coal(nc, r)
+        || rock_at(nc, r) >= 0) {
         return;
     }
-    rock_x[i] = (uint8_t)((uint8_t)rcx(i) << 4);   /* 升へ寄せ直す */
-    /* **短い予兆を必ず挟む。** 滑ってそのまま落ちると、見てから逃げられない。 */
-    rock_state[i] = ROCK_JIG;
-    jig_t[i] = ROCK_JIG_PUSH;
-    pushed[i] = 1;
-    /* **倒れ込みは勢いで落ち続ける。** 砕いた黒ダイヤの升へ倒れ込んでも、
-       その真下がまだ割れていない黒ダイヤだと支えになって止まってしまい、
-       「横へ砕いて、そこへ倒れ込んで、縦に落ちる」の最後が繋がらない。
-       sink_to を1升先に置いて支えの判定を飛ばし、落下を再開させる
-       (落ち始めれば coal_smash が列を貫く)。 */
-    if (toppled[i]) {
-        toppled[i] = 0;
-        /* **倒れ込んだ升そのものも採る。** coal_smash は「入った升」で走るので、
-           落下を再開しただけだと出発した1升を採り損ねる。 */
-        coal_smash(rcx(i), (int8_t)(rock_y[i] >> 4));
-        sink_to[i] = (uint8_t)((rock_y[i] >> 4) + 1);
-    }
-}
-
-/*
- * 着地の衝撃を左右へ走らせる。**土は通す。距離で減衰するだけ。**
- * 盤面はほぼ全部が土なので、土で止めると判定材料が盤面にほとんど存在しなくなる。
- * 判定に使うのは**着地点からの距離**と**黒ダイヤの耐久**だけで、どちらも画面に見えている。
- */
-static int8_t shock_emit(uint8_t i, int8_t c, int8_t r)
-{
-    int8_t s, d, broke_l = 0, broke_r = 0;
-    uint8_t S = shock_s[i];
-    shock_s[i] = 0;
-    if (!S) {
-        int8_t n = (int8_t)((int8_t)r - (int8_t)fall_r0[i] - 1);
-        if (n <= 0) {
-            return 0;                   /* 1升しか落ちていない岩は衝撃を出さない */
-        }
-        S = (uint8_t)(n > SHOCK_MAX ? SHOCK_MAX : n);
-    }
-    for (s = -1; s <= 1; s = (int8_t)(s + 2)) {
-        for (d = 1; d <= SHOCK_MAX; d++) {
-            int8_t a = (int8_t)((int8_t)S - d + 1);
-            int8_t x = (int8_t)(c + s * d);
-            if (a <= 0) {
-                break;                  /* 減衰しきった */
-            }
-            if (x < 0 || x >= COLS) {
-                break;                  /* 場外 */
-            }
-            if (coal_shock_at(x, r, (uint8_t)a) && d == 1) {
-                if (s < 0) { broke_l = 1; } else { broke_r = 1; }
-            }
-        }
-    }
-    field_shake((uint8_t)(ROCK_LAND_SHAKE + S));
-    snd_sfx(SFX_CLICK);
-    /* **真横の黒ダイヤを砕いたら、岩はそこへ倒れ込む。**
-       「横へ砕いて、そこへ倒れ込んで、縦に落ちる」という一続きの因果になる。
-       岩どうしの衝突と違い、**目が追っている岩がそのまま動く**。
-       両側とも砕けたら自機のいる側へ。岩が自分のほうへ来るので緊張が上がり、
-       立ち位置がそのまま操作になる。 */
-    if (broke_l && broke_r) {
-        return (int8_t)((int8_t)player_cell_c() < c ? -1 : 1);
-    }
-    return (int8_t)(broke_l ? -1 : (broke_r ? 1 : 0));
+    chute_d[i] = d;
+    chute_n[i] = CELL;
 }
 
 static void rock_fall_step(uint8_t i)
 {
     int8_t c, r;
 
-    rock_y[i] = (uint8_t)(rock_y[i] + ROCK_FALL_SPD);
-    if (rock_y[i] > (uint8_t)YMAX) {
-        rock_y[i] = (uint8_t)YMAX;
+    /* **樋を滑っている間は落ちない。** 板の上を横へ1升ぶん移ってから、
+       同じフレームの続きで落下判定へ戻る。行は変わらないので、
+       この1升は落下距離に数えられない (規則どおり)。 */
+    if (chute_n[i]) {
+        rock_x[i] = (uint8_t)((uint8_t)rock_x[i] + (uint8_t)(chute_d[i] * ROCK_TOI_SPD));
+        chute_n[i] = (uint8_t)(chute_n[i] - ROCK_TOI_SPD);
+    } else {
+        rock_y[i] = (uint8_t)(rock_y[i] + ROCK_FALL_SPD);
+        if (rock_y[i] > (uint8_t)YMAX) {
+            rock_y[i] = (uint8_t)YMAX;
+        }
     }
 
     if (!invuln && !dead && hits_player(i)) {
@@ -402,6 +325,9 @@ static void rock_fall_step(uint8_t i)
         }
     }
 
+    if (chute_n[i]) {
+        return;                         /* まだ板の上。着地判定はしない */
+    }
     if (rock_y[i] & 15) {
         return;                         /* セル境界でだけ着地判定 */
     }
@@ -412,55 +338,40 @@ static void rock_fall_step(uint8_t i)
        落とせば壊れる、では筋が通らない。壊れると体温の逃げ場が無くなって面が
        一気に詰むうえ、壊した理由がプレイヤーに伝わらない。岩は風呂の上に
        乗るだけで、横に押しのければまた使える。 */
-    /* 沈み込み中は土でも突き抜けて落ちる。沈み終わった時点で落下距離を数え直すので、
-       **沈んだぶんは割れ判定に入らない** (炭柱に書いてある数だけ落ちても割れない)。 */
     /* **落ちている岩は黒ダイヤを突き抜け、その場で採ってしまう。**
        炭層の帯を縦に貫くので、1枚ぶんの手間 (岩の真下を割る) で帯ごと持っていける。
        採ったぶんは連鎖に乗るので、倍率が上から下へ伸びていく。 */
     /* **見るのは「真下」ではなく「いま入った升」。** 境界判定は升に着いてから走るので、
        真下を見ていると最初に飛び込む1升が検査されず、そこだけ採り損ねる。 */
+    /* **ここで return しないこと。** 以前は「貫いたのだから落ち続ける」として
+       即 return していたが、そうすると**真下が土でも1升めり込んで**しまい、
+       炭層の下に土がある形で岩が土の中へ潜り込んでいた。
+       炭を貫いても、続くかどうかは下の支えを見て決める (下の判定へ落とす)。 */
     if (coal_smash(c, r)) {
         crushed[i] = 1;             /* 仕事をしたので着地で割れて消える */
-        return;                     /* 落下を続ける */
     }
-    if (sink_to[i] != 0xFF) {
-        if ((uint8_t)r < sink_to[i]) {
-            if (r + 1 >= ROWS) {
-                sink_to[i] = 0xFF;
-                rock_break(i);          /* 盤外へ抜けた */
-            }
-            return;
+    /* 樋。**升は面の最初から開いている**ので、落ちてきた岩は必ずここへ入る。 */
+    if (cell_chute(c, r)) {
+        rock_enter_chute(i, c, r);
+        if (chute_n[i]) {
+            return;                 /* これから横へ1升ずれる */
         }
-        sink_to[i] = 0xFF;
-        fall_r0[i] = (uint8_t)r;        /* ここから先だけを落下距離として数える */
     }
-    if (r + 1 < ROWS && cell_dug(c, (int8_t)(r + 1)) && !rock_solid_at(c, (int8_t)(r + 1))) {
+    /* **落ちている岩は黒ダイヤを突き抜ける (規則3。連鎖の心臓)。**
+       支えとして黒ダイヤを数えるのは**静止している岩だけ** (supported)。
+       落下中は貫きながら採るので、炭層の帯は**1枚ぶんの手間 (岩の真下を割る)**
+       で帯ごと持っていける。「割る＝通す / 割らない＝支える」はこれで両立する。 */
+    if (r + 1 < ROWS && (cell_dug(c, (int8_t)(r + 1)) || cell_coal(c, (int8_t)(r + 1)))
+        && !rock_solid_at(c, (int8_t)(r + 1))) {
         return;                         /* まだ落ちる */
     }
-    /* **岩の上に着地したら、上は必ず割れ、下が横へ1升滑る。**
-       上を残すと同じ行に岩が2つ並びうるので、横一列8枚の制限に触れて岩が消える。
-       上が消えれば動くのは下だけ。下は自分の行の中を横へ動くので行の制約は壊れない。 */
-    {
-        int8_t below = (r + 1 < ROWS) ? rock_at(c, (int8_t)(r + 1)) : -1;
-        /* **揺れている岩も滑らせる。** 落盤は上の行から順に落ちるので、
-           追いついた時点で下の岩はまだ揺れている最中であることが普通。
-           ここで WAIT だけを見ると、落盤では横滑りが一度も起きない。 */
-        if (below >= 0
-            && (rock_state[below] == ROCK_WAIT || rock_state[below] == ROCK_JIG)) {
-            slide_start((uint8_t)below);
-            rock_break(i);              /* 上の岩は落下距離に関わらず必ず割れる */
-            return;
-        }
-    }
-    {
-        /* **止まった瞬間に左右へ衝撃を送る。** 真横を砕いたらそこへ倒れ込む。 */
-        int8_t topple = shock_emit(i, c, r);
-        if (topple && !crushed[i] && (uint8_t)(r - fall_r0[i]) < 2) {
-            cash_kills(i);
-            toppled[i] = 1;
-            slide_begin(i, topple);
-            return;
-        }
+    /* **落ちてきた岩が岩に着地したら、落ちてきたほうが割れる。**
+       押して岩の上に乗せた場合は割れない (この判定は落下中にしか走らないので、
+       押して積むのはそのまま通る)。積めることには使い道があって、
+       下の岩の支えを外せば**時間差の縦連鎖**をプレイヤーが自分で仕込める。 */
+    if (r + 1 < ROWS && rock_at(c, (int8_t)(r + 1)) >= 0) {
+        rock_break(i);
+        return;
     }
     /* 着地。自身の高さ超 (2セル以上) 落ちたか、何かを潰したなら割れて消える。 */
     if (crushed[i] || (uint8_t)(r - fall_r0[i]) >= 2) {
@@ -478,19 +389,20 @@ static void rock_fall_step(uint8_t i)
 
 /*
  * 炭柱が壊れたときの落盤。残柱式で天盤を支えていた柱が無くなるので、
- * 盤面の**すべての岩**が揺れてから1升沈む。
- *  - 岩は地中に埋まっているものなので、真下が土でも沈む。抜けた升は土のまま
- *    (dug[] を触らない)。1升だけなら割れない
- *  - 沈んだ先の下が掘れていれば、そこからは通常の岩と同じ。落ちるところまで
- *    落ちて割れる (落下距離は元の位置から数えるので、1升沈む + 1升落ちるで割れる)
- *  - 一番下の行に居る岩は落ちる先が無いので消える
+ * **黒ダイヤに載っている岩が一斉に支えを失って落ちる。**
+ *
+ * **岩は土を突き抜けない。** 「N升沈む」も「土を掘りながら落ちる」もどちらも
+ * 廃止した。前者は数字が盤面に見えず、後者は**掘っていない場所を岩が落ちていく**
+ * ので、爽快感より違和感になる (作者の指摘、2026-09-11)。
+ * 落盤で動くのは**黒ダイヤの上に載っている岩だけ**で、土の中の岩はその場に残る。
+ *
+ * 岩は `keep_above_coal()` で黒ダイヤの真上へ寄せて置いてあるので、
+ * ほとんどの岩がこれで落ちる。落ちた岩は炭層の帯を貫いて採るので、
+ * 炭柱ひとつが「盤面のあちこちで縦の連鎖が同時に走る」合図になる。
  */
-void rock_collapse(uint8_t blocks)
+void rock_collapse(void)
 {
     uint8_t i, c;
-    if (blocks == 0) {
-        blocks = 1;
-    }
     for (i = 0; i < ROCK_MAX; i++) {
         uint8_t r;
         if (rock_state[i] != ROCK_WAIT && rock_state[i] != ROCK_JIG) {
@@ -498,27 +410,21 @@ void rock_collapse(uint8_t blocks)
         }
         r = (uint8_t)(rock_y[i] >> 4);
         if (r + 1 >= ROWS) {
-            rock_break(i);              /* 一番下。落ちる先が無いので消える */
-            continue;
+            continue;                   /* 一番下。盤面の底が支えなので動かない */
         }
         c = (uint8_t)rcx(i);
-        if (cell_coal((int8_t)c, (int8_t)(r + 1))) {
-            /* **岩が載っている黒ダイヤを割る。** 支えを失うので普通に落ちる。
-               沈み込みではないので、落ちた距離で普通に割れ判定される。 */
-            coal_crack_by_rock((int8_t)c, (int8_t)(r + 1));
-            sink_to[i] = 0xFF;
-        } else {
-            sink_to[i] = (uint8_t)(r + blocks);   /* 土の中の岩は沈むだけ */
-            /* **沈み込みで止まった岩は、沈み込みブロック数をそのまま衝撃にする。**
-               落下距離で測ると沈み込み2でも強さ1にしかならず弱すぎる。
-               こうすると**炭柱の左下の数字が、盤面全体の破壊力の予告**になり、
-               どちらの炭柱を壊すかが初めて意味のある選択になる。 */
-            shock_s[i] = blocks;
+        if (!cell_coal((int8_t)c, (int8_t)(r + 1))) {
+            continue;                   /* 土や坑道に載っている岩は支えを失わない */
         }
+        /* **岩が載っている黒ダイヤを割る。** 支えを失うので普通に落ちる。
+           落ちた距離で普通に割れ判定される (特別扱いはしない)。 */
+        coal_crack_by_rock((int8_t)c, (int8_t)(r + 1));
         rock_state[i] = ROCK_JIG;
-        /* **上の行から順に落とす。** 同時に落とすと岩どうしがぶつからないので、
-           横滑りが一度も起きない。下の行ほど長く待たせて追いつかせる。 */
-        jig_t[i] = (uint8_t)(ROCK_JIG_FRAMES + (uint8_t)r * CAVEIN_ROW_DELAY);
+        /* **全部同じフレームに落ち始める。** 以前は上の行から順に落としていたが、
+           上を先行させると下の岩に追いついてしまい、**盤面のどこにも書かれていない
+           数フレームの差**で板の取り合いの勝敗が決まっていた。
+           同時なら全員が同じ速さで降りるので、勝敗は**経路の升数**だけで決まる。 */
+        jig_t[i] = ROCK_JIG_FRAMES;
     }
     snd_sfx(SFX_CAVEIN);   /* 盤面全体が動くので、通常の破砕音とは別の合図を鳴らす */
     enemy_stun_all(STUN_CAVEIN);   /* 天盤が落ちれば敵も足を取られる。岩が当たりやすくなる */
@@ -534,7 +440,7 @@ uint8_t rock_busy(void)
     uint8_t i;
     for (i = 0; i < ROCK_MAX; i++) {
         if (rock_state[i] == ROCK_JIG || rock_state[i] == ROCK_FALL
-            || rock_state[i] == ROCK_SPLIT || rock_state[i] == ROCK_SLIDE) {
+            || rock_state[i] == ROCK_SPLIT) {
             return 1;
         }
     }
@@ -556,15 +462,11 @@ void rock_update(void)
             }
             continue;
         }
-        if (rock_state[i] == ROCK_SLIDE) {
-            slide_step(i);
-            continue;
-        }
         if (rock_state[i] == ROCK_FALL) {
             rock_fall_step(i);
             continue;
         }
-        if (supported(i) && sink_to[i] == 0xFF) {
+        if (supported(i)) {
             rock_state[i] = ROCK_WAIT;
             jig_t[i] = 0;
             pushed[i] = 0;

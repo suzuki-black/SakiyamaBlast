@@ -250,3 +250,88 @@ _vdp_wpal::
 	ld	a, l
 	out	(VDP_PALT), a
 	ret
+
+;-------------------------------------------------------------------
+; 陽炎 (かげろう)。V9938 のライン割り込みで R#18 を1画面に何度か書き替え、
+; ラスタごとに横位置を ±1〜2px ずらす。**VRAM は一切触らない。**
+;
+;   _haze_n   分割数 (0 = 何もしない)
+;   _haze_i   次に処理するバンド
+;   _haze_row 各バンドの R#19 の値   _haze_adj 各バンドで R#18 に書く値
+;
+; H.KEYI (0xFD9A) へフックする。**BIOS が割り込み源を判定する前**に呼ばれるので、
+; S#1 の FH (bit0) を見て、ライン割り込みならここで処理して帰る。
+; 垂直帰線割り込みのときは何もせず BIOS へ帰す。
+;
+; **R#15 は必ず 0 へ戻す。** 戻さないと BIOS が S#0 を読めず暴走する
+; (この落とし穴は wait_ce のコメントにも書いてある)。
+;-------------------------------------------------------------------
+H_KEYI		= 0xFD9A
+
+_haze_hook::
+	di
+	ld	hl, #_haze_isr
+	ld	a, #0xC3		; jp nn
+	ld	(#H_KEYI), a
+	ld	(#H_KEYI + 1), hl
+	ei
+	ret
+
+_haze_isr:
+	push	af
+	push	bc
+	push	hl
+	ld	a, #1
+	out	(VDP_ADDR), a
+	ld	a, #0x8F		; R#15 = 1 (S#1 を選ぶ)
+	out	(VDP_ADDR), a
+	in	a, (VDP_ADDR)		; S#1。読むと FH が落ちる
+	ld	c, a
+	xor	a
+	out	(VDP_ADDR), a
+	ld	a, #0x8F		; R#15 = 0 へ戻す
+	out	(VDP_ADDR), a
+	bit	0, c			; FH = ライン割り込みか
+	jr	Z, haze_out
+	ld	a, (#_haze_n)
+	or	a, a
+	jr	Z, haze_out
+	ld	c, a			; C = 分割数
+	ld	hl, (#_haze_hits)	; 走った回数 (計測用)
+	inc	hl
+	ld	(#_haze_hits), hl
+	; いまのバンドの値を R#18 へ
+	ld	hl, #_haze_adj
+	ld	a, (#_haze_i)
+	add	a, l
+	ld	l, a
+	jr	NC, haze_a1
+	inc	h
+haze_a1:
+	ld	a, (hl)
+	out	(VDP_ADDR), a
+	ld	a, #0x92		; R#18
+	out	(VDP_ADDR), a
+	; 次のバンドを R#19 へ仕込む
+	ld	a, (#_haze_i)
+	inc	a
+	cp	a, c
+	jr	C, haze_a2
+	xor	a			; 一周したので先頭へ (次のフレームで効く)
+haze_a2:
+	ld	(#_haze_i), a
+	ld	hl, #_haze_row
+	add	a, l
+	ld	l, a
+	jr	NC, haze_a3
+	inc	h
+haze_a3:
+	ld	a, (hl)
+	out	(VDP_ADDR), a
+	ld	a, #0x93		; R#19
+	out	(VDP_ADDR), a
+haze_out:
+	pop	hl
+	pop	bc
+	pop	af
+	ret

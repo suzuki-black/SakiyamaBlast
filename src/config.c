@@ -13,6 +13,8 @@ uint8_t cfg_lives;
 uint8_t cfg_continue;
 uint8_t cfg_invincible;
 uint8_t cfg_start_stage;
+uint8_t cfg_reset;
+uint8_t cfg_haze;
 
 /* 入力の種類 */
 #define TK_NONE  0
@@ -30,10 +32,11 @@ static const uint8_t konami[10] = {
 
 static uint8_t k_idx;
 static uint8_t prev_tok;
+static uint8_t prev_r;           /* R キーの前フレームの状態 (押した瞬間だけ拾う) */
 static uint8_t cur;              /* 設定画面のカーソル位置 */
 static uint8_t dirty;
 
-#define N_ITEMS 5
+#define N_ITEMS 7
 #define ITEM_Y  72
 #define ITEM_DY 16
 #define VAL_X   168
@@ -44,8 +47,11 @@ void config_init(void)
     cfg_continue = 0;
     cfg_invincible = 0;
     cfg_start_stage = 1;
+    cfg_reset = 0;
+    cfg_haze = 1;
     k_idx = 0;
     prev_tok = TK_NONE;
+    prev_r = 0;
 }
 
 /* いま押されているキーを1つだけ返す。A/B を先に見る。 */
@@ -113,6 +119,8 @@ static void draw_value(uint8_t i)
     case 1: put_onoff(y, cfg_continue); break;
     case 2: put_onoff(y, cfg_invincible); break;
     case 3: put_num(y, cfg_start_stage); break;
+    case 4: put_onoff(y, cfg_reset); break;
+    case 5: put_onoff(y, cfg_haze); break;
     default: break;
     }
 }
@@ -141,11 +149,14 @@ void config_enter(void)
     text_draw(48, ITEM_Y + ITEM_DY,        "CONTINUE",    COL_WHITE, COL_TUNNEL, 1);
     text_draw(48, ITEM_Y + ITEM_DY * 2,    "INVINCIBLE",  COL_WHITE, COL_TUNNEL, 1);
     text_draw(48, ITEM_Y + ITEM_DY * 3,    "START STAGE", COL_WHITE, COL_TUNNEL, 1);
-    text_draw(48, ITEM_Y + ITEM_DY * 4,    "SEE ENDING",  COL_WHITE, COL_TUNNEL, 1);
+    /* **キーを名前に入れておく。** 「面リセット ON」だけでは何を押すのか分からない。 */
+    text_draw(48, ITEM_Y + ITEM_DY * 4,    "RETRY BY R",  COL_WHITE, COL_TUNNEL, 1);
+    text_draw(48, ITEM_Y + ITEM_DY * 5,    "HEAT HAZE",   COL_WHITE, COL_TUNNEL, 1);
+    text_draw(48, ITEM_Y + ITEM_DY * 6,    "SEE ENDING",  COL_WHITE, COL_TUNNEL, 1);
 
-    text_draw(24, 168, "UP/DOWN    SELECT",  COL_DIA, COL_TUNNEL, 1);
-    text_draw(24, 180, "LEFT/RIGHT CHANGE",  COL_DIA, COL_TUNNEL, 1);
-    text_draw(24, 192, "SPACE      DECIDE",  COL_DIA, COL_TUNNEL, 1);
+    text_draw(24, 180, "UP/DOWN    SELECT",  COL_DIA, COL_TUNNEL, 1);
+    text_draw(24, 192, "LEFT/RIGHT CHANGE",  COL_DIA, COL_TUNNEL, 1);
+    text_draw(24, 204, "SPACE      DECIDE",  COL_DIA, COL_TUNNEL, 1);
 
     cur = 0;
     prev_tok = TK_NONE;
@@ -175,6 +186,8 @@ uint8_t config_update(void)
         else if (cur == 1) { cfg_continue = (uint8_t)!cfg_continue; }
         else if (cur == 2) { cfg_invincible = (uint8_t)!cfg_invincible; }
         else if (cur == 3 && cfg_start_stage > 1) { cfg_start_stage--; }
+        else if (cur == 4) { cfg_reset = (uint8_t)!cfg_reset; }
+        else if (cur == 5) { cfg_haze = (uint8_t)!cfg_haze; }
         dirty = 1;
         break;
     case TK_RIGHT:
@@ -182,10 +195,12 @@ uint8_t config_update(void)
         else if (cur == 1) { cfg_continue = (uint8_t)!cfg_continue; }
         else if (cur == 2) { cfg_invincible = (uint8_t)!cfg_invincible; }
         else if (cur == 3 && cfg_start_stage < MAX_STAGE) { cfg_start_stage++; }
+        else if (cur == 4) { cfg_reset = (uint8_t)!cfg_reset; }
+        else if (cur == 5) { cfg_haze = (uint8_t)!cfg_haze; }
         dirty = 1;
         break;
     case TK_SPACE:
-        return (uint8_t)((cur == 4) ? CFG_ENDING : CFG_START);
+        return (uint8_t)((cur == N_ITEMS - 1) ? CFG_ENDING : CFG_START);
     default:
         break;
     }
@@ -193,4 +208,20 @@ uint8_t config_update(void)
         draw_value(cur);
     }
     return CFG_STAY;
+}
+
+/*
+ * 面リセット。**キーマトリクスの行4 bit7 = R** を直接読む。
+ *
+ * **押した瞬間だけを拾う。** 押しっぱなしで毎フレーム組み直すと、面が延々と
+ * 描き直されて操作を受け付けなくなる。
+ * **cfg_reset が OFF のときも前の状態は更新する。** 更新しないと、R を押したまま
+ * 設定を ON にした瞬間に押しっぱなしが「押した瞬間」として通ってしまう。
+ */
+uint8_t reset_pressed(void)
+{
+    uint8_t now = (uint8_t)((snsmat(4) & 0x80) ? 0 : 1);
+    uint8_t hit = (uint8_t)(now && !prev_r);
+    prev_r = now;
+    return (uint8_t)(cfg_reset ? hit : 0);
 }

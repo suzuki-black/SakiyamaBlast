@@ -9,7 +9,18 @@ SRCDIR    := src
 BUILDDIR  := build
 
 # turbo R が実ターゲットだが、コードは z80 で吐いて MSX2/2+ 実機でも動くようにする
-# (SCREEN 5 を使うので MSX2 以降は必須)。turbo R では R800 でそのまま速く走る。
+# (SCREEN 5 を使うので MSX2 以降は必須)。
+# **「turbo R なら R800 で勝手に速くなる」は誤り。**
+#   - **カートリッジは必ず Z80 モードで起動する。** 自分で CHGCPU (0x0180) を
+#     呼ばない限り R800 にはならない。このゲームは呼んでいないので、
+#     実機の turbo R でも Z80 3.58MHz で動いている
+#   - 仮に R800 へ切り替えても、**カートリッジスロットのクロックは常に 3.58MHz**で、
+#     S1990 が外部スロットと I/O アクセスに wait を入れる。**VDP は I/O なので、
+#     このゲームの律速 (VRAM 書き込み) は速くならない**
+#   - 速くなるのは**内蔵 DRAM にあるもの**だけ。R800 DRAM モードでは内蔵 BIOS ROM が
+#     DRAM へ写るので BIOS 呼び出しと割り込み処理が速くなり、RAMCODE (0xD000) も速くなる
+#   - ただし **R800 は OUT が連続すると VDP が追いつかない**。切り替えるなら
+#     vdp_wblock の OTIR など全ての VDP アクセスを見直す必要がある
 CC        := sdcc
 AS        := sdasz80
 CFLAGS    := -mz80 --std-c99 --sdcccall 1 --opt-code-speed -I$(SRCDIR) -I$(BUILDDIR)
@@ -24,7 +35,7 @@ LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKD
 # それ以外は常に DATA_SEG が選ばれているので、コードを置いても同じ速度で動く。
 BANKED_SRC := $(SRCDIR)/art.c $(SRCDIR)/music.c \
               $(SRCDIR)/config.c $(SRCDIR)/bonus.c $(SRCDIR)/debris.c $(SRCDIR)/kanji.c \
-              $(SRCDIR)/sprite.c
+              $(SRCDIR)/sprite.c $(SRCDIR)/haze.c
 
 # **RAM へ写して実行するモジュール。**
 # 0x4000-0xBFFF の 32KB はもう埋まっていて、並べ替えでは空きが作れない。
@@ -62,7 +73,7 @@ ART_TILE     := $(BUILDDIR)/tiles.h
 PAL_H        := $(BUILDDIR)/palette.h
 # 名前はカンマ区切りで**1行**に書く。行継続で折ると空白が入って別の引数になる。
 ART_SPR_NAMES  := miner,bomb,rock,rat,bat,split,stun1,stun2,stun3,brace,wd1,wd2,wu1,wu2,wl1,wl2,wr1,wr2,bru,brl,brr,std,stu,stl,str,chip
-ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar
+ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,toir,toil,toibr,toibl
 
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT
 MACHINE   ?= C-BIOS_MSX2+_JP

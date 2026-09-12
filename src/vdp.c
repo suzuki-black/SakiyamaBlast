@@ -18,7 +18,11 @@ void vdp_display(uint8_t on)
  * **中立値は本体 BIOS の保存領域 (R#8..R#23 が 0xFFE7..0xFFF6) から読む。**
  * 決め打ちで 0 を書くと、利用者が SET ADJUST で調整していた設定を壊してしまう。
  */
-static uint8_t adj_neutral;
+/* **陽炎 (haze.c) がこれを読む。** ラスタごとに R#18 を書き替えるので、
+   本体の中立値と画面揺れのぶんを知る必要がある。 */
+uint8_t vdp_adj_neutral;
+int8_t  vdp_adj_dx, vdp_adj_dy;
+#define adj_neutral vdp_adj_neutral
 
 void vdp_adjust_init(void)
 {
@@ -27,10 +31,14 @@ void vdp_adjust_init(void)
 
 void vdp_adjust(int8_t dx, int8_t dy)
 {
+    vdp_adj_dx = dx;
+    vdp_adj_dy = dy;
+    {
     uint8_t h = (uint8_t)(((uint8_t)(adj_neutral & 0x0F) + (uint8_t)dx) & 0x0F);
     uint8_t v = (uint8_t)(((uint8_t)((adj_neutral >> 4) & 0x0F) + (uint8_t)dy) & 0x0F);
     vdp_wait_cmd();                  /* コマンド実行中に触ると VRAM を壊す */
     VDP_REG(18, (uint8_t)((v << 4) | h));
+    }
 }
 
 void vdp_screen5(void)
