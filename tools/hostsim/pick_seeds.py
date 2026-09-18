@@ -57,6 +57,7 @@ TARGET = {
     13: 2, 14: 2, 15: 2,
 }
 W_HAND, W_HBEND = 3.0, 0.5   # hbend は最大化なので符号が逆
+W_HPUSH = 0.3                # 揃えたときの伸び (hpush - hand) も少しだけ大きいほうを採る
 
 # **必ず満たさなければならない条件。** 満たさない種は候補から外す。
 #
@@ -72,8 +73,38 @@ W_HAND, W_HBEND = 3.0, 0.5   # hbend は最大化なので符号が逆
 _HPICK_MIN = {**{st: 4 for st in (1, 2, 3)},
               **{st: 3 for st in (4, 5, 6, 7, 8, 9)},
               **{st: 2 for st in (10, 11, 12, 13, 14, 15)}}
-REQUIRE = {st: (lambda r, m=_HPICK_MIN[st]: r['hbend'] >= 1 and r['hpick'] >= m)
-           for st in range(1, 16)}
+# **ずらして置いた岩 (2026-09-16)。** 面が進むと岩の一部を炭層の真上からずらして置く
+# (`src/field.c` の `rock_off_tbl`)。**押して揃える手間を払ったぶんだけ伸びる**ことを保証する。
+#
+#   npush  >= その面のずらす数   … 置いたつもりの岩が、実際に押して揃えられる
+#   hpush  >= hand + PUSH_GAIN   … 揃えてから一手打つと、押さない最善手より明らかに多く採れる
+#                                  (一手 = 真下を割る / 炭柱を割って揃えた岩も落盤に加える)
+#   rowdup == 0                  … 1行に岩1個 (横一列8枚のスプライト制限)
+#
+# rowdup はずらす岩の無い面にも課す。**以前の面3が1行に岩2個で出荷されていた**
+# (真上の候補が尽きて「どこでも」に回ったとき、行を落とさずに候補を作り直していた)。
+def _rock_off_tbl():
+    m = re.search(r'rock_off_tbl\[MAX_STAGE\] = \{(.*?)\}', open('src/field.c').read(), re.S)
+    return [int(x) for x in m.group(1).replace('\n', ' ').split(',') if x.strip()]
+
+
+ROCK_OFF = dict(zip(range(1, 16), _rock_off_tbl()))
+PUSH_GAIN = 2
+
+
+def _require(r, st):
+    if r['hbend'] < 1 or r['rowdup']:
+        return False
+    if not ROCK_OFF[st]:
+        return r['hpick'] >= _HPICK_MIN[st]
+    # **樋を通る一本の線は、押して揃えたあとに成立してもよい。**
+    # 押さずに hpick を満たす盤面は押さなくても十分採れてしまい、
+    # 「押すと伸びる」と両立しなかった (面4で 6万通り中 0)。高次面の線は揃えて作るもの。
+    line = r['hpick'] >= _HPICK_MIN[st] or (r['hpush'] >= _HPICK_MIN[st] and r['hpbend'] >= 1)
+    return line and r['npush'] >= ROCK_OFF[st] and r['hpush'] >= r['hand'] + PUSH_GAIN
+
+
+REQUIRE = {st: (lambda r, st=st: _require(r, st)) for st in range(1, 16)}
 
 # 点数では選べないときに、実行して目で見て決めた種を固定する。
 PINNED = {}
@@ -88,12 +119,13 @@ def sweep(stage):
 
 
 def score(row, want):
-    return W_HAND * abs(row['hand'] - want) - W_HBEND * row['hbend']
+    return (W_HAND * abs(row['hand'] - want) - W_HBEND * row['hbend']
+            - W_HPUSH * max(0, row['hpush'] - row['hand']))
 
 
 def main():
-    print('%3s %6s %6s %6s %6s %6s %6s %6s  %s' %
-          ('面', '種', '一手', 'hpick', 'hbend', '落盤', '樋', '連鎖', '狙い/最低'))
+    print('%3s %6s %6s %6s %6s %6s %6s %6s %6s %6s  %s' %
+          ('面', '種', '一手', 'hpick', 'hbend', '落盤', '樋', '連鎖', 'ずらす', '揃えて', '狙い/最低'))
     seeds = []
     for st in range(1, 16):
         rows = sweep(st)
@@ -111,9 +143,10 @@ def main():
                 sys.exit('面%d: 固定した種 %d が条件を満たさない' % (st, PINNED[st]))
             best = pin[0]
         seeds.append(best['seed'])
-        print('%3d %6d %6d %6d %6d %6d %6d %6d  %d/%d%s' %
+        print('%3d %6d %6d %6d %6d %6d %6d %6d %4d/%d %6d  %d/%d%s' %
               (st, best['seed'], best['hand'], best['hpick'], best['hbend'],
-               best['taken'], best['chutes'], best['combo'], want, _HPICK_MIN[st],
+               best['taken'], best['chutes'], best['combo'], best['npush'], ROCK_OFF[st],
+               best['hpush'], want, _HPICK_MIN[st],
                ('  <- 目で見て固定' if st in PINNED else '')))
     if '--write' in sys.argv:
         src = open(FIELD).read()

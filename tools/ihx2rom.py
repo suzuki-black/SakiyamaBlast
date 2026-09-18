@@ -49,6 +49,13 @@ def parse_ihx(path):
                 raise ValueError(f"{path}:{lineno}: 未対応のレコード種別 {rectype:02X}")
             addr = (addr_hi << 8) | addr_lo
             for i in range(count):
+                # **同じ番地に2度書かれたら、領域どうしが重なっている。**
+                # 固定領域のコードが 0xA000 を越えると、そこへリンクした絵と曲に
+                # 重なる。以前は後から書いたほうが黙って勝ち、「free 0 bytes」と
+                # 出るだけで壊れた ROM ができていた (2026-09-16)。
+                if addr + i in mem:
+                    raise ValueError(f"{path}:{lineno}: 0x{addr + i:04X} に2つの領域が"
+                                     "重なっています (固定領域 0x4000-0x9FFF が溢れた可能性)")
                 mem[addr + i] = raw[4 + i]
     return mem
 

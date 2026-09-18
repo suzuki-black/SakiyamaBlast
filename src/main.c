@@ -336,7 +336,7 @@ void main(void)
 {
     /* **RAM で走らせるコードを写す。いちばん先。**
        0x4000-0xBFFF の 32KB はもう埋まっていて、並べ替えでは空きが作れない。
-       **これより前に enemy / rock の関数を呼んではいけない。** */
+       **これより前に enemy / bomb の関数を呼んではいけない。** */
     {
         uint8_t *d = (uint8_t *)RAMCODE_ADDR;
         const uint8_t *s = (const uint8_t *)0xA000;
@@ -375,6 +375,10 @@ void main(void)
        (実測で bomb_state が起動直後 251 だった)。
        0 で始まってほしい変数は必ず自分で入れること。 */
     haze_on = 0;
+    /* **これを忘れると、選んだ盤面の種 (stage_seed[]) が一度も使われない。**
+       道具用の強制種で、0 以外なら全面がその種で組まれる。openMSX では起動時に
+       0x3333 が入っていて、全15面が同じ種で組まれていた (2026-09-16 に発覚)。 */
+    layout_seed_force = 0;
 #if DEBUG_HUD
     dbg_j0 = 0; dbg_f0 = 0; dbg_fps = 0;
     dbg_hkey = 0; dbg_ckey = 0; dbg_force = 0;

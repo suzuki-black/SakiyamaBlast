@@ -1026,6 +1026,9 @@ static uint8_t cell_ok(uint16_t i, uint8_t kind)
     if (dug[i] || coal[i] || chute[i] || rock_at((int8_t)c, (int8_t)r) >= 0) {
         return 0;
     }
+    if (used[i] == ROCK_OFF_RESV) {
+        return 0;                  /* 岩を押して運ぶ通り道。炭柱や板で塞がない */
+    }
     if (near_key_cell(i)) {
         return 0;
     }
@@ -1358,6 +1361,9 @@ static uint8_t chute_dir_ok(uint8_t c, uint8_t r, int8_t d, uint8_t need_coal)
         if (coal[j] || chute[j]) {
             return 0;               /* 曲がった先が黒ダイヤ / 板が隣り合うと読めない */
         }
+        if (used[j] == ROCK_OFF_RESV) {
+            return 0;               /* 押す通り道の下を開けると、押している途中で落ちる */
+        }
     }
     /* **落とす先の真上に岩を残さない。** 落とす先を開けるので、真上の岩が
        面の開始と同時に落ちてしまう。 */
@@ -1449,30 +1455,198 @@ static void drop_row(uint8_t row)
     cand_n = m;
 }
 
+/*
+ * **ずらして置く岩。** (c,r) の岩を d の向きへ k 升押したとき、
+ * 炭層の真上で止まるか。途中で落ちたり引っかかったりしないこと。
+ *
+ *   押し手の升   (c-d, r) … 盤面の中で、黒ダイヤ・板でない
+ *   通り道       (c+d*j, r) j=1..k … 黒ダイヤ・板・予約済みでない
+ *   通り道の下   (c+d*j, r+1) j<k … 土 (坑道なら途中で落ちる。黒ダイヤならそこで揃ってしまう)
+ *   行き先の下   (c+d*k, r+1) … 黒ダイヤ
+ *
+ * **岩が居るかは見ない。** 候補は岩を置くたびにその行ごと落としてあるので、
+ * この行に岩は居ない (1行に岩1個)。rock_at() を升ごとに呼ぶと岩8個の走査が
+ * 候補 x 向き x 距離 だけ積み重なり、面13の暗転が約1秒伸びた (openMSX で実測)。
+ */
+static uint8_t off_path_ok(uint8_t c, uint8_t r, int8_t d, uint8_t k)
+{
+    int8_t x = (int8_t)((int8_t)c - d);
+    uint16_t i;
+    uint8_t j;
+    if (x < 0 || x >= COLS) {
+        return 0;
+    }
+    i = (uint16_t)r * COLS + (uint8_t)x;
+    if (coal[i] || chute[i]) {
+        return 0;
+    }
+    for (j = 1; j <= k; j++) {
+        x = (int8_t)((int8_t)c + d * (int8_t)j);
+        if (x < 0 || x >= COLS) {
+            return 0;
+        }
+        i = (uint16_t)r * COLS + (uint8_t)x;
+        if (coal[i] || chute[i] || used[i] == ROCK_OFF_RESV) {
+            return 0;
+        }
+        if (((uint8_t)x == bath_c && r == bath_r) || ((uint8_t)x == nest_c && r == nest_r)) {
+            return 0;               /* 水風呂を塞ぐ / 湧き出し口に岩が居座る */
+        }
+        i += COLS;
+        if (j < k) {
+            if (dug[i] || coal[i]) {
+                return 0;
+            }
+        } else if (!coal[i]) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* 押して揃えられる向きと距離を探す。見つかれば d と k を返す (k=0 なら無し)。
+   **遠いほうから試す**ので、2列ずらせる面では2列ずれた岩が多くなる。 */
+static uint8_t off_find(uint8_t c, uint8_t r, uint8_t far, int8_t *dp)
+{
+    int8_t d0 = (int8_t)((rnd8() & 1) ? 1 : -1);
+    uint8_t k;
+    for (k = far; k; k--) {
+        if (off_path_ok(c, r, d0, k)) { *dp = d0; return k; }
+        if (off_path_ok(c, r, (int8_t)-d0, k)) { *dp = (int8_t)-d0; return k; }
+    }
+    return 0;
+}
+
+/* 候補のうち「真下が黒ダイヤでなく、押せば黒ダイヤの真上へ行ける」ものだけ残す。 */
+static void keep_offset(uint8_t far)
+{
+    uint8_t k = 0, m = 0;
+    while (k < cand_n) {
+        uint16_t i = cand[k];
+        uint8_t c = (uint8_t)(i % COLS), r = (uint8_t)(i / COLS);
+        if (!coal[i + COLS] && (off_path_ok(c, r, 1, 1) || off_path_ok(c, r, -1, 1)
+                                || (far > 1 && (off_path_ok(c, r, 1, far)
+                                                || off_path_ok(c, r, -1, far))))) {
+            cand[m++] = cand[k];
+        }
+        k++;
+    }
+    cand_n = m;
+}
+
+/* 置いた岩の行を候補から全部落とす (1行に岩1個まで)。 */
+static void drop_rock_rows(void)
+{
+    uint8_t i;
+    for (i = 0; i < ROCK_MAX; i++) {
+        if (rock_state[i] != ROCK_NONE) {
+            drop_row((uint8_t)(rock_y[i] >> 4));
+        }
+    }
+}
+
+/* 押し手の升と通り道を予約する。後から置く炭柱・樋がここを塞がないように。 */
+static void off_reserve(uint8_t c, uint8_t r, int8_t d, uint8_t k)
+{
+    uint8_t j;
+    uint16_t i;
+    used[(uint16_t)r * COLS + (uint8_t)((int8_t)c - d)] = ROCK_OFF_RESV;
+    for (j = 1; j <= k; j++) {
+        i = (uint16_t)r * COLS + (uint8_t)((int8_t)c + d * (int8_t)j);
+        used[i] = ROCK_OFF_RESV;
+        if (j < k) {
+            used[i + COLS] = ROCK_OFF_RESV;
+        }
+    }
+}
+
+/* 面ごとの「ずらして置く岩」の数。岩の総数は 4,4,4,5,5,5,...,8。 */
+static const uint8_t rock_off_tbl[MAX_STAGE] = {
+    0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3
+};
+
+static uint8_t cand_keep[NCELL];
+static uint8_t keep_n;
+
 static void place_rocks(void)
 {
     uint8_t n = (uint8_t)(4 + (stage - 1) / 3);      /* 4〜8個 */
+    uint8_t off = rock_off_tbl[stage - 1];
+    uint8_t far = (uint8_t)((stage >= ROCK_OFF_FAR_ST) ? 2 : 1);
     uint16_t i;
     if (n > ROCK_MAX) {
         n = ROCK_MAX;
     }
-    /* 候補は一度だけ作り、置くたびにその行を落としていく。
-       毎回作り直すと 176升 x cell_ok を岩の数だけ繰り返すことになり、
-       面の組み立てが目に見えて遅くなる (画面が暗いままの時間が伸びる)。
-       岩どうしの「真下は土」条件は行ごと落とすことで自然に満たされる。 */
+    if (off > n) {
+        off = n;
+    }
     /*
-     * **置き方は2段構え。**
-     *   1. 黒ダイヤの真上 (割ればそのまま落ちて縦に貫く)
-     *   2. どこでも
+     * **置き方は3段構え。**
+     *   1. 押せば黒ダイヤの真上へ行ける升 (ずらした岩)。off 個
+     *   2. 黒ダイヤの真上 (割ればそのまま落ちて縦に貫く)。残り
+     *   3. どこでも (1 や 2 の候補が尽きたとき)
      *
-     * 横方向は樋が引き受けるので、岩の置き場に横の条件は要らない
+     * **ずらす岩を先に置く。** 置ける形 (隣の列の真下が黒ダイヤ、途中は土) が限られるので、
+     * 真上の岩に炭層の上の升と行を先に取られると、ほとんど置けなくなる (実測で候補0が95%)。
+     *
+     * 候補は段ごとに一度だけ作り、置くたびにその行を落としていく。
+     * 毎回作り直すと 176升 x cell_ok を岩の数だけ繰り返すことになり、
+     * 面の組み立てが目に見えて遅くなる (画面が暗いままの時間が伸びる)。
+     *
+     * 横方向は樋が引き受けるので、真上の岩に横の条件は要らない
      * (樋は岩を置いたあとで、岩の下の列へ置く)。
      */
     build_candidates(2);
+    if (off) {
+        /* **一覧は1回だけ作って控えておく。** 真上の岩の段で作り直すと
+           176升 x cell_ok をもう一度回すことになり、面13の暗転が約0.4秒伸びた
+           (openMSX で実測)。 */
+        uint8_t k;
+        for (k = 0; k < cand_n; k++) {
+            cand_keep[k] = cand[k];
+        }
+        keep_n = cand_n;
+        keep_offset(far);
+        while (off && cand_n) {
+            uint8_t c, r, k;
+            int8_t d = 1;
+            i = take_candidate();
+            c = (uint8_t)(i % COLS);
+            r = (uint8_t)(i / COLS);
+            /* 前の岩の予約で塞がれていることがあるので、取り出した時点で確かめ直す */
+            k = off_find(c, r, far, &d);
+            if (!k) {
+                continue;
+            }
+            off_reserve(c, r, d, k);
+            rock_place(c, r);
+            drop_row(r);
+            n--;
+            off--;
+        }
+    }
+    if (rock_off_tbl[stage - 1]) {
+        /* 控えた一覧を戻し、置いた岩の行と予約した升を落とす。
+           予約は押し手・通り道 (岩と同じ行なので行ごと落ちる) と、通り道の真下。 */
+        uint8_t k, m = 0;
+        for (k = 0; k < keep_n; k++) {
+            if (used[cand_keep[k]] != ROCK_OFF_RESV) {
+                cand[m++] = cand_keep[k];
+            }
+        }
+        cand_n = m;
+        drop_rock_rows();
+    }
     keep_above_coal();
     while (n) {
         if (cand_n == 0) {
-            build_candidates(2);    /* 真上が尽きたらどこでも */
+            /* 真上が尽きたらどこでも。**ずらす岩の無い面で drop_rock_rows() を呼ばないこと。**
+               呼ぶと乱数の出方が変わり、面1〜3の盤面まで変わる。
+               1行に2個にならないことは hostsim の rowdup で見張っている。 */
+            build_candidates(2);
+            if (rock_off_tbl[stage - 1]) {
+                drop_rock_rows();
+            }
             if (cand_n == 0) {
                 return;
             }
@@ -1726,9 +1900,9 @@ static void set_stage_layout(void)
 
    落盤で採れる数 (taken) は 面1〜3 で4個、面15 で0個。難易度の軸はこちら。 */
 const uint16_t stage_seed[15] = {
-    31254, 38797,  1513,  3343,   378,
-      465,   504, 36306, 19743, 58472,
-     1391, 56710,  9922,  1869,  1673,
+    31254, 38797,  5649,  9062,  9947,
+    10565, 13393, 14824, 15935, 42708,
+     5164, 27367, 49965, 30068, 41186,
 };
 uint16_t layout_seed_force;      /* 0 以外なら強制的にこの種を使う (道具用) */
 

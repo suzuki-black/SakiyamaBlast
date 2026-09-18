@@ -88,13 +88,16 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
                 if {\$nx>=0 && \$nx<16} { \
                     if {![debug read memory [expr {$A_DUG+\$i-\$x+\$nx}]]} { set cok 0 } } }; \
             puts \$f \"CHUTEOPEN \$cok\"; \
-            set w 0; \
-            for {set y 0} {\$y<16} {incr y} { for {set x 0} {\$x<8} {incr x} { \
-                set b [debug read VRAM [expr {(\$cr*16+\$y)*128 + \$cc*8 + \$x}]]; \
-                if {(\$b>>4)==10} {incr w}; if {(\$b&15)==10} {incr w} } }; \
-            puts \$f \"CHUTEWOOD \$w\"; \
+            set ::cc \$cc; set ::cr \$cr; \
             puts \$f \"POWDERN \$p\"; puts \$f \"COALN \$d\"; puts \$f \"COALLEFT [debug read memory $A_COALLEFT]\"; puts \$f \"DUGN \$g\"; \
             puts \$f \"PCT [debug read memory $A_PCT]\"; \
+            close \$f; after time 4 wood }; \
+        proc wood {} { \
+            set f [open $OUT a]; set w 0; \
+            for {set y 0} {\$y<16} {incr y} { for {set x 0} {\$x<8} {incr x} { \
+                set b [debug read VRAM [expr {(\$::cr*16+\$y)*128 + \$::cc*8 + \$x}]]; \
+                if {(\$b>>4)==10} {incr w}; if {(\$b&15)==10} {incr w} } }; \
+            puts \$f \"CHUTEWOOD \$w\"; \
             close \$f; exit }; \
         " >/dev/null 2>&1
 
@@ -146,6 +149,8 @@ check PY       16  "自機のY (= 出発点の行 x16)"
 check BATHON   1   "風呂が健在"
 check CHUTEN   2   "樋が2枚置かれている (低次面)"
 check CHUTEOPEN 1  "すべての樋の升と、その落とし先が最初から開いている"
+# 板の色は**面開始の表示「第一階層 開始」が消えてから**読む (4秒後)。
+# 表示は5行目に出るので、そこに板があると文字に隠れて 0 になる (面1 の (9,5) がそう)。
 check_min CHUTEWOOD 20 "樋の板が坑木の色で描かれている"
 
 [ $fail -eq 0 ] && echo "smoketest: PASS" || echo "smoketest: FAIL"

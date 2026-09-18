@@ -42,10 +42,14 @@ ROM を大きくしても、窓に何を入れても、この 32KB は変わら�
 | バンク窓 0xA000-0xBFFF (seg3) | 8KB | `title_draw()` から呼ばれないもの。`--codeseg BANKDATA` |
 | **RAM 0xD000-0xEDFF** | **7.5KB** | 起動時に写して RAM で実行する。`--codeseg RAMCODE` |
 
-**RAM 実行**は `Makefile` の `RAM_SRC` に足すだけ（いま `enemy` `rock`）。
+**RAM 実行**は `Makefile` の `RAM_SRC` に足すだけ（いま `enemy` `bomb`）。
 `tools/ihx2rom.py` が 0xD000-0xEDFF の中身を ROM のセグメント8へ入れ、
 `main()` の冒頭が窓経由で RAM へ写す。**写す前に呼ばれるものは置けない**
 （`crt0` / `lowlevel` / `main` の冒頭）。
+
+**溢れたら ROM を作らない。** 固定領域のコードが 0xA000 を越えると、そこへリンクした
+絵と曲に重なる。`tools/ihx2rom.py` は同じ番地への二重書き込みをエラーにしてある
+（以前は「free 0 bytes」と出るだけで壊れた ROM ができていた）。
 
 RAM がなぜ空いているかは openMSX で実測した。ページ3 (0xC000-0xF37F) のうち、
 変数が 0xC000 から約2.5KB、**スタックは 0xF380 から下へ約350バイトしか伸びない**。
