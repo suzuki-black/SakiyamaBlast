@@ -2,6 +2,8 @@
 
 昭和初期・常磐炭鉱の坑内を舞台にした1画面固定の「掘り＋発破」アクション（MSX turbo R / SDCC）。
 
+**ライセンス: [MIT License](LICENSE)**
+
 仕様の正は **[DESIGN.md](DESIGN.md)**、移植の経緯と保つべき中核は **[HANDOFF_SDCC.md](HANDOFF_SDCC.md)**。
 `proto/digbomb.msxb` は FunctionBASIC 製プロト（メカニクス検証済みの参照実装。移植元コードではない）。
 
@@ -288,3 +290,7 @@ C-BIOS MSX2+（**Z80 3.58MHz＝一番遅い条件**）での実測。turbo R の
 
 絵・音・曲・キャラ名はすべてオリジナル。Mr.Do! / Dig Dug からはメカニクス（著作対象外）のみ。
 詳細は `DESIGN.md §権利方針`。
+
+## ライセンス
+
+**MIT License。** 全文は [LICENSE](LICENSE) を参照。
