@@ -437,7 +437,7 @@ static void analyse(int st, unsigned sd)
     int taken = 0, crack = 0, chutes = 0, reach = 0, bend = 0, hand = 0, hbend = 0, hpick = 0;
     int bump = 0, side = 0, cavef = 0, cbend = 0, nfall = 0, lost = 0, maxline = 0;
     int noff = 0, npush = 0, hpush = 0, hpbend = 0, rowdup = 0;
-    int hprep = 0, hprepbend = 0, cbal = 0, rbal = 0;
+    int hprep = 0, hprepbend = 0, cbal = 0, rbal = 0, hpick0 = 0;
     int bi_d[ROCK_MAX], bi_k[ROCK_MAX], bi_got[ROCK_MAX];
     int seen[NCELL], veins = 0, vmax = 0;
     for (c = 0; c < COLS; c++) { col[c] = 0; }
@@ -639,6 +639,9 @@ static void analyse(int st, unsigned sd)
                という一本の線になり、落とす前に指でなぞれる。
                作者が示した「岩→炭層→樋→炭柱」の絵が、そのまま遊べる形。 */
             if (!isp && nb > 0 && got > hpick) { hpick = got; }
+            /* **hpick0: 炭柱以外を1枚割って採れた数 (樋は問わない)。**
+               樋を置かない第一坑 (面1〜3) では、これが「指でなぞれる一本の線」になる。 */
+            if (!isp && got > hpick0) { hpick0 = got; }
         }
     }
 
@@ -732,11 +735,11 @@ static void analyse(int st, unsigned sd)
            "\"cavef\":%d,\"cbend\":%d,\"nfall\":%d,\"lost\":%d,\"maxline\":%d,"
            "\"taken\":%d,\"crack\":%d,\"dug0\":%u,"
            "\"noff\":%d,\"npush\":%d,\"hpush\":%d,\"hpbend\":%d,\"rowdup\":%d,"
-           "\"hprep\":%d,\"hprepbend\":%d,\"cbal\":%d,\"rbal\":%d}\n",
+           "\"hprep\":%d,\"hprepbend\":%d,\"cbal\":%d,\"rbal\":%d,\"hpick0\":%d}\n",
            st, sd, coal0, nrock, free_max, haul, best, veins, vmax,
            chutes, reach, hand, hbend, hpick, bend, best_combo,
            bump, side, cavef, cbend, nfall, lost, maxline, taken, crack, dug_n0,
-           noff, npush, hpush, hpbend, rowdup, hprep, hprepbend, cbal, rbal);
+           noff, npush, hpush, hpbend, rowdup, hprep, hprepbend, cbal, rbal, hpick0);
 }
 
 int main(int argc, char **argv)

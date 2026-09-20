@@ -37,19 +37,25 @@ A_COALLEFT=$(addr coal_left)
 A_PILLAR=$(addr pillar)
 A_CHUTE=$(addr chute)
 A_PCT=$(addr dug_pct)
+A_CFGSTAGE=$(addr cfg_start_stage)
 
 # 面1は掘り抜きが数字の「1」(15升) ＋ 敵の湧き出し口1升 = 16升。
 # 自機は掘り抜きの上端、湧き出し口は土の中の独立した1ブロック (位置は乱数)。
 # 火薬・岩・黒ダイヤ・湧き出し口の位置は乱数なので、位置ではなく性質で検査する。
+# 面を1つ起動して、結果を $2 のファイルへ書き出す。
+# **面1と面4の2回走らせる。** 樋は第二坑 (面4) からなので、樋の検査は面4で行う。
+run_stage() {
+    SMOKE_STAGE=$1
+    SMOKE_OUT=$2
 openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
     -command "set renderer none; set throttle off; \
-        after time 6 {keymatrixdown 8 0x01}; after time 6.2 {keymatrixup 8 0x01}; \
+        after time 6 {debug write memory $A_CFGSTAGE $SMOKE_STAGE; keymatrixdown 8 0x01}; after time 6.2 {keymatrixup 8 0x01}; \
         proc ready {} { \
             if {[debug read {VDP regs} 1] != 98} { after time 0.1 ready; return }; \
             after time 0.5 sample }; \
         after time 6.5 ready; \
         proc sample {} { \
-            set f [open $OUT w]; \
+            set f [open $SMOKE_OUT w]; \
             puts \$f \"R0 [debug read {VDP regs} 0]\"; \
             puts \$f \"R1 [debug read {VDP regs} 1]\"; \
             puts \$f \"DIRT [debug read VRAM 0]\"; \
@@ -91,15 +97,20 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
             set ::cc \$cc; set ::cr \$cr; \
             puts \$f \"POWDERN \$p\"; puts \$f \"COALN \$d\"; puts \$f \"COALLEFT [debug read memory $A_COALLEFT]\"; puts \$f \"DUGN \$g\"; \
             puts \$f \"PCT [debug read memory $A_PCT]\"; \
-            close \$f; after time 4 wood }; \
+            close \$f; \
+            if {\$cc < 0} { exit }; \
+            after time 4 wood }; \
         proc wood {} { \
-            set f [open $OUT a]; set w 0; \
+            set f [open $SMOKE_OUT a]; set w 0; \
             for {set y 0} {\$y<16} {incr y} { for {set x 0} {\$x<8} {incr x} { \
                 set b [debug read VRAM [expr {(\$::cr*16+\$y)*128 + \$::cc*8 + \$x}]]; \
                 if {(\$b>>4)==10} {incr w}; if {(\$b&15)==10} {incr w} } }; \
             puts \$f \"CHUTEWOOD \$w\"; \
             close \$f; exit }; \
         " >/dev/null 2>&1
+}
+
+run_stage 1 "$OUT"
 
 fail=0
 val() { awk -v k="$1" '$1==k {print $2}' "$OUT"; }
@@ -130,7 +141,7 @@ check DIRT     102 "盤面が土で塗られている (0x66)"
 check TUNNELCELL 17 "自機の出発点が坑道として描かれている (0x11)"
 # 掘り抜き「1」(15升) ＋ 湧き出し口(1升) ＝ 16。**樋の升とその落とし先も
 # 最初から開いている**ので、そのぶん増える (樋の位置は面の種で変わる)。
-check_min DUGN 16  "掘り抜き「1」(15升) ＋ 湧き出し口(1升) ＋ 樋のぶん"
+check_min DUGN 16  "掘り抜き「1」(15升) ＋ 湧き出し口(1升)"
 check_min PCT  9   "開始時の採掘率"
 check POWDERN  10  "火薬が10個置かれている"
 # 黒ダイヤは coal_n_tbl[0]=4 個 ＋ 炭柱 (PILLAR_MAX 本まで)。岩の真下が既に
@@ -139,18 +150,24 @@ PILLARN=$(val PILLARN)
 check_min PILLARN 1 "炭柱が岩の真下に置かれている"
 check COALN    $((4 + PILLARN)) "黒ダイヤ = 面1の4個 + 炭柱${PILLARN}個"
 check COALLEFT $((4 + PILLARN)) "残りの黒ダイヤ数が一致している"
-check STARTC   7   "自機の出発点の列 (掘り抜きの上端)"
-check STARTR   1   "自機の出発点の行"
+check_min STARTR 0 "自機の出発点の行 (掘り抜き「1」の上端)"
 check NESTDUG  1   "敵の湧き出し口が1ブロック開いている"
 check NESTFAR  1   "湧き出し口が自機の出発点から6升以上離れている"
 check NESTOPEN 1   "湧き出し口が坑道に面している (敵が歩いて出てこられる)"
-check PX       112 "自機のX (= 出発点の列 x16)"
-check PY       16  "自機のY (= 出発点の行 x16)"
+check PX       $(( $(val STARTC) * 16 )) "自機のX (= 出発点の列 x16)"
+check PY       $(( $(val STARTR) * 16 )) "自機のY (= 出発点の行 x16)"
 check BATHON   1   "風呂が健在"
-check CHUTEN   2   "樋が2枚置かれている (低次面)"
+check CHUTEN   0   "第一坑 (面1) には樋が無い"
+
+# ここから面4 (第二坑)。樋が出るのはこの幕から。
+OUT4=$(mktemp -t sakiyama-smoke4)
+trap 'rm -f "$OUT" "$OUT4"' EXIT
+run_stage 4 "$OUT4"
+OUT=$OUT4
+check CHUTEN   2   "面4 で樋が2枚置かれている (低次面)"
 check CHUTEOPEN 1  "すべての樋の升と、その落とし先が最初から開いている"
-# 板の色は**面開始の表示「第一階層 開始」が消えてから**読む (4秒後)。
-# 表示は5行目に出るので、そこに板があると文字に隠れて 0 になる (面1 の (9,5) がそう)。
+# 板の色は**面開始の表示「第 n 坑 m 番方」が消えてから**読む (4秒後)。
+# 表示は5行目に出るので、そこに板があると文字に隠れて 0 になる。
 check_min CHUTEWOOD 20 "樋の板が坑木の色で描かれている"
 
 [ $fail -eq 0 ] && echo "smoketest: PASS" || echo "smoketest: FAIL"

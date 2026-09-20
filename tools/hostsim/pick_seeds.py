@@ -51,7 +51,7 @@ SWEEP = 60000
 # 低次は一手でほぼ片付き、高次は掘って仕込まないと進まない。
 TARGET = {
     1: 5,
-    2: 4, 3: 4,
+    2: 3, 3: 3,
     4: 3, 5: 3, 6: 3, 7: 3, 8: 3, 9: 3,
     10: 2, 11: 2, 12: 2, 13: 2, 14: 2, 15: 2,
 }
@@ -77,6 +77,13 @@ BAL_MIN = 30                 # 左右の散らばり: 少ない側が黒ダイ�
 _HPICK_MIN = {**{st: 4 for st in (1, 2, 3)},
               **{st: 3 for st in (4, 5, 6, 7, 8, 9)},
               **{st: 2 for st in (10, 11, 12, 13, 14, 15)}}
+
+# **樋は第二坑 (面4) から (2026-09-21)。** 第一坑 (面1〜3) は「岩は真下にしか落ちない」で
+# 完結させ、面4で初めて「横に曲がる」が入る (src/game.h の CHUTE_START_ST)。
+# 樋が無い面では hbend も hpick も 0 になるので、線の保証は **hpick0**
+# (炭柱以外を1枚割って採れた数。樋は問わない) で見る。
+CHUTE_START_ST = 4
+_HPICK0_MIN = {1: 4, 2: 3, 3: 3}
 # **ずらして置いた岩 (2026-09-16)。** 面が進むと岩の一部を炭層の真上からずらして置く
 # (`src/field.c` の `rock_off_tbl`)。**押して揃える手間を払ったぶんだけ伸びる**ことを保証する。
 #
@@ -97,12 +104,24 @@ PUSH_GAIN = 2
 
 
 def _require(r, st):
-    if r['hbend'] < 1 or r['rowdup']:
+    if r['rowdup']:
+        return False
+    if st < CHUTE_START_ST and r['hbend']:
+        return False                      # 第一坑に樋は置かない (置いたら生成側の不具合)
+    if st >= CHUTE_START_ST and r['hbend'] < 1:
         return False
     # **左右の散らばり (2026-09-19)。** 固まった盤面ほど少ない手で連鎖が伸びるので、
     # 条件を課さないと種選びが「右側だけ・左側だけ」の盤面を選んでいた (作者の指摘)。
     if r['cbal'] < BAL_MIN or r['rbal'] < BAL_MIN:
         return False
+    if st < CHUTE_START_ST:
+        # 第一坑 (教材の幕)。面1 は岩が真上にあって1手で大きく採れること、
+        # 面2〜3 は1個押して揃えると明らかに伸びることを課す。
+        if r['hpick0'] < _HPICK0_MIN[st]:
+            return False
+        if not ROCK_OFF[st]:
+            return True
+        return r['npush'] >= ROCK_OFF[st] and r['hpush'] >= r['hand'] + PUSH_GAIN
     if not ROCK_OFF[st]:
         return r['hpick'] >= _HPICK_MIN[st]
     # **樋を通る一本の線は、押して揃えたあとに成立してもよい。**
@@ -178,7 +197,8 @@ def main():
         print('%3d %6d %6d %6d %6d %6d %6d %6d %4d/%d %6d %6d %5d %5d  %d/%d%s' %
               (st, best['seed'], best['hand'], best['hpick'], best['hbend'],
                best['taken'], best['chutes'], best['combo'], best['npush'], ROCK_OFF[st],
-               best['hpush'], best['hprep'], best['cbal'], best['rbal'], want, _HPICK_MIN[st],
+               best['hpush'], best['hprep'], best['cbal'], best['rbal'], want,
+               _HPICK0_MIN.get(st, _HPICK_MIN[st]),
                ('  <- 目で見て固定' if st in PINNED else '')))
     if '--write' in sys.argv:
         src = open(FIELD).read()

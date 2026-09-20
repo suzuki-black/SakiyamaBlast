@@ -1450,7 +1450,12 @@ static uint8_t chute_dir_ok(uint8_t c, uint8_t r, int8_t d, uint8_t need_coal)
  */
 static void place_chutes(void)
 {
-    uint8_t want = (uint8_t)((stage >= CHUTE_HIGH_ST) ? CHUTE_HIGH : CHUTE_LOW);
+    uint8_t want;
+
+    if (stage < CHUTE_START_ST) {
+        return;                 /* 第一坑には樋を置かない */
+    }
+    want = (uint8_t)((stage >= CHUTE_HIGH_ST) ? CHUTE_HIGH : CHUTE_LOW);
     uint8_t made = 0, need;
 
     build_rock_top();               /* 岩は置き終わっているので1回で足りる */
@@ -1956,7 +1961,7 @@ static void set_stage_layout(void)
 
    落盤で採れる数 (taken) は 面1〜3 で4個、面15 で0個。難易度の軸はこちら。 */
 const uint16_t stage_seed[15] = {
-    15121,    76,  7756, 38747, 20932,
+    21997, 28674,  3566, 38747, 20932,
     47939,  6848, 48857, 18880, 23334,
     49856, 23219, 20976, 28082, 15316,
 };

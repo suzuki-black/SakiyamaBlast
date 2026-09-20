@@ -488,6 +488,10 @@ uint8_t player_cell_r(void);
    これが無いと、2番目の岩が曲がらずに真っ直ぐ落ちた理由が画面のどこにも無い。 */
 #define CHUTE_BR 3            /* 折れた板 (もとは右下がり) */
 #define CHUTE_BL 4            /* 折れた板 (もとは左下がり) */
+/* **樋は第二坑 (面4) から出す。** 第一坑 (面1〜3) は「岩は真下にしか落ちない」で
+   完結させ、面4で初めて「横に曲がる」が入る。幕ごとに動くものを1種類ずつ増やす構成
+   (docs/STAGE_ACTS_ROADMAP.md 増分1)。 */
+#define CHUTE_START_ST 4      /* この面から樋を置く */
 #define CHUTE_LOW    2        /* 低次面の枚数 (経路が1本) */
 #define CHUTE_HIGH   4        /* 高次面の枚数 (分岐が生まれる) */
 #define CHUTE_HIGH_ST 8       /* この面から高次面の枚数にする */
