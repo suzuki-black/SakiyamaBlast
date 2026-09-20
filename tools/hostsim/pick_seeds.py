@@ -50,14 +50,18 @@ SWEEP = 60000
 # 面の黒ダイヤ総数に対する割合で見ると 面1 で 5/6 = 83%、面15 で 2/12 = 17%。
 # 低次は一手でほぼ片付き、高次は掘って仕込まないと進まない。
 TARGET = {
-    1: 5, 2: 5, 3: 5,
-    4: 4, 5: 4, 6: 4,
-    7: 4, 8: 4, 9: 4,
-    10: 3, 11: 3, 12: 3,
-    13: 2, 14: 2, 15: 2,
+    1: 5,
+    2: 4, 3: 4,
+    4: 3, 5: 3, 6: 3, 7: 3, 8: 3, 9: 3,
+    10: 2, 11: 2, 12: 2, 13: 2, 14: 2, 15: 2,
 }
+# **狙いを下げた (2026-09-19)。** 面2から岩をずらして置き、「何個か動かして準備してから
+# 一気に採る」を主軸にしたので、押さない一手 (hand) は小さめの目安にとどめ、
+# 揃えたあとの取れ高 (hprep) が大きい盤面を選ぶ。
 W_HAND, W_HBEND = 3.0, 0.5   # hbend は最大化なので符号が逆
 W_HPUSH = 0.3                # 揃えたときの伸び (hpush - hand) も少しだけ大きいほうを採る
+W_HPREP = 1.0                # **全部揃えてからの取れ高 (hprep) を大きく。準備の見返り**
+BAL_MIN = 30                 # 左右の散らばり: 少ない側が黒ダイヤ・岩とも3割以上
 
 # **必ず満たさなければならない条件。** 満たさない種は候補から外す。
 #
@@ -95,13 +99,24 @@ PUSH_GAIN = 2
 def _require(r, st):
     if r['hbend'] < 1 or r['rowdup']:
         return False
+    # **左右の散らばり (2026-09-19)。** 固まった盤面ほど少ない手で連鎖が伸びるので、
+    # 条件を課さないと種選びが「右側だけ・左側だけ」の盤面を選んでいた (作者の指摘)。
+    if r['cbal'] < BAL_MIN or r['rbal'] < BAL_MIN:
+        return False
     if not ROCK_OFF[st]:
         return r['hpick'] >= _HPICK_MIN[st]
     # **樋を通る一本の線は、押して揃えたあとに成立してもよい。**
     # 押さずに hpick を満たす盤面は押さなくても十分採れてしまい、
     # 「押すと伸びる」と両立しなかった (面4で 6万通り中 0)。高次面の線は揃えて作るもの。
-    line = r['hpick'] >= _HPICK_MIN[st] or (r['hpush'] >= _HPICK_MIN[st] and r['hpbend'] >= 1)
-    return line and r['npush'] >= ROCK_OFF[st] and r['hpush'] >= r['hand'] + PUSH_GAIN
+    line = (r['hpick'] >= _HPICK_MIN[st] or (r['hpush'] >= _HPICK_MIN[st] and r['hpbend'] >= 1)
+            or (r['hprep'] >= _HPICK_MIN[st] and r['hprepbend'] >= 1))
+    if not (line and r['npush'] >= ROCK_OFF[st] and r['hpush'] >= r['hand'] + PUSH_GAIN):
+        return False
+    # **2個以上ずらす面では、全部揃えると1個だけより明らかに伸びること。**
+    # 1個押せば済む盤面だと「何個も動かして準備してから」にならない。
+    if ROCK_OFF[st] >= 2 and r['hprep'] < r['hpush'] + PUSH_GAIN:
+        return False
+    return True
 
 
 REQUIRE = {st: (lambda r, st=st: _require(r, st)) for st in range(1, 16)}
@@ -120,15 +135,32 @@ def sweep(stage):
 
 def score(row, want):
     return (W_HAND * abs(row['hand'] - want) - W_HBEND * row['hbend']
-            - W_HPUSH * max(0, row['hpush'] - row['hand']))
+            - W_HPUSH * max(0, row['hpush'] - row['hand'])
+            - W_HPREP * row['hprep'])
+
+
+def _sweep_all():
+    """15面を並列に総当たりする (1面ずつだと十数分かかる)。"""
+    procs = {st: subprocess.Popen([SIM, '--stage', str(st), '--sweep', str(SWEEP)],
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+             for st in range(1, 16)}
+    out = {}
+    for st, p in procs.items():
+        o, e = p.communicate()
+        if p.returncode:
+            sys.exit('sim が失敗した: ' + e[:200])
+        out[st] = [json.loads(l) for l in o.splitlines() if l.startswith('{')]
+    return out
 
 
 def main():
-    print('%3s %6s %6s %6s %6s %6s %6s %6s %6s %6s  %s' %
-          ('面', '種', '一手', 'hpick', 'hbend', '落盤', '樋', '連鎖', 'ずらす', '揃えて', '狙い/最低'))
+    print('%3s %6s %6s %6s %6s %6s %6s %6s %6s %6s %6s %5s %5s  %s' %
+          ('面', '種', '一手', 'hpick', 'hbend', '落盤', '樋', '連鎖', 'ずらす', '1個', '全部',
+           '炭左右', '岩左右', '狙い/最低'))
     seeds = []
+    allrows = _sweep_all()
     for st in range(1, 16):
-        rows = sweep(st)
+        rows = allrows[st]
         want = TARGET[st]
         need = REQUIRE.get(st)
         if need:
@@ -143,10 +175,10 @@ def main():
                 sys.exit('面%d: 固定した種 %d が条件を満たさない' % (st, PINNED[st]))
             best = pin[0]
         seeds.append(best['seed'])
-        print('%3d %6d %6d %6d %6d %6d %6d %6d %4d/%d %6d  %d/%d%s' %
+        print('%3d %6d %6d %6d %6d %6d %6d %6d %4d/%d %6d %6d %5d %5d  %d/%d%s' %
               (st, best['seed'], best['hand'], best['hpick'], best['hbend'],
                best['taken'], best['chutes'], best['combo'], best['npush'], ROCK_OFF[st],
-               best['hpush'], want, _HPICK_MIN[st],
+               best['hpush'], best['hprep'], best['cbal'], best['rbal'], want, _HPICK_MIN[st],
                ('  <- 目で見て固定' if st in PINNED else '')))
     if '--write' in sys.argv:
         src = open(FIELD).read()

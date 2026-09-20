@@ -42,7 +42,7 @@ ROM を大きくしても、窓に何を入れても、この 32KB は変わら�
 | バンク窓 0xA000-0xBFFF (seg3) | 8KB | `title_draw()` から呼ばれないもの。`--codeseg BANKDATA` |
 | **RAM 0xD000-0xEDFF** | **7.5KB** | 起動時に写して RAM で実行する。`--codeseg RAMCODE` |
 
-**RAM 実行**は `Makefile` の `RAM_SRC` に足すだけ（いま `enemy` `bomb`）。
+**RAM 実行**は `Makefile` の `RAM_SRC` に足すだけ（いま `enemy` `bomb` `sound`）。
 `tools/ihx2rom.py` が 0xD000-0xEDFF の中身を ROM のセグメント8へ入れ、
 `main()` の冒頭が窓経由で RAM へ写す。**写す前に呼ばれるものは置けない**
 （`crt0` / `lowlevel` / `main` の冒頭）。

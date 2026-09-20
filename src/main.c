@@ -158,47 +158,32 @@ static void show_msg(const char *t, uint8_t n, uint8_t col)
 }
 
 /*
- * 面の開始表示「第 n 階層 開始」。
- * 漢字は自前の 16x16 (src/kanji.c)、数字は BIOS フォントの倍角で高さを合わせる。
- * 全体を中央へ寄せるため、先に横幅を数えてから描く。
+ * 面の開始表示「第 n 坑 m 番方」。
+ *
+ * **15面を「3面で1日、3日ごとに1つ深い坑」に区切る。** 史実では坑内は一番方・
+ * 二番方・三番方の3交代で24時間動き、常磐の炭層は海側へ傾斜していて深いほど
+ * 条件が悪かった (docs/HISTORY.md §5.3・§6)。以前の表示は「第 n 階層 開始」で、
+ * 面番号をそのまま出していただけだった。
+ *
+ * 漢字は自前の 16x16 (src/kanji.c)。全体を中央へ寄せるため先に横幅を数える。
+ * 坑の番号 (1〜5) と番方 (1〜3) はどちらも一桁なので、漢数字は1字で足りる。
  */
-/* 面番号を漢数字で。1〜9 は一字、10 は十、11〜15 は十＋一の位。 */
-static uint8_t stage_kanji(uint8_t *out)
-{
-    uint8_t n = 0;
-    if (stage >= 10) {
-        out[n++] = KJ_TEN;
-    }
-    if (stage % 10) {
-        out[n++] = (uint8_t)(KJ_NUM + (stage % 10) - 1);
-    }
-    return n;
-}
-
 static void show_stage_msg(void)
 {
-    uint8_t num[2];
-    uint8_t nd = stage_kanji(num);
-    uint8_t i;
-    uint16_t w, x;
+    uint8_t act = STAGE_ACT(stage), shift = STAGE_SHIFT(stage);
     uint16_t y = MSG_ROW * CELL;
+    uint16_t w = 16 * 8;                      /* 第n坑 + 空き1字 + m番方 = 8字ぶん */
+    uint16_t x = (uint16_t)(((256 - w) >> 1) & 0xFFFE);
 
-    w = (uint16_t)(16 * 5 + (uint16_t)nd * 16);   /* 漢字5文字 + 漢数字 */
-    x = (uint16_t)(((256 - w) >> 1) & 0xFFFE);
-
-    kanji_draw(x, y, KJ_DAI, COL_WHITE, COL_TUNNEL);
-    x += 16;
-    for (i = 0; i < nd; i++) {
-        kanji_draw(x, y, num[i], COL_FUSE, COL_TUNNEL);
-        x += 16;
-    }
-    kanji_draw(x, y, KJ_KAI,  COL_WHITE, COL_TUNNEL); x += 16;
-    kanji_draw(x, y, KJ_SOU,  COL_WHITE, COL_TUNNEL); x += 16;
-    kanji_draw(x, y, KJ_HIRA, COL_WHITE, COL_TUNNEL); x += 16;
-    kanji_draw(x, y, KJ_SHI,  COL_WHITE, COL_TUNNEL); x += 16;
+    msg_c0 = (uint8_t)(x >> 4);
+    kanji_draw(x, y, KJ_DAI, COL_WHITE, COL_TUNNEL);                   x += 16;
+    kanji_draw(x, y, (uint8_t)(KJ_NUM + act - 1), COL_FUSE, COL_TUNNEL); x += 16;
+    kanji_draw(x, y, KJ_KOU, COL_WHITE, COL_TUNNEL);                   x += 32;  /* 1字ぶん空ける */
+    kanji_draw(x, y, (uint8_t)(KJ_NUM + shift - 1), COL_FUSE, COL_TUNNEL); x += 16;
+    kanji_draw(x, y, KJ_BAN, COL_WHITE, COL_TUNNEL);                   x += 16;
+    kanji_draw(x, y, KJ_HOU, COL_WHITE, COL_TUNNEL);                   x += 16;
 
     /* 消す範囲 (升単位)。show_msg と同じ約束。 */
-    msg_c0 = (uint8_t)((((256 - w) >> 1) & 0xFFFE) >> 4);
     msg_c1 = (uint8_t)((x - 1) >> 4);
 }
 
@@ -336,7 +321,7 @@ void main(void)
 {
     /* **RAM で走らせるコードを写す。いちばん先。**
        0x4000-0xBFFF の 32KB はもう埋まっていて、並べ替えでは空きが作れない。
-       **これより前に enemy / bomb の関数を呼んではいけない。** */
+       **これより前に enemy / bomb / sound の関数を呼んではいけない。** */
     {
         uint8_t *d = (uint8_t *)RAMCODE_ADDR;
         const uint8_t *s = (const uint8_t *)0xA000;

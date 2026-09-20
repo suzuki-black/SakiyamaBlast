@@ -346,25 +346,30 @@ extern uint8_t  en_ghost[ENEMY_MAX];
  * 押し切れない / 途中で落ちた / 行き先の真下が黒ダイヤでない / 炭柱が無い なら -1。
  * *nb に岩が樋を通った回数を返す。
  */
-static int push_try(int i, int d, int k, int v, int coal0, int *nb)
+/* 岩 i を d の向きへ k 升押す。黒ダイヤの真上で止まれば 1。盤面は組み直さない。 */
+static int push_rock(int i, int d, int k)
 {
-    int rc, rr, tc, s, fr, q, hc = -1, hr = -1;
-    uint8_t ox[ROCK_MAX], oy[ROCK_MAX];
-    build_stage();
+    int rc, rr, tc, s, fr;
+    if (!rock_state[i]) { return 0; }
     rc = rock_x[i] >> 4; rr = rock_y[i] >> 4; tc = rc + d * k;
-    if (coal[rr * COLS + rc - d]) { return -1; }        /* 押し手が立てない */
+    if (tc < 0 || tc >= COLS || rc - d < 0 || rc - d >= COLS) { return 0; }
+    if (coal[rr * COLS + rc - d]) { return 0; }         /* 押し手が立てない */
     for (s = 0; s < 16 * k; s++) {
-        if (!rock_push((int8_t)i, (int8_t)d, 1)) { return -1; }
+        if (!rock_push((int8_t)i, (int8_t)d, 1)) { return 0; }
         rock_update();
     }
     for (fr = 0; fr < 60; fr++) { rock_update(); }
-    if (rock_state[i] != ROCK_WAIT || rock_x[i] != tc * 16 || rock_y[i] != rr * 16
-        || !cell_coal((int8_t)tc, (int8_t)(rr + 1))) {
-        return -1;
-    }
-    if (v == 0) {
-        hc = tc; hr = rr + 1;
-    } else {
+    return rock_state[i] == ROCK_WAIT && rock_x[i] == tc * 16 && rock_y[i] == rr * 16
+        && cell_coal((int8_t)tc, (int8_t)(rr + 1));
+}
+
+/* 一手打って、採れた数を返す。v=0 なら (hc,hr) の黒ダイヤ、v>=1 なら v 本目の炭柱を割る。 */
+static int finish(int v, int hc, int hr, int coal0, int *nb)
+{
+    int s, fr, q;
+    uint8_t ox[ROCK_MAX], oy[ROCK_MAX];
+    if (v > 0) {
+        hc = -1;
         for (q = 0; q < NCELL; q++) {
             if (pillar[q] && cell_coal((int8_t)(q % COLS), (int8_t)(q / COLS)) && --v == 0) {
                 hc = q % COLS; hr = q / COLS; break;
@@ -385,6 +390,18 @@ static int push_try(int i, int d, int k, int v, int coal0, int *nb)
         }
     }
     return coal0 - coal_left;
+}
+
+static int push_try(int i, int d, int k, int v, int coal0, int *nb)
+{
+    int rc, rr, tc, hc = -1, hr = -1;
+    build_stage();
+    rc = rock_x[i] >> 4; rr = rock_y[i] >> 4; tc = rc + d * k;
+    if (!push_rock(i, d, k)) { return -1; }
+    if (v == 0) {
+        hc = tc; hr = rr + 1;
+    }
+    return finish(v, hc, hr, coal0, nb);
 }
 
 /*
@@ -420,6 +437,8 @@ static void analyse(int st, unsigned sd)
     int taken = 0, crack = 0, chutes = 0, reach = 0, bend = 0, hand = 0, hbend = 0, hpick = 0;
     int bump = 0, side = 0, cavef = 0, cbend = 0, nfall = 0, lost = 0, maxline = 0;
     int noff = 0, npush = 0, hpush = 0, hpbend = 0, rowdup = 0;
+    int hprep = 0, hprepbend = 0, cbal = 0, rbal = 0;
+    int bi_d[ROCK_MAX], bi_k[ROCK_MAX], bi_got[ROCK_MAX];
     int seen[NCELL], veins = 0, vmax = 0;
     for (c = 0; c < COLS; c++) { col[c] = 0; }
     for (r = 0; r < ROWS; r++) {
@@ -645,6 +664,7 @@ static void analyse(int st, unsigned sd)
             if (rock_state[i]) { rows[rock_y[i] >> 4]++; }
         }
         for (r = 0; r < ROWS; r++) { if (rows[r] > 1) { rowdup++; } }
+        for (i = 0; i < ROCK_MAX; i++) { bi_got[i] = -1; bi_d[i] = 0; bi_k[i] = 0; }
         for (i = 0; i < ROCK_MAX; i++) {
             int rc, rr, d, k, can = 0;
             build_stage();
@@ -662,11 +682,47 @@ static void analyse(int st, unsigned sd)
                         if (got < 0) { if (v == 0) { break; } continue; }
                         can = 1;
                         if (got > hpush || (got == hpush && nb > hpbend)) { hpush = got; hpbend = nb; }
+                        if (got > bi_got[i]) { bi_got[i] = got; bi_d[i] = d; bi_k[i] = k; }
                     }
                 }
             }
             if (can) { npush++; }
         }
+        /*
+         * **hprep: ずらした岩を全部揃えてから一手打って採れる数。**
+         * 岩ごとに hpush で一番よかった押し方をまとめて行い、そのあと炭柱を割る
+         * (揃えた岩が全部いっせいに落ちる)。「何個も動かして準備してから一気に」の
+         * 見返りがあるかを測る。作者の指摘 (2026-09-19)「岩を動かして準備してからの
+         * 爽快感であるカタルシス」。
+         */
+        {
+            int v, ok = 1, nb;
+            for (v = 1; v <= PILLAR_MAX; v++) {
+                int got;
+                build_stage();
+                ok = 1;
+                for (i = 0; i < ROCK_MAX && ok; i++) {
+                    if (bi_k[i]) { ok = push_rock(i, bi_d[i], bi_k[i]); }
+                }
+                if (!ok) { break; }        /* 押し順で塞がる組み合わせ */
+                got = finish(v, 0, 0, coal0, &nb);
+                if (got > hprep || (got == hprep && nb > hprepbend)) { hprep = got; hprepbend = nb; }
+            }
+        }
+    }
+
+    /* **左右の散らばり。** 少ない側の割合 (百分率)。0 = 片側だけ、50 = 均等 */
+    {
+        int cl = 0, cn = 0, rl = 0, rn = 0;
+        build_stage();
+        for (i = 0; i < NCELL; i++) {
+            if (coal[i]) { cn++; if (i % COLS < COLS / 2) { cl++; } }
+        }
+        for (i = 0; i < ROCK_MAX; i++) {
+            if (rock_state[i]) { rn++; if ((rock_x[i] >> 4) < COLS / 2) { rl++; } }
+        }
+        cbal = cn ? 100 * (cl < cn - cl ? cl : cn - cl) / cn : 50;
+        rbal = rn ? 100 * (rl < rn - rl ? rl : rn - rl) / rn : 50;
     }
 
     printf("{\"stage\":%d,\"seed\":%u,\"coal\":%d,\"rocks\":%d,"
@@ -675,11 +731,12 @@ static void analyse(int st, unsigned sd)
            "\"bend\":%d,\"combo\":%d,\"bump\":%d,\"side\":%d,"
            "\"cavef\":%d,\"cbend\":%d,\"nfall\":%d,\"lost\":%d,\"maxline\":%d,"
            "\"taken\":%d,\"crack\":%d,\"dug0\":%u,"
-           "\"noff\":%d,\"npush\":%d,\"hpush\":%d,\"hpbend\":%d,\"rowdup\":%d}\n",
+           "\"noff\":%d,\"npush\":%d,\"hpush\":%d,\"hpbend\":%d,\"rowdup\":%d,"
+           "\"hprep\":%d,\"hprepbend\":%d,\"cbal\":%d,\"rbal\":%d}\n",
            st, sd, coal0, nrock, free_max, haul, best, veins, vmax,
            chutes, reach, hand, hbend, hpick, bend, best_combo,
            bump, side, cavef, cbend, nfall, lost, maxline, taken, crack, dug_n0,
-           noff, npush, hpush, hpbend, rowdup);
+           noff, npush, hpush, hpbend, rowdup, hprep, hprepbend, cbal, rbal);
 }
 
 int main(int argc, char **argv)

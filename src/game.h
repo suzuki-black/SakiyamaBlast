@@ -247,6 +247,13 @@ extern uint8_t combo_t;       /* HUD に出しておく残り時間 */
 #define BOMB_RANGE     5      /* 飛距離 (升) */
 #define BOMB_FLY_FRAMES 4     /* 1升進むのに掛けるフレーム数 */
 #define LIVES_INIT    3
+/* **幕（坑）と番方。** 15面を「3面で1日（一番方・二番方・三番方）、
+   3日ごとに1つ深い坑へ降りる」構造で区切る。史実では坑内は3交代で24時間動き、
+   常磐の炭層は海側へ傾斜していて深いほど条件が悪かった (docs/HISTORY.md §5.3・§6)。
+   幕は今後ギミックを増やす単位にもなる (docs/STAGE_ACTS_ROADMAP.md)。 */
+#define STAGE_ACT(s)   (uint8_t)(((s) - 1) / 3 + 1)    /* 1..5 = 第一坑..第五坑 */
+#define STAGE_SHIFT(s) (uint8_t)(((s) - 1) % 3 + 1)    /* 1..3 = 一番方..三番方 */
+
 #define MAX_STAGE     15      /* 全15面。掘り抜きが面番号の形になる */
 #define POWDER_PER_STAGE 10   /* 盤面に置く火薬の数 (面によらず一定) */
 /* 倒した敵は火薬を落とす。倒しても得点が入るだけだと、資源を消費して敵を倒す
@@ -420,7 +427,10 @@ void    popup_clear(void);
 #define KJ_SHI   4      /* 始 */
 #define KJ_NUM   5      /* ここから 一二三四五六七八九十。KJ_NUM + (n-1) で引ける */
 #define KJ_TEN  14      /* 十 */
-#define KJ_N    15      /* 字数。**tools/mkkanji.py の order と一致させること** */
+#define KJ_KOU  15      /* 坑 */
+#define KJ_BAN  16      /* 番 */
+#define KJ_HOU  17      /* 方 */
+#define KJ_N    18      /* 字数。**tools/mkkanji.py の order と一致させること** */
 extern const uint8_t kanji_bits[KJ_N][32];
 void    kanji_draw(uint16_t x, uint16_t y, uint8_t idx, uint8_t fg, uint8_t bg);
 /* 溜め中の汗。**スプライトではなく背景に描く。** 自機のスプライトは16x16が

@@ -61,6 +61,8 @@ python3 tools/hostsim/pick_seeds.py --write      # src/field.c の stage_seed[] 
 | **`hpush`** | **ずらした岩を1つ押して揃え、一手打って採れる最大数。** 一手は「真下の黒ダイヤを割る」と「炭柱を割る（揃えた岩も落盤に加わる）」の良いほう |
 | `hpbend` | `hpush` の最善手で岩が樋を通った回数 |
 | **`rowdup`** | **岩が2個以上ある行の数。0 が必須**（横一列8枚のスプライト制限） |
+| **`hprep`** / `hprepbend` | **ずらした岩を全部揃えてから炭柱を割って採れる数** / そのとき樋を通った回数。岩ごとに `hpush` で一番よかった押し方をまとめて行う |
+| `cbal` / `rbal` | 左右の散らばり。少ない側の黒ダイヤ／岩の割合（%）。0 = 片側だけ、50 = 均等 |
 
 `taken` `reach` `bend` `combo` は**エンジンを回して測る**。とくに `reach` は
 板の向き・曲がった先が掘れるか・その列に炭があるか、が全部絡むので盤面を眺めても
@@ -80,7 +82,8 @@ python3 tools/hostsim/pick_seeds.py --write      # src/field.c の stage_seed[] 
 `pick_seeds.py` には2つの仕組みがある。
 
 - **`REQUIRE`** … 満たさない種を候補から外す（**全面で `hbend>=1` と `rowdup==0`**。
-  ずらす岩のある面では `npush` ≥ ずらす数、`hpush` ≥ `hand` + 2）
+  ずらす岩のある面では `npush` ≥ ずらす数、`hpush` ≥ `hand` + 2、2個以上ずらす面では
+  `hprep` ≥ `hpush` + 2。全面で `cbal`・`rbal` ≥ 30）。15面を並列に総当たりする
 - **`PINNED`** … 点数では選べないときに、実行して見比べて決めた種を固定する（いまは空）
 
 狙いの表は `pick_seeds.py` の `TARGET`（つるはし1本で採れる数。面1〜3の5個から

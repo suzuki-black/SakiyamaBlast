@@ -180,13 +180,30 @@ void cavein_flash_tick(void)
     }
 }
 
-/* 面ごとに土の色を変える。閃光から戻すときにも使う。 */
+/*
+ * 面ごとの色。閃光から戻すときにも使う。
+ *
+ * **土の色は幕 (坑の深さ) で5段階。** 以前は3面ごとに茶・灰・青を繰り返していたので、
+ * 面11 と面2 が同じ色だった。深くなるほど暗く、青から紫へ寄せて「降りている」ことを
+ * 色で出す。常磐の炭層は海側へ傾斜し、深いほど条件が悪かった (docs/HISTORY.md §5.3)。
+ *
+ * **HUD の帯の色は番方 (一番方・二番方・三番方) で変える。** 坑外の時間帯 (朝・昼・夜)
+ * のつもりで、どれも暗いままにして白と黄の文字が読めるようにしてある。
+ * パレットを書くだけなので、どちらも fps には影響しない。
+ */
 void set_dirt_palette(void)
 {
-    switch ((stage - 1) % 3) {
-    case 0:  vdp_set_palette(COL_DIRT, 4, 2, 1); break;   /* 炭層まじりの茶 */
-    case 1:  vdp_set_palette(COL_DIRT, 3, 3, 2); break;   /* 硬い岩盤の灰 */
-    default: vdp_set_palette(COL_DIRT, 2, 2, 4); break;   /* 湧水を含む青みの層 */
+    switch (STAGE_ACT(stage)) {
+    case 1:  vdp_set_palette(COL_DIRT, 4, 2, 1); break;   /* 第一坑 炭層まじりの茶 */
+    case 2:  vdp_set_palette(COL_DIRT, 3, 3, 2); break;   /* 第二坑 硬い岩盤の灰 */
+    case 3:  vdp_set_palette(COL_DIRT, 2, 2, 4); break;   /* 第三坑 湧水を含む青 */
+    case 4:  vdp_set_palette(COL_DIRT, 2, 1, 3); break;   /* 第四坑 深い藍 */
+    default: vdp_set_palette(COL_DIRT, 1, 1, 2); break;   /* 第五坑 ほとんど闇 */
+    }
+    switch (STAGE_SHIFT(stage)) {
+    case 1:  vdp_set_palette(COL_HUD, 1, 2, 2); break;    /* 一番方 朝 */
+    case 2:  vdp_set_palette(COL_HUD, 2, 2, 1); break;    /* 二番方 昼 */
+    default: vdp_set_palette(COL_HUD, 1, 1, 3); break;    /* 三番方 夜 */
     }
 }
 
@@ -1180,6 +1197,41 @@ static uint16_t take_candidate(void)
     return v;
 }
 
+/*
+ * **左右を交互に置く。** side = 0 なら左半分 (列 0-7)、1 なら右半分 (列 8-15) の候補から取る。
+ * その側に候補が無ければ、どこからでも取る。
+ *
+ * 何も指定しないと、炭層と岩が片側に固まる盤面が多かった (出荷していた15面で、
+ * 少ない側の黒ダイヤが平均24%。面1・3・4・10 は左半分に1つも無い)。
+ * 固まっているほど少ない手で連鎖が伸びるので、種選びがそれをさらに選んでいた。
+ * 作者の指摘 (2026-09-19)「右側だけ、左側だけのような密集系が多い」。
+ */
+static uint16_t take_candidate_side(uint8_t side)
+{
+    uint8_t k, m = 0, pick, v;
+    for (k = 0; k < cand_n; k++) {
+        if ((uint8_t)((cand[k] % COLS) >= COLS / 2) == side) {
+            m++;
+        }
+    }
+    if (m == 0) {
+        return take_candidate();
+    }
+    pick = (uint8_t)(rnd8() % m);
+    for (k = 0; k < cand_n; k++) {
+        if ((uint8_t)((cand[k] % COLS) >= COLS / 2) != side) {
+            continue;
+        }
+        if (pick-- == 0) {
+            break;
+        }
+    }
+    v = cand[k];
+    cand_n--;
+    cand[k] = cand[cand_n];
+    return v;
+}
+
 /* 火薬を掘り抜きの上へ n 個ばら撒く。 */
 static void place_powder(uint8_t n)
 {
@@ -1248,10 +1300,13 @@ static void place_coal(void)
     uint16_t i;
     uint8_t len;
 
+    uint8_t side = (uint8_t)(rnd8() & 1);
+
     coal_left = 0;
     while (coal_left < want) {
         build_candidates(1);            /* 置くたびに作り直す (coal[] が増えるため) */
-        i = take_candidate();
+        i = take_candidate_side(side);  /* 炭層ごとに左右を入れ替える */
+        side ^= 1;
         if (i == 0xFFFF) {
             return;                     /* 置ける升が尽きた */
         }
@@ -1278,6 +1333,7 @@ static void place_coal(void)
 static void place_pillars(void)
 {
     uint8_t made, hp = coal_hp_tbl[stage - 1];
+    uint8_t side = (uint8_t)(rnd8() & 1);
     uint16_t i;
     hp = (uint8_t)(hp + PILLAR_HP_ADD);
     if (hp > COAL_HP_MAX) {
@@ -1285,7 +1341,8 @@ static void place_pillars(void)
     }
     for (made = 0; made < PILLAR_MAX; made++) {
         build_candidates(1);
-        i = take_candidate();
+        i = take_candidate_side(side);  /* 2本を左右へ分ける */
+        side ^= 1;
         if (i == 0xFFFF) {
             return;
         }
@@ -1562,7 +1619,7 @@ static void off_reserve(uint8_t c, uint8_t r, int8_t d, uint8_t k)
 
 /* 面ごとの「ずらして置く岩」の数。岩の総数は 4,4,4,5,5,5,...,8。 */
 static const uint8_t rock_off_tbl[MAX_STAGE] = {
-    0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3
+    0, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3
 };
 
 static uint8_t cand_keep[NCELL];
@@ -1573,6 +1630,7 @@ static void place_rocks(void)
     uint8_t n = (uint8_t)(4 + (stage - 1) / 3);      /* 4〜8個 */
     uint8_t off = rock_off_tbl[stage - 1];
     uint8_t far = (uint8_t)((stage >= ROCK_OFF_FAR_ST) ? 2 : 1);
+    uint8_t side = (uint8_t)(rnd8() & 1);   /* 岩も左右を交互に置く */
     uint16_t i;
     if (n > ROCK_MAX) {
         n = ROCK_MAX;
@@ -1610,7 +1668,8 @@ static void place_rocks(void)
         while (off && cand_n) {
             uint8_t c, r, k;
             int8_t d = 1;
-            i = take_candidate();
+            i = take_candidate_side(side);
+            side ^= 1;
             c = (uint8_t)(i % COLS);
             r = (uint8_t)(i / COLS);
             /* 前の岩の予約で塞がれていることがあるので、取り出した時点で確かめ直す */
@@ -1625,7 +1684,7 @@ static void place_rocks(void)
             off--;
         }
     }
-    if (rock_off_tbl[stage - 1]) {
+    if (rock_off_tbl[stage - 1]) {      /* ずらす岩が無い面では一覧は作ったまま */
         /* 控えた一覧を戻し、置いた岩の行と予約した升を落とす。
            予約は押し手・通り道 (岩と同じ行なので行ごと落ちる) と、通り道の真下。 */
         uint8_t k, m = 0;
@@ -1640,18 +1699,15 @@ static void place_rocks(void)
     keep_above_coal();
     while (n) {
         if (cand_n == 0) {
-            /* 真上が尽きたらどこでも。**ずらす岩の無い面で drop_rock_rows() を呼ばないこと。**
-               呼ぶと乱数の出方が変わり、面1〜3の盤面まで変わる。
-               1行に2個にならないことは hostsim の rowdup で見張っている。 */
+            /* 真上が尽きたらどこでも。置いた岩の行は落とす (1行に岩1個)。 */
             build_candidates(2);
-            if (rock_off_tbl[stage - 1]) {
-                drop_rock_rows();
-            }
+            drop_rock_rows();
             if (cand_n == 0) {
                 return;
             }
         }
-        i = take_candidate();
+        i = take_candidate_side(side);
+        side ^= 1;
         rock_place((uint8_t)(i % COLS), (uint8_t)(i / COLS));
         drop_row((uint8_t)(i / COLS));
         n--;
@@ -1900,9 +1956,9 @@ static void set_stage_layout(void)
 
    落盤で採れる数 (taken) は 面1〜3 で4個、面15 で0個。難易度の軸はこちら。 */
 const uint16_t stage_seed[15] = {
-    31254, 38797,  5649,  9062,  9947,
-    10565, 13393, 14824, 15935, 42708,
-     5164, 27367, 49965, 30068, 41186,
+    15121,    76,  7756, 38747, 20932,
+    47939,  6848, 48857, 18880, 23334,
+    49856, 23219, 20976, 28082, 15316,
 };
 uint16_t layout_seed_force;      /* 0 以外なら強制的にこの種を使う (道具用) */
 
