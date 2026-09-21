@@ -73,7 +73,7 @@ ART_TILE     := $(BUILDDIR)/tiles.h
 PAL_H        := $(BUILDDIR)/palette.h
 # 名前はカンマ区切りで**1行**に書く。行継続で折ると空白が入って別の引数になる。
 ART_SPR_NAMES  := miner,bomb,rock,rat,bat,split,stun1,stun2,stun3,brace,wd1,wd2,wu1,wu2,wl1,wl2,wr1,wr2,bru,brl,brr,std,stu,stl,str,chip
-ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,toir,toil,toibr,toibl
+ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,water,spring,toir,toil,toibr,toibl
 
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT
 MACHINE   ?= C-BIOS_MSX2+_JP
@@ -136,7 +136,7 @@ clean:
 # ---- 面の数値化 (ホスト側。MSX の ROM とは別物) ----
 # src/ のロジックをそのまま gcc でビルドし、VDP/PSG だけスタブへ差し替えて
 # ヘッドレスで走らせる。詳細は docs/HOSTSIM.md。
-HOSTSIM_SRC := $(SRCDIR)/field.c $(SRCDIR)/enemy.c $(SRCDIR)/player.c \
+HOSTSIM_SRC := $(SRCDIR)/field.c $(SRCDIR)/enemy.c $(SRCDIR)/player.c $(SRCDIR)/water.c \
                $(SRCDIR)/rock.c $(SRCDIR)/bomb.c $(SRCDIR)/bonus.c \
                tools/hostsim/stubs.c tools/hostsim/sim.c
 

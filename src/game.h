@@ -409,6 +409,17 @@ void    chute_break(int8_t cx, int8_t cy);
 void    draw_chute(uint8_t cx, uint8_t cy);
 extern const uint16_t stage_seed[15];   /* 面ごとの盤面の種 (0=既定式) */
 extern uint16_t layout_seed_force;      /* 0 以外なら強制的にこの種を使う (道具用) */
+
+void draw_water(uint8_t cx, uint8_t cy);
+void draw_spring(uint8_t cx, uint8_t cy);
+
+/* 出水 (src/water.c) */
+extern uint8_t water[NCELL];
+extern uint8_t water_on, spring_on, spring_c, spring_r;
+void water_reset(void);
+void water_start(void);                 /* 落盤と同時に呼ぶ */
+void water_tick(void);                  /* 毎フレーム呼ぶ */
+uint8_t cell_water(int8_t cx, int8_t cy);
 uint16_t layout_seed(void);
 void    set_dirt_palette(void);
 void    cavein_flash(void);        /* 落盤の閃光を始める */
@@ -492,6 +503,15 @@ uint8_t player_cell_r(void);
    完結させ、面4で初めて「横に曲がる」が入る。幕ごとに動くものを1種類ずつ増やす構成
    (docs/STAGE_ACTS_ROADMAP.md 増分1)。 */
 #define CHUTE_START_ST 4      /* この面から樋を置く */
+
+/* **出水 (第三坑のギミック)。** 落盤と同時に湧き出し口から熱水が出て、坑道を伝って
+   1秒に1升ずつ広がる。浸かっている間は体温が毎フレーム上がるだけで、**失敗条件は
+   既存のオーバーヒートのまま** (新しい死因を作らない)。docs/STAGE_ACTS_ROADMAP.md §4。
+   **まずは面7だけで試す。** 体感を見てから面8・9へ広げる。 */
+#define WATER_ST     7        /* この面だけ出水がある (試験導入) */
+#define WATER_STEP  60        /* 1升広がるまでのフレーム数 (1秒) */
+#define WATER_MAX   24        /* 広がる上限の升数。際限なく広げると詰む */
+#define WATER_HEAT   1        /* 熱水の升に居る間、毎フレーム上がる体温 (4秒で満タン) */
 #define CHUTE_LOW    2        /* 低次面の枚数 (経路が1本) */
 #define CHUTE_HIGH   4        /* 高次面の枚数 (分岐が生まれる) */
 #define CHUTE_HIGH_ST 8       /* この面から高次面の枚数にする */

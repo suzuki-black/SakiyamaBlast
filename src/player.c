@@ -283,6 +283,11 @@ static void update_temp(void)
         bathing = 0;
         draw_bath(bath_c, bath_r);       /* 泡を消して元の湯へ戻す */
     }
+    /* **熱水 (出水)。** 浸かっている間は毎フレーム上がる。水風呂のちょうど裏返しで、
+       死因は増えない (既存のオーバーヒート)。升の中心で見る。 */
+    if (cell_water((int8_t)player_cell_c(), (int8_t)player_cell_r())) {
+        heat_add(WATER_HEAT);
+    }
     temp_acc++;
     if (temp_acc < TEMP_TICK) {
         return;

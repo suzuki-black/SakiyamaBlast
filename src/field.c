@@ -906,6 +906,18 @@ void draw_chute(uint8_t cx, uint8_t cy)
     draw_tile(cx, cy, art_tile_of(tbl[k - 1]), 2);
 }
 
+/* 熱水 (出水)。坑道の上に重ねる。外周2pxは土の膜のために残す。 */
+void draw_water(uint8_t cx, uint8_t cy)
+{
+    draw_tile(cx, cy, art_tile_of(TILE_WATER), 2);
+}
+
+/* 湧き出し口。**面の開始から見えている**ので、どこから水が来るかを先に読める。 */
+void draw_spring(uint8_t cx, uint8_t cy)
+{
+    draw_tile(cx, cy, art_tile_of(TILE_SPRING), 2);
+}
+
 /* 風呂 (温泉)。触れると体温が一気に下がる。 */
 void draw_bath(uint8_t cx, uint8_t cy)
 {
@@ -972,6 +984,14 @@ void field_redraw_cell(int8_t cx, int8_t cy)
     }
     if (bombdrop[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
         draw_bombdrop((uint8_t)cx, (uint8_t)cy);
+    }
+    /* **熱水は一番上に重ねる。** 湧き出し口も水に沈んだら水で描く。 */
+    if (spring_on && (uint8_t)cx == spring_c && (uint8_t)cy == spring_r
+        && !water[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
+        draw_spring((uint8_t)cx, (uint8_t)cy);
+    }
+    if (water[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
+        draw_water((uint8_t)cx, (uint8_t)cy);
     }
 }
 
@@ -1501,6 +1521,40 @@ static void place_chutes(void)
     }
 }
 
+/*
+ * 熱水の湧き出し口。**掘り抜きの上の升を1つ選ぶ**ので、面の開始から見えている。
+ * 自機の出発点の近くだと落盤の直後に逃げ場が無くなるので、少し離す。
+ */
+static void place_spring(void)
+{
+    uint8_t try_n;
+    uint16_t i;
+
+    if (stage != WATER_ST) {
+        return;                         /* 出水があるのは第三坑の試験面だけ */
+    }
+    build_candidates(0);                /* 掘り抜きの上 (dug かつ未使用) */
+    for (try_n = 0; try_n < 8; try_n++) {
+        uint8_t c, r, dc, dr;
+        i = take_candidate();
+        if (i == 0xFFFF) {
+            return;
+        }
+        c = (uint8_t)(i % COLS);
+        r = (uint8_t)(i / COLS);
+        dc = (uint8_t)((c > start_c) ? (c - start_c) : (start_c - c));
+        dr = (uint8_t)((r > start_r) ? (r - start_r) : (start_r - r));
+        if (dc + dr < 4) {
+            continue;                   /* 出発点の近くは避ける */
+        }
+        used[i] = 1;
+        spring_c = c;
+        spring_r = r;
+        spring_on = 1;
+        return;
+    }
+}
+
 /* 指定した行の候補を落とす。
    スプライトは16px高なので、別の升行に置けば走査線が全く重ならない。
    MSX2 は横一列に9枚目以降が消えるので、**1行に岩は1個まで**にしておけば、
@@ -1889,6 +1943,7 @@ static void connect_to_reach(uint8_t c, uint8_t r)
 #define PH_ROCK   4
 #define PH_PILLAR 5
 #define PH_CHUTE  6
+#define PH_WATER  7
 
 static void phase_seed(uint8_t k)
 {
@@ -1903,6 +1958,7 @@ static void set_stage_layout(void)
     for (i = 0; i < NCELL; i++) {
         used[i] = 0;
     }
+    water_reset();
 
     set_dirt_palette();
 
@@ -1948,6 +2004,10 @@ static void set_stage_layout(void)
        「岩が通って、曲がった先で炭を貫く」置き方を選べない。 */
     phase_seed(PH_CHUTE);
     place_chutes();
+    /* **湧き出し口は最後。** ここで種を分けてあるので、出水の無い面では
+       乱数を1回も使わず、盤面はこの機構を入れる前とまったく同じになる。 */
+    phase_seed(PH_WATER);
+    place_spring();
 }
 
 /* **面ごとの盤面の種。** ここを変えるとその面の並びが丸ごと変わる。
@@ -1962,7 +2022,7 @@ static void set_stage_layout(void)
    落盤で採れる数 (taken) は 面1〜3 で4個、面15 で0個。難易度の軸はこちら。 */
 const uint16_t stage_seed[15] = {
     21997, 28674,  3566, 38747, 20932,
-    47939,  6848, 48857, 18880, 23334,
+    47939,  8498, 48857, 18880, 23334,
     49856, 23219, 20976, 28082, 15316,
 };
 uint16_t layout_seed_force;      /* 0 以外なら強制的にこの種を使う (道具用) */
@@ -2057,5 +2117,8 @@ void build_stage(void)
     }
     if (bath_on) {
         draw_bath(bath_c, bath_r);
+    }
+    if (spring_on) {
+        draw_spring(spring_c, spring_r);   /* 熱水の湧き出し口。開始から見えている */
     }
 }

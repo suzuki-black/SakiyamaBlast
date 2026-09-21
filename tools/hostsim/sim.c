@@ -437,7 +437,7 @@ static void analyse(int st, unsigned sd)
     int taken = 0, crack = 0, chutes = 0, reach = 0, bend = 0, hand = 0, hbend = 0, hpick = 0;
     int bump = 0, side = 0, cavef = 0, cbend = 0, nfall = 0, lost = 0, maxline = 0;
     int noff = 0, npush = 0, hpush = 0, hpbend = 0, rowdup = 0;
-    int hprep = 0, hprepbend = 0, cbal = 0, rbal = 0, hpick0 = 0;
+    int hprep = 0, hprepbend = 0, cbal = 0, rbal = 0, hpick0 = 0, wet = 0, wseal = 0;
     int bi_d[ROCK_MAX], bi_k[ROCK_MAX], bi_got[ROCK_MAX];
     int seen[NCELL], veins = 0, vmax = 0;
     for (c = 0; c < COLS; c++) { col[c] = 0; }
@@ -714,6 +714,36 @@ static void analyse(int st, unsigned sd)
         }
     }
 
+    /*
+     * **出水 (第三坑)。** 落盤を起こして60秒ぶん回し、熱水が何升まで広がるかと、
+     * 四方が全部水になって叩けなくなる黒ダイヤが出ないかを見る。
+     *   wet   : 水になった升の数。少なすぎると「水が湧いた」ことが遊びに関与しない
+     *   wseal : 四方が全部水の黒ダイヤの数。**0 でないと詰む**
+     * 出水のある面だけ測る (他の面は 0 のまま)。
+     */
+    if (st == WATER_ST) {
+        int fr;
+        build_stage();
+        rock_collapse();
+        for (fr = 0; fr < 60 * 60; fr++) {
+            rock_update();
+            coal_shake_tick();
+            water_tick();
+        }
+        for (i = 0; i < NCELL; i++) { if (water[i]) { wet++; } }
+        for (i = 0; i < NCELL; i++) {
+            const int dc[4] = { -1, 1, 0, 0 }, dr[4] = { 0, 0, -1, 1 };
+            int k, ok = 0;
+            if (!coal[i] || coal[i] == COAL_CRACKED) { continue; }
+            for (k = 0; k < 4; k++) {
+                int nc = i % COLS + dc[k], nr = i / COLS + dr[k];
+                if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) { continue; }
+                if (!water[nr * COLS + nc] && !coal[nr * COLS + nc]) { ok = 1; }
+            }
+            if (!ok) { wseal++; }
+        }
+    }
+
     /* **左右の散らばり。** 少ない側の割合 (百分率)。0 = 片側だけ、50 = 均等 */
     {
         int cl = 0, cn = 0, rl = 0, rn = 0;
@@ -735,17 +765,75 @@ static void analyse(int st, unsigned sd)
            "\"cavef\":%d,\"cbend\":%d,\"nfall\":%d,\"lost\":%d,\"maxline\":%d,"
            "\"taken\":%d,\"crack\":%d,\"dug0\":%u,"
            "\"noff\":%d,\"npush\":%d,\"hpush\":%d,\"hpbend\":%d,\"rowdup\":%d,"
-           "\"hprep\":%d,\"hprepbend\":%d,\"cbal\":%d,\"rbal\":%d,\"hpick0\":%d}\n",
+           "\"hprep\":%d,\"hprepbend\":%d,\"cbal\":%d,\"rbal\":%d,\"hpick0\":%d,"
+           "\"wet\":%d,\"wseal\":%d}\n",
            st, sd, coal0, nrock, free_max, haul, best, veins, vmax,
            chutes, reach, hand, hbend, hpick, bend, best_combo,
            bump, side, cavef, cbend, nfall, lost, maxline, taken, crack, dug_n0,
-           noff, npush, hpush, hpbend, rowdup, hprep, hprepbend, cbal, rbal, hpick0);
+           noff, npush, hpush, hpbend, rowdup, hprep, hprepbend, cbal, rbal, hpick0,
+           wet, wseal);
+}
+
+/*
+ * **出水を試す (--water)。** 面を組んで落盤を起こし、熱水が広がる様子を升で出す。
+ * 実機と同じ src/water.c を回すので、規則の確認はここでできる。
+ *   . = 土 / 空白 = 坑道 / 数字 = 黒ダイヤ / O = 岩 / ~ = 熱水 / S = 湧き出し口
+ *   B = 水風呂 / N = 敵の湧き出し口 / @ = 自機の出発点
+ */
+static void water_demo(int st)
+{
+    int fr, c, r, i, seal = 0, dry = 0, wetn = 0;
+    build_stage();
+    printf("面%d 湧き出し口 %s", st, spring_on ? "" : "無し\n");
+    if (spring_on) { printf("(%d,%d)\n", spring_c, spring_r); }
+    rock_collapse();
+    for (fr = 0; fr < 60 * 60; fr++) {          /* 60秒ぶん回す */
+        rock_update();
+        coal_shake_tick();
+        water_tick();
+    }
+    for (r = 0; r < ROWS; r++) {
+        for (c = 0; c < COLS; c++) {
+            i = r * COLS + c;
+            if (water[i])                          { putchar('~'); }
+            else if (spring_on && c == spring_c && r == spring_r) { putchar('S'); }
+            else if (coal[i] && coal[i] != COAL_CRACKED) { putchar('0' + (coal[i] % 10)); }
+            else if (rock_at((int8_t)c, (int8_t)r) >= 0) { putchar('O'); }
+            else if (bath_on && c == bath_c && r == bath_r) { putchar('B'); }
+            else if (c == nest_c && r == nest_r)   { putchar('N'); }
+            else if (c == start_c && r == start_r) { putchar('@'); }
+            else if (dug[i])                       { putchar(' '); }
+            else                                   { putchar('.'); }
+        }
+        putchar('\n');
+    }
+    for (i = 0; i < NCELL; i++) { if (water[i]) { wetn++; } }
+    /* **残った黒ダイヤを、水に浸からずに叩けるか。** 土はこれから掘れるので「叩ける」
+       側に数える。**四方が全部水の黒ダイヤだけが詰み。** */
+    for (i = 0; i < NCELL; i++) {
+        int ok = 0;
+        const int dc[4] = { -1, 1, 0, 0 }, dr[4] = { 0, 0, -1, 1 };
+        int k;
+        if (!coal[i] || coal[i] == COAL_CRACKED) { continue; }
+        for (k = 0; k < 4; k++) {
+            int nc = i % COLS + dc[k], nr = i / COLS + dr[k], ni;
+            if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) { continue; }
+            ni = nr * COLS + nc;
+            if (!water[ni] && !coal[ni]) { ok = 1; }    /* 土でもよい (掘れば立てる) */
+        }
+        if (ok) { dry++; } else { seal++; }
+    }
+    printf("水になった升 %d / 水に浸からず叩ける黒ダイヤ %d / 叩けない黒ダイヤ %d\n",
+           wetn, dry, seal);
+    printf("水風呂 %s / 敵の巣 %s\n",
+           (bath_on && water[bath_r * COLS + bath_c]) ? "水没(不可)" : "無事",
+           water[nest_r * COLS + nest_c] ? "水没" : "無事");
 }
 
 int main(int argc, char **argv)
 {
     int want_stage = 1, seed = 1, max_frames = 5400, greedy = 1, i, f;
-    int do_analyse = 0, sweep = 0;
+    int do_analyse = 0, sweep = 0, do_water = 0;
     unsigned lseed = 0;
     uint32_t prev_score = 0;
 
@@ -758,6 +846,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--layout-seed") && i + 1 < argc) { lseed = (unsigned)atoi(argv[++i]); }
         else if (!strcmp(argv[i], "--analyse")) { do_analyse = 1; }
         else if (!strcmp(argv[i], "--sweep") && i + 1 < argc) { sweep = atoi(argv[++i]); }
+        else if (!strcmp(argv[i], "--water")) { do_water = 1; }
     }
 
     /* 乱数の種。実機は起動からの経過で決まるので、ここでは明示的に回して合わせる。 */
@@ -775,6 +864,10 @@ int main(int argc, char **argv)
         return 0;
     }
     layout_seed_force = (uint16_t)lseed;
+    if (do_water) {
+        water_demo(want_stage);
+        return 0;
+    }
     build_stage();
     if (do_analyse) {
         analyse(want_stage, lseed ? lseed : layout_seed());

@@ -38,6 +38,8 @@ A_PILLAR=$(addr pillar)
 A_CHUTE=$(addr chute)
 A_PCT=$(addr dug_pct)
 A_CFGSTAGE=$(addr cfg_start_stage)
+A_SPRINGON=$(addr spring_on); A_SPRINGC=$(addr spring_c); A_SPRINGR=$(addr spring_r)
+A_WATER=$(addr water)
 
 # 面1は掘り抜きが数字の「1」(15升) ＋ 敵の湧き出し口1升 = 16升。
 # 自機は掘り抜きの上端、湧き出し口は土の中の独立した1ブロック (位置は乱数)。
@@ -97,6 +99,12 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
             set ::cc \$cc; set ::cr \$cr; \
             puts \$f \"POWDERN \$p\"; puts \$f \"COALN \$d\"; puts \$f \"COALLEFT [debug read memory $A_COALLEFT]\"; puts \$f \"DUGN \$g\"; \
             puts \$f \"PCT [debug read memory $A_PCT]\"; \
+            puts \$f \"SPRINGON [debug read memory $A_SPRINGON]\"; \
+            set sp_c [debug read memory $A_SPRINGC]; set sp_r [debug read memory $A_SPRINGR]; \
+            puts \$f \"SPRINGDUG [debug read memory [expr {$A_DUG+\$sp_r*16+\$sp_c}]]\"; \
+            set wn 0; \
+            for {set i 0} {\$i<176} {incr i} { incr wn [debug read memory [expr {$A_WATER+\$i}]] }; \
+            puts \$f \"WATERN \$wn\"; \
             close \$f; \
             if {\$cc < 0} { exit }; \
             after time 4 wood }; \
@@ -169,6 +177,16 @@ check CHUTEOPEN 1  "すべての樋の升と、その落とし先が最初から
 # 板の色は**面開始の表示「第 n 坑 m 番方」が消えてから**読む (4秒後)。
 # 表示は5行目に出るので、そこに板があると文字に隠れて 0 になる。
 check_min CHUTEWOOD 20 "樋の板が坑木の色で描かれている"
+
+# ここから面7 (第三坑)。出水はこの面だけの試験導入。
+OUT7=$(mktemp -t sakiyama-smoke7)
+trap 'rm -f "$OUT" "$OUT4" "$OUT7"' EXIT
+run_stage 7 "$OUT7"
+OUT=$OUT7
+check SPRINGON 1 "面7 に熱水の湧き出し口が置かれている"
+check SPRINGDUG 1 "湧き出し口が坑道の上にある (面の開始から見えている)"
+check WATERN   0 "面の開始時はまだ水が湧いていない"
+check CHUTEN   2 "面7 も樋は2枚 (第二坑と同じ枚数)"
 
 [ $fail -eq 0 ] && echo "smoketest: PASS" || echo "smoketest: FAIL"
 exit $fail

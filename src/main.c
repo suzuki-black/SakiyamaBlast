@@ -576,6 +576,7 @@ void main(void)
         rock_update();
         enemy_update();
         bonus_update();
+        water_tick();                /* 出水 (第三坑)。落盤のあと1秒に1升ずつ広がる */
 
         if (dead && cfg_invincible) {
             dead = 0;                /* 無敵設定 (動作確認用) */

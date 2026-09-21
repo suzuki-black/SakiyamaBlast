@@ -427,6 +427,7 @@ void rock_collapse(void)
         jig_t[i] = ROCK_JIG_FRAMES;
     }
     snd_sfx(SFX_CAVEIN);   /* 盤面全体が動くので、通常の破砕音とは別の合図を鳴らす */
+    water_start();         /* 第三坑では、天盤が落ちると同時に熱水が噴き出す */
     enemy_stun_all(STUN_CAVEIN);   /* 天盤が落ちれば敵も足を取られる。岩が当たりやすくなる */
     cavein_flash();        /* 画面全体を白く飛ばす。見ていない場所の事件を伝える */
 }

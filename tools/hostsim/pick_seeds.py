@@ -83,6 +83,10 @@ _HPICK_MIN = {**{st: 4 for st in (1, 2, 3)},
 # 樋が無い面では hbend も hpick も 0 になるので、線の保証は **hpick0**
 # (炭柱以外を1枚割って採れた数。樋は問わない) で見る。
 CHUTE_START_ST = 4
+# **出水 (第三坑の試験面)。** 落盤で湧いた熱水が遊びに関与する盤面だけを選ぶ。
+# wet が小さい種は、敵の巣や岩で水路が塞がって数升しか広がらない (実測で3升の種があった)。
+WATER_ST = 7
+WATER_WET_MIN = 10
 _HPICK0_MIN = {1: 4, 2: 3, 3: 3}
 # **ずらして置いた岩 (2026-09-16)。** 面が進むと岩の一部を炭層の真上からずらして置く
 # (`src/field.c` の `rock_off_tbl`)。**押して揃える手間を払ったぶんだけ伸びる**ことを保証する。
@@ -105,6 +109,8 @@ PUSH_GAIN = 2
 
 def _require(r, st):
     if r['rowdup']:
+        return False
+    if st == WATER_ST and (r['wet'] < WATER_WET_MIN or r['wseal']):
         return False
     if st < CHUTE_START_ST and r['hbend']:
         return False                      # 第一坑に樋は置かない (置いたら生成側の不具合)
