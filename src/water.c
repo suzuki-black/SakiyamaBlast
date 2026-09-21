@@ -89,6 +89,10 @@ static void wet(int8_t cx, int8_t cy)
        上から水のタイルを重ねるだけでよい (外周2pxの土の膜も残る)。
        field_redraw_cell() だと土と坑道を塗り直すぶん VRAM への書き込みが3倍になる。 */
     draw_water((uint8_t)cx, (uint8_t)cy);
+    /* **真下が水なら、そこはもう水面ではない。** 水中の姿へ描き直す。 */
+    if (cy + 1 < ROWS && water[i + COLS]) {
+        draw_water((uint8_t)cx, (uint8_t)(cy + 1));
+    }
 }
 
 /* 落盤と同時に呼ぶ。湧き出し口の升が水になる。 */

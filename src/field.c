@@ -906,9 +906,21 @@ void draw_chute(uint8_t cx, uint8_t cy)
     draw_tile(cx, cy, art_tile_of(tbl[k - 1]), 2);
 }
 
-/* 熱水 (出水)。坑道の上に重ねる。外周2pxは土の膜のために残す。 */
+/*
+ * 熱水 (出水)。坑道の上に重ねる。外周2pxは土の膜のために残す。
+ *
+ * **上にも水がある升は「水中」なので升いっぱいに塗り、一番上の升だけ水面を描く。**
+ * 升ごとに水面を描くと、縦に繋がったときに水たまりが段々に並んで見え、
+ * 「坑道が塞がったブロック」に見えてしまう (作者の指摘、2026-09-21)。
+ * 水中はタイルを増やさず塗りつぶしで済ませる (バンクの空きを使わない)。
+ */
 void draw_water(uint8_t cx, uint8_t cy)
 {
+    if (cy > 0 && water[(uint16_t)(cy - 1) * COLS + cx]) {
+        vdp_fill((uint16_t)((uint16_t)cx << 4) + 2, (uint16_t)((uint16_t)cy << 4) + 2,
+                 12, 12, COL_BATH);
+        return;
+    }
     draw_tile(cx, cy, art_tile_of(TILE_WATER), 2);
 }
 
