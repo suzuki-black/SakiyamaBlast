@@ -787,10 +787,23 @@ static void water_demo(int st)
     printf("面%d 湧き出し口 %s", st, spring_on ? "" : "無し\n");
     if (spring_on) { printf("(%d,%d)\n", spring_c, spring_r); }
     rock_collapse();
-    for (fr = 0; fr < 60 * 60; fr++) {          /* 60秒ぶん回す */
-        rock_update();
-        coal_shake_tick();
-        water_tick();
+    {
+        int prev = 0, sec = 0;
+        for (fr = 0; fr < 60 * 60; fr++) {      /* 60秒ぶん回す */
+            rock_update();
+            coal_shake_tick();
+            water_tick();
+            if ((fr % 60) == 59) {
+                int now = 0, q;
+                sec++;
+                for (q = 0; q < NCELL; q++) { if (water[q]) { now++; } }
+                if (now != prev) {
+                    printf("  %2d秒: +%d 升 (計 %d)%s\n", sec, now - prev, now,
+                           (now - prev > 1) ? "  <- 分岐で同時に流れた" : "");
+                    prev = now;
+                }
+            }
+        }
     }
     for (r = 0; r < ROWS; r++) {
         for (c = 0; c < COLS; c++) {

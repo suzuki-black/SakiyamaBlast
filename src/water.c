@@ -117,8 +117,14 @@ static void wet(int8_t cx, int8_t cy)
  */
 static void water_stop(void)
 {
+    uint8_t k = (uint8_t)((wn < WATER_MAX) ? wn : WATER_MAX);
     water_on = 0;
     water_done = 1;
+    /* **縁に「せき止め」の印を出す。** 描き直すと draw_water が印を付ける。
+       止まった場所が湧き出し口だけでなく**全方位で分かる**ようにするため。 */
+    while (k--) {
+        draw_water((uint8_t)(wlist[k] % COLS), (uint8_t)(wlist[k] / COLS));
+    }
     draw_spring(spring_c, spring_r);
     snd_sfx(SFX_SEAL);
 }
@@ -143,10 +149,70 @@ void water_start(void)
  * 下 → 横 → 上 の順に探し、最初に見つかった1升を水にする。
  * 1升ずつなのは、読めるようにするためと、背景の書き換えを1枚に抑えるため。
  */
+/*
+ * **1回の増水で、その向きへ行ける升を全部いっぺんに満たす。**
+ * 以前は1升ずつだったので、左右に分かれた坑道で「なぜ先に左だけ流れるのか」が
+ * プレイヤーに読めなかった (作者の指摘、2026-09-23)。水は分かれ道では両方へ流れる。
+ *
+ * 向きの優先は残す。**下へ行ける升があれば下だけ、無ければ横、最後に上。**
+ * 候補は water[] に 2 を立てて印を付ける (二重に数えない。この升からさらに次の升へ
+ * 広がることもない)。数えてから、入れるか取り消すかを決める。
+ */
+static uint8_t mark_class(uint8_t pass)
+{
+    uint8_t k, n = 0, lim = (uint8_t)((wn < WATER_MAX) ? wn : WATER_MAX);
+    int8_t c, r;
+
+    k = lim;
+    while (k--) {
+        c = (int8_t)(wlist[k] % COLS);
+        r = (int8_t)(wlist[k] / COLS);
+        if (pass == 0) {
+            if (cell_linked(c, r, DIR_DOWN) && flow_ok(c, (int8_t)(r + 1))) {
+                water[(uint16_t)(uint8_t)(r + 1) * COLS + (uint8_t)c] = 2; n++;
+            }
+        } else if (pass == 1) {
+            if (cell_linked(c, r, DIR_LEFT) && flow_ok((int8_t)(c - 1), r)) {
+                water[(uint16_t)(uint8_t)r * COLS + (uint8_t)(c - 1)] = 2; n++;
+            }
+            if (cell_linked(c, r, DIR_RIGHT) && flow_ok((int8_t)(c + 1), r)) {
+                water[(uint16_t)(uint8_t)r * COLS + (uint8_t)(c + 1)] = 2; n++;
+            }
+        } else {
+            if (cell_linked(c, r, DIR_UP) && flow_ok(c, (int8_t)(r - 1))) {
+                water[(uint16_t)(uint8_t)(r - 1) * COLS + (uint8_t)c] = 2; n++;
+            }
+        }
+    }
+    return n;
+}
+
+/* 印を消す (増水を取り消す)。 */
+static void unmark(void)
+{
+    uint16_t i;
+    for (i = 0; i < NCELL; i++) {
+        if (water[i] == 2) {
+            water[i] = 0;
+        }
+    }
+}
+
+/* 印の付いた升を実際に水にする。 */
+static void commit(void)
+{
+    uint16_t i;
+    for (i = 0; i < NCELL; i++) {
+        if (water[i] == 2) {
+            water[i] = 0;                      /* wet() が数と絵を面倒みる */
+            wet((int8_t)(i % COLS), (int8_t)(i / COLS));
+        }
+    }
+}
+
 void water_tick(void)
 {
-    uint8_t k, pass, n;
-    int8_t c, r;
+    uint8_t pass, n = 0;
 
     if (!water_on) {
         return;
@@ -165,41 +231,27 @@ void water_tick(void)
         }
         return;
     }
-    n = (uint8_t)((wn < WATER_MAX) ? wn : WATER_MAX);   /* wlist の範囲に収める */
     for (pass = 0; pass < 3; pass++) {
-        k = n;
-        while (k--) {                  /* 後から水になった升 (=下や先) から見る */
-            c = (int8_t)(wlist[k] % COLS);
-            r = (int8_t)(wlist[k] / COLS);
-            /* **膜が抜けている方向だけ**調べる (cell_linked)。 */
-            if (pass == 0) {
-                if (cell_linked(c, r, DIR_DOWN) && flow_ok(c, (int8_t)(r + 1))) {
-                    wet(c, (int8_t)(r + 1)); goto spread;
-                }
-            } else if (pass == 1) {
-                if (cell_linked(c, r, DIR_LEFT) && flow_ok((int8_t)(c - 1), r)) {
-                    wet((int8_t)(c - 1), r); goto spread;
-                }
-                if (cell_linked(c, r, DIR_RIGHT) && flow_ok((int8_t)(c + 1), r)) {
-                    wet((int8_t)(c + 1), r); goto spread;
-                }
-            } else {
-                if (cell_linked(c, r, DIR_UP) && flow_ok(c, (int8_t)(r - 1))) {
-                    wet(c, (int8_t)(r - 1)); goto spread;
-                }
-            }
+        n = mark_class(pass);
+        if (n) {
+            break;
         }
     }
-    /* 行き先が無い。**WATER_STALL 回続いたら止める。** それまでに自機が掘れば流れ込む。 */
-    if (++wstall >= WATER_STALL) {
-        water_stop();
-    }
-    return;
-spread:
-    wstall = 0;
-    if (wn >= WATER_MAX) {
-        water_stop();                  /* 上限に達した */
+    if (n == 0) {
+        /* 行き先が無い。**WATER_STALL 回続いたら止める。** それまでに自機が掘れば流れ込む。 */
+        if (++wstall >= WATER_STALL) {
+            water_stop();
+        }
         return;
     }
-    snd_sfx(SFX_DRIP);                 /* 1升広がるたびに小さく鳴らす */
+    /* **次の増水で上限を超えるならやらずに止める。** 分かれ道で同時に流れるので
+       ちょうど WATER_MAX 升にはならない。「ここで止まる」は縁の印で見せる。 */
+    if ((uint8_t)(wn + n) > WATER_MAX) {
+        unmark();
+        water_stop();
+        return;
+    }
+    wstall = 0;
+    commit();
+    snd_sfx(SFX_DRIP);                 /* 増水1回につき1つ鳴らす */
 }

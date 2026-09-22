@@ -919,6 +919,8 @@ void draw_chute(uint8_t cx, uint8_t cy)
  *
  * タイルを使わず塗りつぶしだけで描くので、バンクの空きを使わない。
  */
+static void draw_water_seal(uint8_t cx, uint8_t cy, uint16_t y1, uint16_t y2);
+
 void draw_water(uint8_t cx, uint8_t cy)
 {
     uint16_t x = (uint16_t)((uint16_t)cx << 4), y = (uint16_t)((uint16_t)cy << 4);
@@ -945,6 +947,7 @@ void draw_water(uint8_t cx, uint8_t cy)
     if (under) {
         y1 = y;                                           /* 水中: 升いっぱい */
         vdp_fill(x1, y1, (uint16_t)(x2 - x1 + 1), (uint16_t)(y2 - y1 + 1), COL_BATH);
+        draw_water_seal(cx, cy, y1, y2);
         return;
     }
     y1 = (uint16_t)(y + WATER_LEVEL);                     /* 水面 */
@@ -952,6 +955,35 @@ void draw_water(uint8_t cx, uint8_t cy)
     vdp_fill(x1, y1, (uint16_t)(x2 - x1 + 1), 1, COL_RED);          /* 赤く熱した水面 */
     vdp_fill((uint16_t)(x + 4), (uint16_t)(y + 4), 1, 1, COL_WHITE); /* 湯気 */
     vdp_fill((uint16_t)(x + 10), (uint16_t)(y + 2), 1, 1, COL_WHITE);
+    draw_water_seal(cx, cy, y1, y2);
+}
+
+/*
+ * **止まった水の縁に「せき止め」の印を出す。**
+ * 坑道が続いているのに水が来ていない面へ、岩の色の帯を引く。止まった場所が
+ * 湧き出し口だけでなく**どの向きでも分かる**ようにするため (作者の指摘、2026-09-23)。
+ * 上の面にも引く (水はもう上がらない、の意味)。
+ */
+static void draw_water_seal(uint8_t cx, uint8_t cy, uint16_t y1, uint16_t y2)
+{
+    uint16_t x = (uint16_t)((uint16_t)cx << 4);
+    uint16_t h = (uint16_t)(y2 - y1 + 1);
+
+    if (!water_done) {
+        return;
+    }
+    if (cell_dug((int8_t)(cx - 1), (int8_t)cy) && !cell_water((int8_t)(cx - 1), (int8_t)cy)) {
+        vdp_fill(x, y1, 3, h, COL_ROCK);
+    }
+    if (cell_dug((int8_t)(cx + 1), (int8_t)cy) && !cell_water((int8_t)(cx + 1), (int8_t)cy)) {
+        vdp_fill((uint16_t)(x + 13), y1, 3, h, COL_ROCK);
+    }
+    if (cell_dug((int8_t)cx, (int8_t)(cy + 1)) && !cell_water((int8_t)cx, (int8_t)(cy + 1))) {
+        vdp_fill(x, (uint16_t)(((uint16_t)cy << 4) + 13), 16, 3, COL_ROCK);
+    }
+    if (cell_dug((int8_t)cx, (int8_t)(cy - 1)) && !cell_water((int8_t)cx, (int8_t)(cy - 1))) {
+        vdp_fill(x, (uint16_t)((uint16_t)cy << 4), 16, 3, COL_ROCK);
+    }
 }
 
 /* 湧き出し口。**面の開始から見えている**ので、どこから水が来るかを先に読める。

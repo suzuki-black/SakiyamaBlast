@@ -27,8 +27,8 @@ FIXED_END = 0xA000        # ここより後ろは可変窓なので固定コー�
 WINDOW_END = 0xC000
 DATA_SEG = 3              # 0xA000 の窓へリンクしたデータを置くセグメント
 SEG_SIZE = 0x2000
-RAMCODE_BASE = 0xCE00     # RAM で実行するコードのリンク先 (変数はその手前まで)
-RAMCODE_END = 0xEE00      # ここより上はスタックのために空けておく
+RAMCODE_BASE = 0xCD00     # RAM で実行するコードのリンク先 (変数はその手前まで)
+RAMCODE_END = 0xF000      # ここより上はスタックのために空けておく (実測で約350バイト)
 RAMCODE_SEG = 8           # その中身を置く ROM セグメント
 
 
@@ -101,9 +101,8 @@ def main(argv):
         print(f"error: 0x{min(stray):04X} は ROM にも RAMCODE にも置けません",
               file=sys.stderr)
         return 1
-    if len(ramcode) > SEG_SIZE:
-        print(f"error: RAMCODE が {len(ramcode)} バイトで 1 セグメント (8192) を超えます",
-              file=sys.stderr)
+    if RAMCODE_END - RAMCODE_BASE > 2 * SEG_SIZE:
+        print("error: RAMCODE の領域が 2 セグメント (16384) を超えます", file=sys.stderr)
         return 1
     # 0xA000-0xBFFF は可変窓。ここへリンクされたもの (絵・曲) はセグメント3へ置く。
     fixed_hi = max((a for a in mem if a < FIXED_END), default=ROM_BASE - 1)
@@ -122,7 +121,8 @@ def main(argv):
             # 窓 0xA000 の内容 = セグメント3 の中身
             rom[DATA_SEG * SEG_SIZE + (addr - FIXED_END)] = val
         else:
-            # RAM で走らせるコード。起動時に窓から RAM へ写す
+            # RAM で走らせるコード。起動時に窓から RAM へ写す。
+            # **8KB を超えるぶんは次のセグメントへ続ける** (写す側も2回に分かれる)。
             rom[RAMCODE_SEG * SEG_SIZE + (addr - RAMCODE_BASE)] = val
 
     # 可変バンク側へ載せるデータ (タイトル画像など)。seg:file の形で指定する。
@@ -152,7 +152,8 @@ def main(argv):
           f"free {FIXED_END - fixed_hi - 1} bytes")
     if ramcode:
         rhi = max(ramcode)
-        print(f"  seg{RAMCODE_SEG}: RAM実行コード 0x{RAMCODE_BASE:04X}-0x{rhi:04X} = "
+        print(f"  seg{RAMCODE_SEG}..{RAMCODE_SEG + (RAMCODE_END - RAMCODE_BASE - 1) // SEG_SIZE}"
+              f": RAM実行コード 0x{RAMCODE_BASE:04X}-0x{rhi:04X} = "
               f"{rhi - RAMCODE_BASE + 1} バイト "
               f"(RAM の空き {RAMCODE_END - RAMCODE_BASE} バイト中)")
     if banked:

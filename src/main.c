@@ -324,10 +324,18 @@ void main(void)
        **これより前に enemy / bomb / sound の関数を呼んではいけない。** */
     {
         uint8_t *d = (uint8_t *)RAMCODE_ADDR;
-        const uint8_t *s = (const uint8_t *)0xA000;
-        uint16_t n = RAMCODE_LEN;
+        const uint8_t *s;
+        uint16_t n;
+        /* **写す量が窓 (8KB) を超えたのでセグメント2枚に分けてある。**
+           1枚目を写し切ったら、窓を次のセグメントへ向けて残りを続ける。 */
         bank_select(RAMCODE_SEG);
-        while (n--) {
+        s = (const uint8_t *)0xA000;
+        for (n = 0x2000; n; n--) {
+            *d++ = *s++;
+        }
+        bank_select(RAMCODE_SEG + 1);
+        s = (const uint8_t *)0xA000;
+        for (n = RAMCODE_LEN - 0x2000; n; n--) {
             *d++ = *s++;
         }
     }
