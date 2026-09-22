@@ -907,21 +907,45 @@ void draw_chute(uint8_t cx, uint8_t cy)
 }
 
 /*
- * 熱水 (出水)。坑道の上に重ねる。外周2pxは土の膜のために残す。
+ * 熱水 (出水)。**坑道の形どおりに塗る。** 升ごとのタイルにしていたときは、升と升の
+ * 間に黒い隙間が残って「ブロックが1個ずつ現れる」ように見え、つながった水に見えなかった
+ * (作者の指摘、2026-09-22)。
  *
- * **上にも水がある升は「水中」なので升いっぱいに塗り、一番上の升だけ水面を描く。**
- * 升ごとに水面を描くと、縦に繋がったときに水たまりが段々に並んで見え、
- * 「坑道が塞がったブロック」に見えてしまう (作者の指摘、2026-09-21)。
- * 水中はタイルを増やさず塗りつぶしで済ませる (バンクの空きを使わない)。
+ *   - 升の内側 12x12 を塗り、**隣も水で膜が抜けていれば**その側の縁 2px まで塗り広げる
+ *     (両側の升が塗り合うので、つながった水は隙間なく1つの形になる)
+ *   - **上も水で膜が抜けていれば「水中」**で升いっぱいを塗る。そうでなければ
+ *     **水面**で、水位 (升の上から7px) より上は坑道の黒を残し、水面に赤い線、
+ *     上に湯気を2つ描く (熱い湯であることの印。水風呂と見分けるため)
+ *
+ * タイルを使わず塗りつぶしだけで描くので、バンクの空きを使わない。
  */
 void draw_water(uint8_t cx, uint8_t cy)
 {
-    if (cy > 0 && water[(uint16_t)(cy - 1) * COLS + cx]) {
-        vdp_fill((uint16_t)((uint16_t)cx << 4) + 2, (uint16_t)((uint16_t)cy << 4) + 2,
-                 12, 12, COL_BATH);
+    uint16_t x = (uint16_t)((uint16_t)cx << 4), y = (uint16_t)((uint16_t)cy << 4);
+    uint16_t x1 = (uint16_t)(x + 2), x2 = (uint16_t)(x + 13);
+    uint16_t y1, y2 = (uint16_t)(y + 13);
+    uint8_t under = (uint8_t)(cell_linked((int8_t)cx, (int8_t)cy, DIR_UP)
+                              && cell_water((int8_t)cx, (int8_t)(cy - 1)));
+
+    if (cell_linked((int8_t)cx, (int8_t)cy, DIR_LEFT) && cell_water((int8_t)(cx - 1), (int8_t)cy)) {
+        x1 = x;
+    }
+    if (cell_linked((int8_t)cx, (int8_t)cy, DIR_RIGHT) && cell_water((int8_t)(cx + 1), (int8_t)cy)) {
+        x2 = (uint16_t)(x + 15);
+    }
+    if (cell_linked((int8_t)cx, (int8_t)cy, DIR_DOWN) && cell_water((int8_t)cx, (int8_t)(cy + 1))) {
+        y2 = (uint16_t)(y + 15);
+    }
+    if (under) {
+        y1 = y;                                           /* 水中: 升いっぱい */
+        vdp_fill(x1, y1, (uint16_t)(x2 - x1 + 1), (uint16_t)(y2 - y1 + 1), COL_BATH);
         return;
     }
-    draw_tile(cx, cy, art_tile_of(TILE_WATER), 2);
+    y1 = (uint16_t)(y + WATER_LEVEL);                     /* 水面 */
+    vdp_fill(x1, (uint16_t)(y1 + 1), (uint16_t)(x2 - x1 + 1), (uint16_t)(y2 - y1), COL_BATH);
+    vdp_fill(x1, y1, (uint16_t)(x2 - x1 + 1), 1, COL_RED);          /* 赤く熱した水面 */
+    vdp_fill((uint16_t)(x + 4), (uint16_t)(y + 4), 1, 1, COL_WHITE); /* 湯気 */
+    vdp_fill((uint16_t)(x + 10), (uint16_t)(y + 2), 1, 1, COL_WHITE);
 }
 
 /* 湧き出し口。**面の開始から見えている**ので、どこから水が来るかを先に読める。 */

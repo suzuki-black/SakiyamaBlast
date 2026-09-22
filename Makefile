@@ -24,7 +24,7 @@ BUILDDIR  := build
 CC        := sdcc
 AS        := sdasz80
 CFLAGS    := -mz80 --std-c99 --sdcccall 1 --opt-code-speed -I$(SRCDIR) -I$(BUILDDIR)
-LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKDATA=0xA000 -Wl-b_RAMCODE=0xD000
+LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKDATA=0xA000 -Wl-b_RAMCODE=0xCE00
 
 # 固定領域 (0x4000-0x9FFF) は 24KB しかない。絵と曲は**ただのデータ**なので、
 # 0xA000 の窓へリンクして ROM のセグメント3へ置き、固定領域を空ける。
@@ -40,10 +40,13 @@ BANKED_SRC := $(SRCDIR)/art.c $(SRCDIR)/music.c \
 # **RAM へ写して実行するモジュール。**
 # 0x4000-0xBFFF の 32KB はもう埋まっていて、並べ替えでは空きが作れない。
 # RAM (ページ3) は変数が 0xC000 から約2.5KB、スタックが 0xF380 から下へ
-# 約350バイト (openMSX で実測) しか使っていないので、0xD000-0xEDFF が丸ごと空いている。
+# 約350バイト (openMSX で実測) しか使っていないので、0xCE00-0xEDFF が空いている。
+# **title / vdp も置ける。** RAM はバンク窓の切り替えの影響を受けないので、
+# タイトル画像を読んでいる最中 (title_draw) に呼ばれても見えている。
 # 起動時に main() が ROM のセグメント8 から写す。
 # **写す前に呼ばれるものは置けない** (crt0 / lowlevel / main の冒頭)。
-RAM_SRC   := $(SRCDIR)/enemy.c $(SRCDIR)/bomb.c $(SRCDIR)/sound.c
+RAM_SRC   := $(SRCDIR)/enemy.c $(SRCDIR)/bomb.c $(SRCDIR)/sound.c \
+             $(SRCDIR)/title.c $(SRCDIR)/vdp.c
 
 CSRC      := $(wildcard $(SRCDIR)/*.c)
 HEADERS   := $(wildcard $(SRCDIR)/*.h)
@@ -73,7 +76,7 @@ ART_TILE     := $(BUILDDIR)/tiles.h
 PAL_H        := $(BUILDDIR)/palette.h
 # 名前はカンマ区切りで**1行**に書く。行継続で折ると空白が入って別の引数になる。
 ART_SPR_NAMES  := miner,bomb,rock,rat,bat,split,stun1,stun2,stun3,brace,wd1,wd2,wu1,wu2,wl1,wl2,wr1,wr2,bru,brl,brr,std,stu,stl,str,chip
-ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,water,spring,toir,toil,toibr,toibl
+ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,spring,toir,toil,toibr,toibl
 
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT
 MACHINE   ?= C-BIOS_MSX2+_JP

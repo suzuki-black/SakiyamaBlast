@@ -12,6 +12,8 @@
  *
  * 設計の約束:
  *   - **掘った坑道しか通らない。** 掘るほど水が回る（切羽圧と同じ主題）
+ *   - **土の膜で仕切られた坑道へは行かない。** 湧き出し口から**つながった**坑道だけを
+ *     満たす。膜を無視していたときは、壁の向こうの坑道へ水がしみ出して見えた
  *   - **下を優先**して広がる。水らしく見え、行き先も読める
  *   - **落ちた岩は水を止める**（既存の「岩は落ちて止まる」だけで説明が付く）
  *   - **採掘は妨げない。** 水で黒ダイヤが採れなくなると面が詰む
@@ -86,13 +88,21 @@ static void wet(int8_t cx, int8_t cy)
         wlist[wn] = (uint8_t)i;
     }
     wn++;
-    /* **升をまるごと描き直さない。** そこは既に坑道として描けているので、
-       上から水のタイルを重ねるだけでよい (外周2pxの土の膜も残る)。
-       field_redraw_cell() だと土と坑道を塗り直すぶん VRAM への書き込みが3倍になる。 */
+    /* **升をまるごと描き直さない。** そこは既に坑道として描けているので、水を塗るだけ。
+       **つながっている隣の水も描き直す。** 隣が水になったぶん縁の 2px が塗り広がり、
+       真下の升は水面から水中の姿に変わる。 */
     draw_water((uint8_t)cx, (uint8_t)cy);
-    /* **真下が水なら、そこはもう水面ではない。** 水中の姿へ描き直す。 */
-    if (cy + 1 < ROWS && water[i + COLS]) {
+    if (cell_linked(cx, cy, DIR_DOWN) && cell_water(cx, (int8_t)(cy + 1))) {
         draw_water((uint8_t)cx, (uint8_t)(cy + 1));
+    }
+    if (cell_linked(cx, cy, DIR_UP) && cell_water(cx, (int8_t)(cy - 1))) {
+        draw_water((uint8_t)cx, (uint8_t)(cy - 1));
+    }
+    if (cell_linked(cx, cy, DIR_LEFT) && cell_water((int8_t)(cx - 1), cy)) {
+        draw_water((uint8_t)(cx - 1), (uint8_t)cy);
+    }
+    if (cell_linked(cx, cy, DIR_RIGHT) && cell_water((int8_t)(cx + 1), cy)) {
+        draw_water((uint8_t)(cx + 1), (uint8_t)cy);
     }
 }
 
@@ -142,13 +152,22 @@ void water_tick(void)
         while (k--) {                  /* 後から水になった升 (=下や先) から見る */
             c = (int8_t)(wlist[k] % COLS);
             r = (int8_t)(wlist[k] / COLS);
+            /* **膜が抜けている方向だけ**調べる (cell_linked)。 */
             if (pass == 0) {
-                if (flow_ok(c, (int8_t)(r + 1))) { wet(c, (int8_t)(r + 1)); goto spread; }
+                if (cell_linked(c, r, DIR_DOWN) && flow_ok(c, (int8_t)(r + 1))) {
+                    wet(c, (int8_t)(r + 1)); goto spread;
+                }
             } else if (pass == 1) {
-                if (flow_ok((int8_t)(c - 1), r)) { wet((int8_t)(c - 1), r); goto spread; }
-                if (flow_ok((int8_t)(c + 1), r)) { wet((int8_t)(c + 1), r); goto spread; }
+                if (cell_linked(c, r, DIR_LEFT) && flow_ok((int8_t)(c - 1), r)) {
+                    wet((int8_t)(c - 1), r); goto spread;
+                }
+                if (cell_linked(c, r, DIR_RIGHT) && flow_ok((int8_t)(c + 1), r)) {
+                    wet((int8_t)(c + 1), r); goto spread;
+                }
             } else {
-                if (flow_ok(c, (int8_t)(r - 1))) { wet(c, (int8_t)(r - 1)); goto spread; }
+                if (cell_linked(c, r, DIR_UP) && flow_ok(c, (int8_t)(r - 1))) {
+                    wet(c, (int8_t)(r - 1)); goto spread;
+                }
             }
         }
     }

@@ -222,6 +222,10 @@ void player_carve(void)
                (作者の指摘「何もないところに行っても体温上昇が早い。実質詰み」)。 */
             if (water[i]) {
                 draw_water(c, r);
+            } else if (spring_on && c == spring_c && r == spring_r) {
+                /* **湧き出し口も描き直す。** 抜かすと自機が上を通っただけで絵が消え、
+                   拾ったアイテムのように見えた (作者の指摘、2026-09-22)。 */
+                draw_spring(c, r);
             }
         }
     }

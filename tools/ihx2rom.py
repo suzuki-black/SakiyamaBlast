@@ -18,6 +18,8 @@ RAM 実行コード:
 固定コードは 0x4000-0x9FFF (24KB) に収まらなければならない。はみ出したら
 バンク切り替えなしでは届かないので、エラーにして気づけるようにする。
 """
+import os
+import re
 import sys
 
 ROM_BASE = 0x4000
@@ -25,7 +27,7 @@ FIXED_END = 0xA000        # ここより後ろは可変窓なので固定コー�
 WINDOW_END = 0xC000
 DATA_SEG = 3              # 0xA000 の窓へリンクしたデータを置くセグメント
 SEG_SIZE = 0x2000
-RAMCODE_BASE = 0xD000     # RAM で実行するコードのリンク先
+RAMCODE_BASE = 0xCE00     # RAM で実行するコードのリンク先 (変数はその手前まで)
 RAMCODE_END = 0xEE00      # ここより上はスタックのために空けておく
 RAMCODE_SEG = 8           # その中身を置く ROM セグメント
 
@@ -73,6 +75,21 @@ def main(argv):
     if not mem:
         print("error: IHX にデータがありません", file=sys.stderr)
         return 1
+
+    # **変数が RAM 実行の領域に食い込んでいないか。** 変数 (_DATA / _INITIALIZED) は
+    # IHX に載らないのでリンクマップで見る。食い込むと、写したコードを変数が上書きして
+    # 何の前触れもなく暴走する。
+    mapf = ihx[:-4] + ".map" if ihx.endswith(".ihx") else None
+    if mapf and os.path.exists(mapf):
+        end = 0
+        for line in open(mapf, encoding="utf-8", errors="ignore"):
+            m = re.match(r"^_(DATA|INITIALIZED)\s+([0-9A-Fa-f]{8})\s+([0-9A-Fa-f]{8})", line)
+            if m:
+                end = max(end, int(m.group(2), 16) + int(m.group(3), 16))
+        if end > RAMCODE_BASE:
+            print(f"error: 変数が 0x{end:04X} まで伸びて RAM 実行の領域 (0x{RAMCODE_BASE:04X}-) "
+                  "に食い込んでいます", file=sys.stderr)
+            return 1
 
     lo, hi = min(mem), max(mem)
     if lo < ROM_BASE:
@@ -135,7 +152,7 @@ def main(argv):
           f"free {FIXED_END - fixed_hi - 1} bytes")
     if ramcode:
         rhi = max(ramcode)
-        print(f"  seg{RAMCODE_SEG}: RAM実行コード 0xD000-0x{rhi:04X} = "
+        print(f"  seg{RAMCODE_SEG}: RAM実行コード 0x{RAMCODE_BASE:04X}-0x{rhi:04X} = "
               f"{rhi - RAMCODE_BASE + 1} バイト "
               f"(RAM の空き {RAMCODE_END - RAMCODE_BASE} バイト中)")
     if banked:

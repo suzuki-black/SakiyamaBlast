@@ -40,10 +40,11 @@ ROM を大きくしても、窓に何を入れても、この 32KB は変わら�
 |---|---|---|
 | 固定領域 0x4000-0x9FFF | 24KB | 何でも。**`title_draw()` から呼ばれるものはここ以外に置けない** |
 | バンク窓 0xA000-0xBFFF (seg3) | 8KB | `title_draw()` から呼ばれないもの。`--codeseg BANKDATA` |
-| **RAM 0xD000-0xEDFF** | **7.5KB** | 起動時に写して RAM で実行する。`--codeseg RAMCODE` |
+| **RAM 0xCE00-0xEDFF** | **8KB** | 起動時に写して RAM で実行する。`--codeseg RAMCODE` |
 
-**RAM 実行**は `Makefile` の `RAM_SRC` に足すだけ（いま `enemy` `bomb` `sound`）。
-`tools/ihx2rom.py` が 0xD000-0xEDFF の中身を ROM のセグメント8へ入れ、
+**RAM 実行**は `Makefile` の `RAM_SRC` に足すだけ（いま `enemy` `bomb` `sound` `title` `vdp`）。
+**RAM はバンク窓の切り替えの影響を受けないので、`title_draw()` から呼ばれるものも置ける。**
+`tools/ihx2rom.py` が 0xCE00-0xEDFF の中身を ROM のセグメント8へ入れ、
 `main()` の冒頭が窓経由で RAM へ写す。**写す前に呼ばれるものは置けない**
 （`crt0` / `lowlevel` / `main` の冒頭）。
 
@@ -52,8 +53,10 @@ ROM を大きくしても、窓に何を入れても、この 32KB は変わら�
 （以前は「free 0 bytes」と出るだけで壊れた ROM ができていた）。
 
 RAM がなぜ空いているかは openMSX で実測した。ページ3 (0xC000-0xF37F) のうち、
-変数が 0xC000 から約2.5KB、**スタックは 0xF380 から下へ約350バイトしか伸びない**。
-間の 0xD000-0xEDFF が丸ごと空いている。
+変数が 0xC000 から約3.2KB（0xCC8C まで）、**スタックは 0xF380 から下へ約350バイトしか伸びない**。
+間の 0xCE00-0xEDFF を使っている。**変数が伸びて 0xCE00 を越えたら `tools/ihx2rom.py` が止める。**
+さらに広げるなら上端（0xEE00〜、スタックとの間）だが、8KB を超えると写す元のセグメントが
+2つになるので、`main()` の写す手順も直す必要がある。
 
 ## 検証は openMSX で実測する
 

@@ -512,6 +512,7 @@ uint8_t player_cell_r(void);
 #define WATER_STEP  60        /* 1升広がるまでのフレーム数 (1秒) */
 #define WATER_MAX   24        /* 広がる上限の升数。際限なく広げると詰む */
 #define WATER_HEAT   1        /* 熱水の升に居る間、毎フレーム上がる体温 (4秒で満タン) */
+#define WATER_LEVEL  7        /* 水面の高さ (升の上から何px)。これより上は坑道の黒を残す */
 #define CHUTE_LOW    2        /* 低次面の枚数 (経路が1本) */
 #define CHUTE_HIGH   4        /* 高次面の枚数 (分岐が生まれる) */
 #define CHUTE_HIGH_ST 8       /* この面から高次面の枚数にする */
