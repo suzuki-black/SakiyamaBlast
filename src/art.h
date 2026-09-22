@@ -32,14 +32,15 @@ const uint8_t  *art_colours(uint8_t i);   /* mode-2 の行ごとの色 (16バイ
 /* 出水 (第三坑のギミック)。熱水そのものはタイルを使わず、坑道の形に塗って描く
    (field.c の draw_water)。絵が要るのは湧き出し口だけ。 */
 #define TILE_SPRING 10     /* 湧き出し口。面の開始から見えている */
+#define TILE_SPRINGOFF 11  /* 止まった湧き出し口。割れ目が塞がった絵 = もう増えない印 */
 /* 樋 (とい)。石炭を上の坑道から下へ落とすために斜めに架けた木の板。
    **升は面の最初から開いている**ので、坑道の上へ板だけを重ねて描く。 */
-#define TILE_TOIR   11     /* 右下がり */
-#define TILE_TOIL   12     /* 左下がり */
+#define TILE_TOIR   12     /* 右下がり */
+#define TILE_TOIL   13     /* 左下がり */
 /* 使い終わった板。通行にも落下にも影響しない跡で、**向きは残す**
    (その板がどちらへ落とすはずだったかまで読める)。 */
-#define TILE_TOIBR  13     /* 折れた板 (もとは右下がり) */
-#define TILE_TOIBL  14     /* 折れた板 (もとは左下がり) */
+#define TILE_TOIBR  14     /* 折れた板 (もとは右下がり) */
+#define TILE_TOIBL  15     /* 折れた板 (もとは左下がり) */
 const uint8_t *art_tile_of(uint8_t i);
 
 #endif

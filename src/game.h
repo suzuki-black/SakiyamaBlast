@@ -415,7 +415,7 @@ void draw_spring(uint8_t cx, uint8_t cy);
 
 /* 出水 (src/water.c) */
 extern uint8_t water[NCELL];
-extern uint8_t water_on, spring_on, spring_c, spring_r;
+extern uint8_t water_on, water_done, spring_on, spring_c, spring_r;
 void water_reset(void);
 void water_start(void);                 /* 落盤と同時に呼ぶ */
 void water_tick(void);                  /* 毎フレーム呼ぶ */
@@ -513,6 +513,7 @@ uint8_t player_cell_r(void);
 #define WATER_MAX   24        /* 広がる上限の升数。際限なく広げると詰む */
 #define WATER_HEAT   1        /* 熱水の升に居る間、毎フレーム上がる体温 (4秒で満タン) */
 #define WATER_LEVEL  7        /* 水面の高さ (升の上から何px)。これより上は坑道の黒を残す */
+#define WATER_STALL  3        /* 広がれない状態がこの回数 (秒) 続いたら止める */
 #define CHUTE_LOW    2        /* 低次面の枚数 (経路が1本) */
 #define CHUTE_HIGH   4        /* 高次面の枚数 (分岐が生まれる) */
 #define CHUTE_HIGH_ST 8       /* この面から高次面の枚数にする */

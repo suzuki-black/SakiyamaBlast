@@ -924,8 +924,14 @@ void draw_water(uint8_t cx, uint8_t cy)
     uint16_t x = (uint16_t)((uint16_t)cx << 4), y = (uint16_t)((uint16_t)cy << 4);
     uint16_t x1 = (uint16_t)(x + 2), x2 = (uint16_t)(x + 13);
     uint16_t y1, y2 = (uint16_t)(y + 13);
-    uint8_t under = (uint8_t)(cell_linked((int8_t)cx, (int8_t)cy, DIR_UP)
-                              && cell_water((int8_t)cx, (int8_t)(cy - 1)));
+    uint8_t under;
+
+    if (spring_on && cx == spring_c && cy == spring_r) {
+        draw_spring(cx, cy);          /* **湧き出し口は水に沈めない。** いつも見えている */
+        return;
+    }
+    under = (uint8_t)(cell_linked((int8_t)cx, (int8_t)cy, DIR_UP)
+                      && cell_water((int8_t)cx, (int8_t)(cy - 1)));
 
     if (cell_linked((int8_t)cx, (int8_t)cy, DIR_LEFT) && cell_water((int8_t)(cx - 1), (int8_t)cy)) {
         x1 = x;
@@ -948,10 +954,11 @@ void draw_water(uint8_t cx, uint8_t cy)
     vdp_fill((uint16_t)(x + 10), (uint16_t)(y + 2), 1, 1, COL_WHITE);
 }
 
-/* 湧き出し口。**面の開始から見えている**ので、どこから水が来るかを先に読める。 */
+/* 湧き出し口。**面の開始から見えている**ので、どこから水が来るかを先に読める。
+   **止まったら「塞がった絵」に変わる** (= これ以上は増えない)。 */
 void draw_spring(uint8_t cx, uint8_t cy)
 {
-    draw_tile(cx, cy, art_tile_of(TILE_SPRING), 2);
+    draw_tile(cx, cy, art_tile_of(water_done ? TILE_SPRINGOFF : TILE_SPRING), 2);
 }
 
 /* 風呂 (温泉)。触れると体温が一気に下がる。 */
@@ -1022,12 +1029,10 @@ void field_redraw_cell(int8_t cx, int8_t cy)
         draw_bombdrop((uint8_t)cx, (uint8_t)cy);
     }
     /* **熱水は一番上に重ねる。** 湧き出し口も水に沈んだら水で描く。 */
-    if (spring_on && (uint8_t)cx == spring_c && (uint8_t)cy == spring_r
-        && !water[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
-        draw_spring((uint8_t)cx, (uint8_t)cy);
-    }
     if (water[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
-        draw_water((uint8_t)cx, (uint8_t)cy);
+        draw_water((uint8_t)cx, (uint8_t)cy);   /* 湧き出し口の升なら湧き出し口を描く */
+    } else if (spring_on && (uint8_t)cx == spring_c && (uint8_t)cy == spring_r) {
+        draw_spring((uint8_t)cx, (uint8_t)cy);
     }
 }
 

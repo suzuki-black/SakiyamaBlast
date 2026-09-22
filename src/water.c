@@ -26,11 +26,13 @@
 
 uint8_t water[NCELL];          /* 1 = 熱水 */
 uint8_t water_on;              /* 湧き出しているか */
+uint8_t water_done;            /* 止まったか。止まったら二度と増えない */
 uint8_t spring_c, spring_r;    /* 湧き出し口 (面の開始から見えている) */
 uint8_t spring_on;
 
 static uint8_t wt;             /* 次に1升広がるまでのフレーム数 */
 static uint8_t wn;             /* いま水になっている升の数 */
+static uint8_t wstall;         /* 広がれなかった回数 (続けて) */
 /* **水になった升の一覧。** 広がり先を探すのに盤面176升を3周すると、
    openMSX の実測で **1秒ごとに約80ms** 食って fps が 56→49 まで落ちた。
    水は最大 WATER_MAX 升しか無いので、その升だけを見れば足りる。 */
@@ -43,9 +45,11 @@ void water_reset(void)
         water[i] = 0;
     }
     water_on = 0;
+    water_done = 0;
     spring_on = 0;
     wt = 0;
     wn = 0;
+    wstall = 0;
 }
 
 uint8_t cell_water(int8_t cx, int8_t cy)
@@ -107,6 +111,19 @@ static void wet(int8_t cx, int8_t cy)
 }
 
 /*
+ * **止める。二度と増えない。** 湧き出し口の絵が「塞がった絵」に変わり、「シュウ…」と鳴る。
+ * 以前は止まっても何の印も無く、24升に達して止まったのか、行き先が無くて待っている
+ * だけ (掘ればまた流れ込む) なのかが分からなかった (作者の指摘、2026-09-22)。
+ */
+static void water_stop(void)
+{
+    water_on = 0;
+    water_done = 1;
+    draw_spring(spring_c, spring_r);
+    snd_sfx(SFX_SEAL);
+}
+
+/*
  * 落盤と同時に呼ぶ。**水はここでは出さず、1秒後に湧き出し口から出す。**
  * 落盤の「ゴゴゴ」と閃光に紛れて、離れた場所で静かに始まると気付けない
  * (作者の指摘「よくわからなかった」)。1拍置いて「ゴボッ」と鳴らせば、
@@ -131,7 +148,7 @@ void water_tick(void)
     uint8_t k, pass, n;
     int8_t c, r;
 
-    if (!water_on || wn >= WATER_MAX) {
+    if (!water_on) {
         return;
     }
     wt--;
@@ -143,6 +160,8 @@ void water_tick(void)
         if (flow_ok((int8_t)spring_c, (int8_t)spring_r)) {
             wet((int8_t)spring_c, (int8_t)spring_r);
             snd_sfx(SFX_GUSH);
+        } else if (++wstall >= WATER_STALL) {
+            water_stop();              /* 湧き出し口が岩で塞がれている */
         }
         return;
     }
@@ -171,8 +190,16 @@ void water_tick(void)
             }
         }
     }
-    /* 行き先が無いときは、そのまま待つ。**自機が掘れば、そこへ流れ込む。** */
+    /* 行き先が無い。**WATER_STALL 回続いたら止める。** それまでに自機が掘れば流れ込む。 */
+    if (++wstall >= WATER_STALL) {
+        water_stop();
+    }
     return;
 spread:
+    wstall = 0;
+    if (wn >= WATER_MAX) {
+        water_stop();                  /* 上限に達した */
+        return;
+    }
     snd_sfx(SFX_DRIP);                 /* 1升広がるたびに小さく鳴らす */
 }
