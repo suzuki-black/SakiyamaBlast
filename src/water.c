@@ -20,6 +20,7 @@
  *   - **`WATER_MAX` 升で止まる。** 際限なく広がると、掘るほど詰む盤面になる
  */
 #include "game.h"
+#include "sound.h"
 
 uint8_t water[NCELL];          /* 1 = 熱水 */
 uint8_t water_on;              /* 湧き出しているか */
@@ -95,7 +96,12 @@ static void wet(int8_t cx, int8_t cy)
     }
 }
 
-/* 落盤と同時に呼ぶ。湧き出し口の升が水になる。 */
+/*
+ * 落盤と同時に呼ぶ。**水はここでは出さず、1秒後に湧き出し口から出す。**
+ * 落盤の「ゴゴゴ」と閃光に紛れて、離れた場所で静かに始まると気付けない
+ * (作者の指摘「よくわからなかった」)。1拍置いて「ゴボッ」と鳴らせば、
+ * 原因 (天盤が落ちた) と結果 (湯が噴いた) が分かれる。
+ */
 void water_start(void)
 {
     if (!spring_on || water_on) {
@@ -103,9 +109,6 @@ void water_start(void)
     }
     water_on = 1;
     wt = WATER_STEP;
-    if (flow_ok((int8_t)spring_c, (int8_t)spring_r)) {
-        wet((int8_t)spring_c, (int8_t)spring_r);
-    }
 }
 
 /*
@@ -126,6 +129,13 @@ void water_tick(void)
         return;
     }
     wt = WATER_STEP;
+    if (wn == 0) {                     /* 最初の1升 = 湧き出し口から噴き出す */
+        if (flow_ok((int8_t)spring_c, (int8_t)spring_r)) {
+            wet((int8_t)spring_c, (int8_t)spring_r);
+            snd_sfx(SFX_GUSH);
+        }
+        return;
+    }
     n = (uint8_t)((wn < WATER_MAX) ? wn : WATER_MAX);   /* wlist の範囲に収める */
     for (pass = 0; pass < 3; pass++) {
         k = n;
@@ -133,14 +143,17 @@ void water_tick(void)
             c = (int8_t)(wlist[k] % COLS);
             r = (int8_t)(wlist[k] / COLS);
             if (pass == 0) {
-                if (flow_ok(c, (int8_t)(r + 1))) { wet(c, (int8_t)(r + 1)); return; }
+                if (flow_ok(c, (int8_t)(r + 1))) { wet(c, (int8_t)(r + 1)); goto spread; }
             } else if (pass == 1) {
-                if (flow_ok((int8_t)(c - 1), r)) { wet((int8_t)(c - 1), r); return; }
-                if (flow_ok((int8_t)(c + 1), r)) { wet((int8_t)(c + 1), r); return; }
+                if (flow_ok((int8_t)(c - 1), r)) { wet((int8_t)(c - 1), r); goto spread; }
+                if (flow_ok((int8_t)(c + 1), r)) { wet((int8_t)(c + 1), r); goto spread; }
             } else {
-                if (flow_ok(c, (int8_t)(r - 1))) { wet(c, (int8_t)(r - 1)); return; }
+                if (flow_ok(c, (int8_t)(r - 1))) { wet(c, (int8_t)(r - 1)); goto spread; }
             }
         }
     }
     /* 行き先が無いときは、そのまま待つ。**自機が掘れば、そこへ流れ込む。** */
+    return;
+spread:
+    snd_sfx(SFX_DRIP);                 /* 1升広がるたびに小さく鳴らす */
 }
