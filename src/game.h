@@ -455,12 +455,24 @@ void    clear_sweat(void);
 extern uint8_t swing_pow;   /* いまの威力 (0 = 溜めていない) */
 void    link_smash(uint8_t cx, uint8_t cy);  /* 岩が縦に突き破った膜を開く */   /* 割れた瞬間の画面揺れと、採掘した升の閃き。毎フレーム呼ぶ */
 
+/* --- tlimit.c: 1面の制限時間 --- */
+/* **敵は無限に牽制できるので、時間をかければどの面もいつかは抜けられてしまう。**
+   時間の側から押し返すために、面ごとの持ち時間を入れた (作者の指摘、2026-09-26)。
+   残り TLIMIT_WARN 秒でファンファーレが鳴り、0 で時間切れ = 1ミス。
+   **新しい死因ではあるが、体温と同じ「時間切れ」の形**にしてある。 */
+#define TLIMIT_SEC  180      /* 1面の持ち時間 (秒)。3分 */
+#define TLIMIT_WARN  30      /* 残りこの秒数でファンファーレ (急かす) */
+extern uint8_t tl_sec_hi, tl_sec_lo;   /* 残り時間 (分, 秒) 表示用 */
+void    tlimit_reset(void);            /* 面の開始と、ミスからの復帰で呼ぶ */
+void    tlimit_tick(void);             /* 遊んでいる間だけ毎フレーム呼ぶ */
+
 /* --- player.c --- */
 extern uint8_t px, py;
 extern uint8_t lives;
 extern uint8_t dead;
-extern uint8_t dead_cause;    /* 0=接触や潰し 1=オーバーヒート */
+extern uint8_t dead_cause;    /* 0=接触や潰し 1=オーバーヒート 2=時間切れ */
 #define DEAD_HEAT 1
+#define DEAD_TIME 2
 extern uint8_t invuln;
 extern uint8_t temp;          /* 体温 0..TEMP_MAX */
 /* 体温で曲が速くなるしきい値 (TEMP_MAX 240 に対して 50% / 75% / 90%)。

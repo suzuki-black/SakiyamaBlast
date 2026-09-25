@@ -16,6 +16,8 @@ void    snd_play_bgm(void);
 void    snd_play_title(void);    /* タイトル画面の曲 */
 void    snd_play_fanfare(void);
 void    snd_play_miss(void);
+void    snd_play_hurry(void);    /* 残り30秒の合図。鳴り終わったら曲へ戻す */
+uint8_t snd_idle(void);          /* 曲も合図も鳴っていない (次を鳴らしてよい) */
 void    snd_stop(void);
 uint8_t snd_busy(void);          /* ファンファーレが鳴っている間だけ 1 */
 
@@ -50,6 +52,7 @@ extern const uint8_t bgm_a[], bgm_b[], bgm_c[];
 extern const uint8_t title_a[], title_b[], title_c[];
 extern const uint8_t fan_a[], fan_b[], fan_c[];
 extern const uint8_t miss_a[], miss_b[], miss_c[];
+extern const uint8_t hurry_a[], hurry_b[], hurry_c[];
 extern const uint8_t sfx_dig[], sfx_pick[], sfx_set[], sfx_boom[], sfx_miss[], sfx_mine[], sfx_nope[], sfx_break[], sfx_coal[], sfx_cavein[], sfx_click[], sfx_wood[], sfx_gush[], sfx_drip[], sfx_seal[];
 
 #endif

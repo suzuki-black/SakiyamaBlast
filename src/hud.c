@@ -147,16 +147,23 @@ void popup_tick(void)
 #define ROW_B     192                  /* 下段 */
 #define SCORE_X   4
 #define STAGE_X   60
-#define TEMP_X    96                   /* 体温メーター */
+#define TEMP_X    112                  /* 体温メーター */
 #define TEMP_Y    177
 #define TEMP_BLK  16                   /* 目盛りの数 */
-#define TEMP_BW   8                    /* 目盛り1つの幅 */
+#define TEMP_BW   6                    /* 目盛り1つの幅 */
 #define TEMP_H    10
 #define LIFE_X    4
 #define DYN_X     60
 #define COAL_X    112                  /* 残りの黒ダイヤ */
 #define COAL_Y    (ROW_B + 1)
-#define COMBO_X   200                  /* 連続採掘の倍率 */
+#define COMBO_X   228                  /* 連続採掘の倍率 (上段の右端) */
+
+/*
+ * **下段の右端 (x=200〜) は残り時間の席** (src/tlimit.c が描く)。
+ * 空けるために、体温メーターの目盛りを細くして右へ寄せ (96 -> 112)、
+ * 倍率を上段の右端へ移した。ついでに面番号 "ST 10" がメーターに
+ * 食われていたのも直っている (以前は 96 から始まって桁に重なっていた)。
+ */
 
 static uint8_t h_lives, h_stock, h_coal, h_stage, h_temp, h_combo;
 static uint8_t h_score[SCORE_DIGITS];
@@ -263,12 +270,12 @@ static void draw_coal_left(void)
 static void draw_combo(void)
 {
     char buf[6];
-    vdp_fill(COMBO_X, ROW_B, 40, 14, COL_HUD);
+    vdp_fill(COMBO_X, ROW_A, 24, 10, COL_HUD);
     if (combo >= 2) {
         buf[0] = 'X';
         buf[1] = (char)('0' + combo);
         buf[2] = 0;
-        text_draw(COMBO_X, ROW_B + 2, buf, COL_FUSE, COL_HUD, 1);
+        text_draw(COMBO_X, ROW_A, buf, COL_FUSE, COL_HUD, 1);
     }
     h_combo = combo;
 }

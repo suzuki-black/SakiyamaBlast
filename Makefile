@@ -39,15 +39,15 @@ BANKED_SRC := $(SRCDIR)/art.c $(SRCDIR)/music.c \
 
 # **RAM へ写して実行するモジュール。**
 # 0x4000-0xBFFF の 32KB はもう埋まっていて、並べ替えでは空きが作れない。
-# RAM (ページ3) は変数が 0xC000 から約2.5KB、スタックが 0xF380 から下へ
-# 約350バイト (openMSX で実測) しか使っていないので、0xCD00-0xEFFF が空いている。
+# RAM (ページ3) は変数が 0xC000 から約3.2KB、スタックが 0xF380 から 0xF30F までしか
+# 伸びない (openMSX で実測) ので、0xCD00-0xF1FF が空いている。
 # **8KB を超えたので ROM のセグメントは2枚**。写す手順も2回に分かれる (main.c)。
 # **title / vdp も置ける。** RAM はバンク窓の切り替えの影響を受けないので、
 # タイトル画像を読んでいる最中 (title_draw) に呼ばれても見えている。
 # 起動時に main() が ROM のセグメント8 から写す。
 # **写す前に呼ばれるものは置けない** (crt0 / lowlevel / main の冒頭)。
 RAM_SRC   := $(SRCDIR)/enemy.c $(SRCDIR)/bomb.c $(SRCDIR)/sound.c \
-             $(SRCDIR)/title.c $(SRCDIR)/vdp.c $(SRCDIR)/text.c
+             $(SRCDIR)/title.c $(SRCDIR)/vdp.c $(SRCDIR)/text.c $(SRCDIR)/tlimit.c
 
 CSRC      := $(wildcard $(SRCDIR)/*.c)
 HEADERS   := $(wildcard $(SRCDIR)/*.h)

@@ -260,6 +260,17 @@ void snd_play_miss(void)
     play_jingle(miss_a, miss_b, miss_c, 14, 11, 11);
 }
 
+void snd_play_hurry(void)
+{
+    play_jingle(hurry_a, hurry_b, hurry_c, 14, 11, 11);
+}
+
+/* 何も鳴っていない (曲が終わって止まっている)。合図の後に曲を戻す判断に使う。 */
+uint8_t snd_idle(void)
+{
+    return (uint8_t)(mode == SND_OFF);
+}
+
 void snd_stop(void)
 {
     uint8_t i;

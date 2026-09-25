@@ -214,6 +214,7 @@ static void start_stage(void)
     debris_clear();
     hud_reset();
     hud_draw();
+    tlimit_reset();          /* 持ち時間を満タンに (HUD を塗った後。次の tick で出る) */
     show_stage_msg();        /* 面を描き切ってから開始表示を出す */
     vdp_display(1);
     timer = START_HOLD;
@@ -498,6 +499,9 @@ void main(void)
                 } else {
                     player_respawn();
                     hud_draw();
+                    /* **持ち時間も戻す。** 0秒のまま出ると、出た瞬間にまた
+                       時間切れになって残機を全部持っていかれる。 */
+                    tlimit_reset();
                     snd_play_bgm();
                     state = ST_PLAY;
                 }
@@ -585,6 +589,7 @@ void main(void)
         enemy_update();
         bonus_update();
         water_tick();                /* 出水 (第三坑)。落盤のあと1秒に1升ずつ広がる */
+        tlimit_tick();               /* 持ち時間。0 で時間切れ = 1ミス */
 
         if (dead && cfg_invincible) {
             dead = 0;                /* 無敵設定 (動作確認用) */
@@ -601,6 +606,8 @@ void main(void)
                 snd_play_miss();
                 if (dead_cause == DEAD_HEAT) {
                     show_msg("HEATSTROKE", 10, COL_RED);
+                } else if (dead_cause == DEAD_TIME) {
+                    show_msg("TIME OVER", 9, COL_RED);
                 } else {
                     msg_c0 = 1;         /* 表示は無いので消す範囲も空に */
                     msg_c1 = 0;

@@ -40,6 +40,7 @@ A_PCT=$(addr dug_pct)
 A_CFGSTAGE=$(addr cfg_start_stage)
 A_SPRINGON=$(addr spring_on); A_SPRINGC=$(addr spring_c); A_SPRINGR=$(addr spring_r)
 A_WATER=$(addr water)
+A_TLHI=$(addr tl_sec_hi); A_TLLO=$(addr tl_sec_lo)
 
 # 面1は掘り抜きが数字の「1」(15升) ＋ 敵の湧き出し口1升 = 16升。
 # 自機は掘り抜きの上端、湧き出し口は土の中の独立した1ブロック (位置は乱数)。
@@ -108,6 +109,8 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
                 if {\$wv == 3} { incr pn } elseif {\$wv} { incr wn } }; \
             puts \$f \"WATERN \$wn\"; \
             puts \$f \"POOLN \$pn\"; \
+            puts \$f \"TIMEM [debug read memory $A_TLHI]\"; \
+            puts \$f \"TIMES [debug read memory $A_TLLO]\"; \
             close \$f; \
             if {\$cc < 0} { exit }; \
             after time 4 wood }; \
@@ -169,6 +172,8 @@ check PX       $(( $(val STARTC) * 16 )) "自機のX (= 出発点の列 x16)"
 check PY       $(( $(val STARTR) * 16 )) "自機のY (= 出発点の行 x16)"
 check BATHON   1   "風呂が健在"
 check CHUTEN   0   "第一坑 (面1) には樋が無い"
+check TIMEM    3   "持ち時間が3分から始まる"
+check TIMES    0   "持ち時間の秒が 00 から始まる"
 
 # ここから面4 (第二坑)。樋が出るのはこの幕から。
 OUT4=$(mktemp -t sakiyama-smoke4)

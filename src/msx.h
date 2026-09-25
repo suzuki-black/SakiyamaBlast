@@ -41,18 +41,19 @@ void bank_select(uint8_t seg) __z88dk_fastcall;
 /* **RAM へ写して実行するコードを置いた ROM セグメント。**
    0x4000-0xBFFF の 32KB が埋まりきったので、はみ出したモジュール (Makefile の RAM_SRC) は
    起動時に 0xCD00 へ写して RAM で走らせる。写す手順は main() の冒頭。
-   RAM (ページ3) は変数が 0xC000 から約3.2KB (0xCC8C まで)、スタックが 0xF380 から下へ
-   約350バイト (openMSX で実測) しか使っておらず、0xCD00-0xEFFF が空いている。
-   **0xD000 -> 0xCE00 -> 0xCD00 と下げ、上も 0xEDFF -> 0xEFFF へ伸ばした (2026-09-23)。**
-   変数との間の余裕は約110バイト、スタックとの間は約880バイト。
+   RAM (ページ3) は変数が 0xC000 から約3.2KB (0xCC8C まで)、**スタックは 0xF380 から
+   0xF30F までしか伸びない** (openMSX で実測。タイトル・面の組み立て・3分半の実プレイで
+   0xEF60 以降を 0xA5 で埋めてから最低到達点を読んだ)。0xCD00-0xF1FF が空いている。
+   **0xD000 -> 0xCE00 -> 0xCD00 と下げ、上も 0xEDFF -> 0xEFFF -> 0xF1FF へ伸ばした
+   (2026-09-26)。** 変数との間の余裕は約110バイト、スタックとの間は271バイト。
    変数が伸びて食い込んだら tools/ihx2rom.py が止める。 */
 #define RAMCODE_SEG 8
 #define RAMCODE_ADDR 0xCD00
 /* 写す量。**リンカの l_RAMCODE は C から参照できない**ので、領域の大きさを
-   決め打ちで写す。0xCD00-0xEFFF の 8960 バイト = tools/ihx2rom.py の
+   決め打ちで写す。0xCD00-0xF1FF の 9472 バイト = tools/ihx2rom.py の
    RAMCODE_BASE..RAMCODE_END と一致させること。余りは 0xFF で埋まっている。
    **8KB を超えるので ROM のセグメントは2枚 (RAMCODE_SEG と その次)。**
    写す手順も2回に分かれる (main() の冒頭)。 */
-#define RAMCODE_LEN 0x2300
+#define RAMCODE_LEN 0x2500
 
 #endif
