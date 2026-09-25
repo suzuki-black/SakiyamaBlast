@@ -38,10 +38,11 @@ uint8_t snd_busy(void);          /* ファンファーレが鳴っている間�
 #define SFX_GUSH  12     /* 熱水が湧き出した (ゴボッ) */
 #define SFX_DRIP  13     /* 熱水が1升広がった (ポチャ) */
 #define SFX_SEAL  14     /* 湧き出し口が止まった (シュウ…) = もう増えない */
+#define SFX_TALLY 15     /* クリア時、残り時間を得点へ換える刻み (チチチ) */
 /* **効果音の数。表の要素数と必ず一致させること。**
    入口の範囲判定をこれで書く。以前は `id > SFX_COAL` と特定の音の名前で
    書いてあり、あとから足した SFX_CAVEIN が**一度も鳴らないまま**になっていた。 */
-#define SFX_N     15
+#define SFX_N     16
 void snd_sfx(uint8_t id);
 /* 音程を n 半音ぶん上げて鳴らす。コンボで音が上がっていく演出に使う。 */
 void snd_sfx_up(uint8_t id, uint8_t n);
@@ -53,6 +54,6 @@ extern const uint8_t title_a[], title_b[], title_c[];
 extern const uint8_t fan_a[], fan_b[], fan_c[];
 extern const uint8_t miss_a[], miss_b[], miss_c[];
 extern const uint8_t hurry_a[], hurry_b[], hurry_c[];
-extern const uint8_t sfx_dig[], sfx_pick[], sfx_set[], sfx_boom[], sfx_miss[], sfx_mine[], sfx_nope[], sfx_break[], sfx_coal[], sfx_cavein[], sfx_click[], sfx_wood[], sfx_gush[], sfx_drip[], sfx_seal[];
+extern const uint8_t sfx_dig[], sfx_pick[], sfx_set[], sfx_boom[], sfx_miss[], sfx_mine[], sfx_nope[], sfx_break[], sfx_coal[], sfx_cavein[], sfx_click[], sfx_wood[], sfx_gush[], sfx_drip[], sfx_seal[], sfx_tally[];
 
 #endif

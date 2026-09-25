@@ -460,11 +460,14 @@ void    link_smash(uint8_t cx, uint8_t cy);  /* 岩が縦に突き破った膜�
    時間の側から押し返すために、面ごとの持ち時間を入れた (作者の指摘、2026-09-26)。
    残り TLIMIT_WARN 秒でファンファーレが鳴り、0 で時間切れ = 1ミス。
    **新しい死因ではあるが、体温と同じ「時間切れ」の形**にしてある。 */
-#define TLIMIT_SEC  180      /* 1面の持ち時間 (秒)。3分 */
+/* **持ち時間は面ごとに決める** (`tlimit_tbl[]`、src/tlimit.c)。いまは全面3分だが、
+   後半面が足りるかは遊んで決める。表を書き換えるだけで面ごとに変えられる。 */
 #define TLIMIT_WARN  30      /* 残りこの秒数でファンファーレ (急かす) */
+#define TL_DRAIN      4      /* クリア時、1周に得点へ換える秒数 (速さ)。3分ぶんが約2.4秒 */
 extern uint8_t tl_sec_hi, tl_sec_lo;   /* 残り時間 (分, 秒) 表示用 */
 void    tlimit_reset(void);            /* 面の開始と、ミスからの復帰で呼ぶ */
 void    tlimit_tick(void);             /* 遊んでいる間だけ毎フレーム呼ぶ */
+uint8_t tlimit_bonus(void);            /* クリア時。1を返したら換え終わり */
 
 /* --- player.c --- */
 extern uint8_t px, py;
@@ -660,5 +663,6 @@ void popup_tick(void);
 #define PTS_DIG      5
 #define PTS_BONUS 1000
 #define PTS_LEFTOVER_DYN 100            /* 面クリア時に残ダイナマイト1本あたり */
+#define PTS_TIME    10            /* 面クリア時に残り時間1秒あたり (3分満タンで1800点) */
 
 #endif

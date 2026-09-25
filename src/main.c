@@ -537,6 +537,13 @@ void main(void)
             /* 自機も敵もその場で停止したまま、ファンファーレが終わるのを待つ */
             draw_actors();
             if (!snd_busy()) {
+                /* **ファンファーレの後に、残り時間を得点へ換える。**
+                   数字が高速に減り、刻み音と一緒にスコアが上がる。
+                   換え終わるまで次の面へ行かない。 */
+                if (!tlimit_bonus()) {
+                    hud_draw();
+                    continue;
+                }
                 if (stage >= MAX_STAGE) {
                     goto_ending(1);            /* 15面クリア -> エンディング -> 裏1面 */
                 } else {
