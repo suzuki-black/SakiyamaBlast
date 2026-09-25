@@ -438,6 +438,7 @@ static void analyse(int st, unsigned sd)
     int bump = 0, side = 0, cavef = 0, cbend = 0, nfall = 0, lost = 0, maxline = 0;
     int noff = 0, npush = 0, hpush = 0, hpbend = 0, rowdup = 0;
     int hprep = 0, hprepbend = 0, cbal = 0, rbal = 0, hpick0 = 0, wet = 0, wseal = 0;
+    int pool = 0;
     int bi_d[ROCK_MAX], bi_k[ROCK_MAX], bi_got[ROCK_MAX];
     int seen[NCELL], veins = 0, vmax = 0;
     for (c = 0; c < COLS; c++) { col[c] = 0; }
@@ -744,6 +745,10 @@ static void analyse(int st, unsigned sd)
         }
     }
 
+    /* **溜まり湯。** 面の開始から止まっている熱水の升数 (WPOOL_ST 以降の面だけ)。 */
+    build_stage();
+    for (i = 0; i < NCELL; i++) { if (water[i] == WATER_POOL) { pool++; } }
+
     /* **左右の散らばり。** 少ない側の割合 (百分率)。0 = 片側だけ、50 = 均等 */
     {
         int cl = 0, cn = 0, rl = 0, rn = 0;
@@ -766,18 +771,18 @@ static void analyse(int st, unsigned sd)
            "\"taken\":%d,\"crack\":%d,\"dug0\":%u,"
            "\"noff\":%d,\"npush\":%d,\"hpush\":%d,\"hpbend\":%d,\"rowdup\":%d,"
            "\"hprep\":%d,\"hprepbend\":%d,\"cbal\":%d,\"rbal\":%d,\"hpick0\":%d,"
-           "\"wet\":%d,\"wseal\":%d}\n",
+           "\"wet\":%d,\"wseal\":%d,\"pool\":%d}\n",
            st, sd, coal0, nrock, free_max, haul, best, veins, vmax,
            chutes, reach, hand, hbend, hpick, bend, best_combo,
            bump, side, cavef, cbend, nfall, lost, maxline, taken, crack, dug_n0,
            noff, npush, hpush, hpbend, rowdup, hprep, hprepbend, cbal, rbal, hpick0,
-           wet, wseal);
+           wet, wseal, pool);
 }
 
 /*
  * **出水を試す (--water)。** 面を組んで落盤を起こし、熱水が広がる様子を升で出す。
  * 実機と同じ src/water.c を回すので、規則の確認はここでできる。
- *   . = 土 / 空白 = 坑道 / 数字 = 黒ダイヤ / O = 岩 / ~ = 熱水 / S = 湧き出し口
+ *   . = 土 / 空白 = 坑道 / 数字 = 黒ダイヤ / O = 岩 / ~ = 熱水 / = = 溜まり湯 / S = 湧き出し口
  *   B = 水風呂 / N = 敵の湧き出し口 / @ = 自機の出発点
  */
 static void water_demo(int st)
@@ -788,13 +793,14 @@ static void water_demo(int st)
     if (spring_on) { printf("(%d,%d)\n", spring_c, spring_r); }
     rock_collapse();
     {
-        int prev = 0, sec = 0;
+        int prev = 0, sec = 0, q;
+        for (q = 0; q < NCELL; q++) { if (water[q]) { prev++; } }   /* 溜まり湯は最初から */
         for (fr = 0; fr < 60 * 60; fr++) {      /* 60秒ぶん回す */
             rock_update();
             coal_shake_tick();
             water_tick();
             if ((fr % 60) == 59) {
-                int now = 0, q;
+                int now = 0;
                 sec++;
                 for (q = 0; q < NCELL; q++) { if (water[q]) { now++; } }
                 if (now != prev) {
@@ -808,7 +814,8 @@ static void water_demo(int st)
     for (r = 0; r < ROWS; r++) {
         for (c = 0; c < COLS; c++) {
             i = r * COLS + c;
-            if (water[i])                          { putchar('~'); }
+            if (water[i] == WATER_POOL)            { putchar('='); }
+            else if (water[i])                     { putchar('~'); }
             else if (spring_on && c == spring_c && r == spring_r) { putchar('S'); }
             else if (coal[i] && coal[i] != COAL_CRACKED) { putchar('0' + (coal[i] % 10)); }
             else if (rock_at((int8_t)c, (int8_t)r) >= 0) { putchar('O'); }

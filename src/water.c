@@ -24,7 +24,7 @@
 #include "game.h"
 #include "sound.h"
 
-uint8_t water[NCELL];          /* 1 = 熱水 */
+uint8_t water[NCELL];          /* WATER_FLOW = 広がる熱水 / WATER_POOL = 溜まり湯 (field.c が置く) */
 uint8_t water_on;              /* 湧き出しているか */
 uint8_t water_done;            /* 止まったか。止まったら二度と増えない */
 uint8_t spring_c, spring_r;    /* 湧き出し口 (面の開始から見えている) */
@@ -87,7 +87,7 @@ static uint8_t flow_ok(int8_t cx, int8_t cy)
 static void wet(int8_t cx, int8_t cy)
 {
     uint16_t i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
-    water[i] = 1;
+    water[i] = WATER_FLOW;
     if (wn < WATER_MAX) {
         wlist[wn] = (uint8_t)i;
     }

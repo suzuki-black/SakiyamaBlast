@@ -724,6 +724,14 @@ void coal_take(uint8_t cx, uint8_t cy)
     }
 }
 
+/* その升が熱水なら描き直す。 */
+static void water_redraw(int8_t cx, int8_t cy)
+{
+    if (cell_water(cx, cy)) {
+        draw_water((uint8_t)cx, (uint8_t)cy);
+    }
+}
+
 void dig_sweep(uint8_t cx, uint8_t cy)
 {
     uint16_t i;
@@ -738,6 +746,12 @@ void dig_sweep(uint8_t cx, uint8_t cy)
     dug_n++;
     dug_pct = (uint8_t)((dug_n * 100u) / NCELL);
     score_add(PTS_DIG);
+    /* **隣が熱水なら描き直す。** 掘ってその面が開いたので、「ここで止まる」の印を
+       引き直す必要がある (掘る前は土で、印を出す面ではなかった)。 */
+    water_redraw((int8_t)cx, (int8_t)(cy - 1));
+    water_redraw((int8_t)cx, (int8_t)(cy + 1));
+    water_redraw((int8_t)(cx - 1), (int8_t)cy);
+    water_redraw((int8_t)(cx + 1), (int8_t)cy);
 }
 
 /* 16x16 のタイルを1セルへ描く。inset=2 にすると外周2pxを残すので、
@@ -963,13 +977,17 @@ void draw_water(uint8_t cx, uint8_t cy)
  * 坑道が続いているのに水が来ていない面へ、岩の色の帯を引く。止まった場所が
  * 湧き出し口だけでなく**どの向きでも分かる**ようにするため (作者の指摘、2026-09-23)。
  * 上の面にも引く (水はもう上がらない、の意味)。
+ *
+ * **溜まり湯 (WATER_POOL) は最初から止まっている**ので、湧き出した水が止まる前でも
+ * その升には印を出す。印の意味が「もう増えない」で一貫するので、面7で覚えた読み方が
+ * そのまま第四坑以降で効く。
  */
 static void draw_water_seal(uint8_t cx, uint8_t cy, uint16_t y1, uint16_t y2)
 {
     uint16_t x = (uint16_t)((uint16_t)cx << 4);
     uint16_t h = (uint16_t)(y2 - y1 + 1);
 
-    if (!water_done) {
+    if (!water_done && water[(uint16_t)cy * COLS + cx] != WATER_POOL) {
         return;
     }
     if (cell_dug((int8_t)(cx - 1), (int8_t)cy) && !cell_water((int8_t)(cx - 1), (int8_t)cy)) {
@@ -1594,6 +1612,13 @@ static void place_chutes(void)
     }
 }
 
+/* 升と升の間の距離 (縦横の歩数)。 */
+static uint8_t mdist(uint8_t c, uint8_t r, uint8_t c2, uint8_t r2)
+{
+    return (uint8_t)((uint8_t)((c > c2) ? (c - c2) : (c2 - c))
+                     + (uint8_t)((r > r2) ? (r - r2) : (r2 - r)));
+}
+
 /*
  * 熱水の湧き出し口。**掘り抜きの上の升を1つ選ぶ**ので、面の開始から見えている。
  * 自機の出発点の近くだと落盤の直後に逃げ場が無くなるので、少し離す。
@@ -1608,16 +1633,14 @@ static void place_spring(void)
     }
     build_candidates(0);                /* 掘り抜きの上 (dug かつ未使用) */
     for (try_n = 0; try_n < 8; try_n++) {
-        uint8_t c, r, dc, dr;
+        uint8_t c, r;
         i = take_candidate();
         if (i == 0xFFFF) {
             return;
         }
         c = (uint8_t)(i % COLS);
         r = (uint8_t)(i / COLS);
-        dc = (uint8_t)((c > start_c) ? (c - start_c) : (start_c - c));
-        dr = (uint8_t)((r > start_r) ? (r - start_r) : (start_r - r));
-        if (dc + dr < 4) {
+        if (mdist(c, r, start_c, start_r) < 4) {
             continue;                   /* 出発点の近くは避ける */
         }
         used[i] = 1;
@@ -1925,10 +1948,12 @@ static void place_cave(void)
  */
 static uint8_t reach[NCELL];
 
-/* 掘れていてまだ印を付けていなければ、印を付けて積む。 */
+/* 掘れていてまだ印を付けていなければ、印を付けて積む。
+   **熱水の升は通れない扱い** (敵が入れないので、溜まり湯を置く前の見積もりに使う)。
+   面を組む途中では水はまだ1升も無いので、他の呼び出しの結果は変わらない。 */
 static uint8_t push_if(uint8_t sp, uint8_t *stk, uint8_t k)
 {
-    if (dug[k] && !reach[k]) {
+    if (dug[k] && !reach[k] && !water[k]) {
         reach[k] = 1;
         stk[sp++] = k;
     }
@@ -1998,6 +2023,105 @@ static void connect_to_reach(uint8_t c, uint8_t r)
 }
 
 /*
+ * **隣の黒ダイヤを「湯に浸からないと叩けない」状態にしないこと。**
+ * 四方が水と黒ダイヤだけになった黒ダイヤは、浸かり続けないと採れない。
+ * 「採掘は妨げない」(src/water.c の設計の約束) を溜まり湯にも課す。
+ */
+static uint8_t coal_dry_ok(uint8_t c, uint8_t r)
+{
+    static const int8_t dc[4] = { -1, 1, 0, 0 }, dr[4] = { 0, 0, -1, 1 };
+    uint8_t k, j;
+
+    for (k = 0; k < 4; k++) {
+        int8_t nc = (int8_t)((int8_t)c + dc[k]), nr = (int8_t)((int8_t)r + dr[k]);
+        uint16_t ni;
+        uint8_t ok = 0;
+        if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) {
+            continue;
+        }
+        ni = (uint16_t)(uint8_t)nr * COLS + (uint8_t)nc;
+        if (!coal[ni]) {
+            continue;
+        }
+        for (j = 0; j < 4; j++) {
+            int8_t mc = (int8_t)(nc + dc[j]), mr = (int8_t)(nr + dr[j]);
+            uint16_t mi;
+            if (mc < 0 || mc >= COLS || mr < 0 || mr >= ROWS) {
+                continue;
+            }
+            mi = (uint16_t)(uint8_t)mr * COLS + (uint8_t)mc;
+            if (!water[mi] && !coal[mi]) {
+                ok = 1;                 /* 土でもよい。掘ればそこに立てる */
+                break;
+            }
+        }
+        if (!ok) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/*
+ * **溜まり湯。** 面の開始から坑道に溜まっている熱水で、**最初から止まっている。**
+ * 湧き出し口の水 (面7) と違って広がらないが、縁にはいつも「せき止め」の印が出ている
+ * ので、**面7で覚えた「この印より先へは来ない」がそのまま読める。**
+ * 浸かれば体温が上がるだけで、失敗条件は相変わらずオーバーヒートのまま
+ * ——**新しい死に方を増やさずに後半面を締める置き物**（作者の案、2026-09-26）。
+ *
+ * 置き方の約束:
+ *   - **出発点から離す。** 開始と同時に体温が上がるのは理不尽
+ *   - **水風呂と敵の巣の隣には置かない。** 水風呂へ行くのに湯を渡らせない。
+ *     巣の口を塞がない
+ *   - **敵が巣から出発点まで来られなくなる升には置かない。** 敵は熱水に入れないので、
+ *     坑道の一本道に置くと敵が出て来られず、面が骨抜きになる (置いてから
+ *     巣を起点に塗り潰して確かめ、駄目なら取り消す)
+ */
+static void place_pool(void)
+{
+    uint8_t want, try_n;
+
+    if (stage < WPOOL_ST) {
+        return;
+    }
+    want = (uint8_t)(1 + (uint8_t)(stage - WPOOL_ST) / 2);   /* 10,11:1 12,13:2 14,15:3 */
+    if (want > WPOOL_MAX) {
+        want = WPOOL_MAX;
+    }
+    build_candidates(0);                /* 掘り抜きの上 (dug かつ未使用) */
+    for (try_n = 0; try_n < 24 && want; try_n++) {
+        uint16_t i = take_candidate();
+        uint8_t c, r;
+        if (i == 0xFFFF) {
+            return;
+        }
+        c = (uint8_t)(i % COLS);
+        r = (uint8_t)(i / COLS);
+        if (mdist(c, r, start_c, start_r) < 4) {
+            continue;
+        }
+        if (mdist(c, r, bath_c, bath_r) < 3 || mdist(c, r, nest_c, nest_r) < 3) {
+            continue;
+        }
+        if (chute[i]) {
+            continue;                   /* 樋の落とし口は塞がない */
+        }
+        water[i] = WATER_POOL;
+        if (!coal_dry_ok(c, r)) {
+            water[i] = 0;               /* 隣の黒ダイヤが採れなくなる */
+            continue;
+        }
+        flood_from(nest_c, nest_r);     /* 熱水を壁として塗り潰す */
+        if (!reach[(uint16_t)start_r * COLS + start_c]) {
+            water[i] = 0;               /* 敵が出発点まで来られなくなる */
+            continue;
+        }
+        used[i] = 1;
+        want--;
+    }
+}
+
+/*
  * **置く工程ごとに種を振り直す。**
  *
  * 乱数は1本の流れなので、途中の工程が食う回数が変わると**それより後の工程が
@@ -2017,6 +2141,7 @@ static void connect_to_reach(uint8_t c, uint8_t r)
 #define PH_PILLAR 5
 #define PH_CHUTE  6
 #define PH_WATER  7
+#define PH_POOL   8
 
 static void phase_seed(uint8_t k)
 {
@@ -2081,6 +2206,10 @@ static void set_stage_layout(void)
        乱数を1回も使わず、盤面はこの機構を入れる前とまったく同じになる。 */
     phase_seed(PH_WATER);
     place_spring();
+    /* **溜まり湯も最後。** ここも種を分けてあるので、置かない面 (面9まで) の盤面は
+       この機構を入れる前とまったく同じままになる。 */
+    phase_seed(PH_POOL);
+    place_pool();
 }
 
 /* **面ごとの盤面の種。** ここを変えるとその面の並びが丸ごと変わる。
@@ -2193,5 +2322,11 @@ void build_stage(void)
     }
     if (spring_on) {
         draw_spring(spring_c, spring_r);   /* 熱水の湧き出し口。開始から見えている */
+    }
+    /* **溜まり湯。** 坑道を描いた後から上に塗る (draw_water が縁の印まで描く)。 */
+    for (i = 0; i < NCELL; i++) {
+        if (water[i]) {
+            draw_water((uint8_t)(i % COLS), (uint8_t)(i / COLS));
+        }
     }
 }

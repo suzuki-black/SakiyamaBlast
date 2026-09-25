@@ -102,9 +102,12 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
             puts \$f \"SPRINGON [debug read memory $A_SPRINGON]\"; \
             set sp_c [debug read memory $A_SPRINGC]; set sp_r [debug read memory $A_SPRINGR]; \
             puts \$f \"SPRINGDUG [debug read memory [expr {$A_DUG+\$sp_r*16+\$sp_c}]]\"; \
-            set wn 0; \
-            for {set i 0} {\$i<176} {incr i} { incr wn [debug read memory [expr {$A_WATER+\$i}]] }; \
+            set wn 0; set pn 0; \
+            for {set i 0} {\$i<176} {incr i} { \
+                set wv [debug read memory [expr {$A_WATER+\$i}]]; \
+                if {\$wv == 3} { incr pn } elseif {\$wv} { incr wn } }; \
             puts \$f \"WATERN \$wn\"; \
+            puts \$f \"POOLN \$pn\"; \
             close \$f; \
             if {\$cc < 0} { exit }; \
             after time 4 wood }; \
@@ -186,7 +189,17 @@ OUT=$OUT7
 check SPRINGON 1 "面7 に熱水の湧き出し口が置かれている"
 check SPRINGDUG 1 "湧き出し口が坑道の上にある (面の開始から見えている)"
 check WATERN   0 "面の開始時はまだ水が湧いていない"
+check POOLN    0 "第三坑には溜まり湯を置かない (湧き出す水と混ざらない)"
 check CHUTEN   2 "面7 も樋は2枚 (第二坑と同じ枚数)"
+
+# ここから面12 (第四坑)。溜まり湯 (最初から止まっている熱水) はこの幕から。
+OUT12=$(mktemp -t sakiyama-smoke12)
+trap 'rm -f "$OUT" "$OUT4" "$OUT7" "$OUT12"' EXIT
+run_stage 12 "$OUT12"
+OUT=$OUT12
+check POOLN    2 "面12 に溜まり湯が2升 置かれている"
+check SPRINGON 0 "第四坑に湧き出し口は無い (溜まり湯は広がらない)"
+check BATHON   1 "水風呂が健在 (溜まり湯で潰されていない)"
 
 [ $fail -eq 0 ] && echo "smoketest: PASS" || echo "smoketest: FAIL"
 exit $fail
