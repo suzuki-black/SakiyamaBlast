@@ -577,6 +577,7 @@ void    rock_destroy_at(int8_t cx, int8_t cy);  /* 爆風で吹き飛ばす */
 void    rock_update(void);
 /* 炭柱が壊れた = 天盤が落ちる。盤面のすべての岩が真下の升を抜かれて落ちる。 */
 void    rock_collapse(void);
+void    rock_collapse_later(void);   /* 岩の処理が終わってから落盤を起こす */
 /* 揺れ・落下・破砕表示のいずれかが進行中の岩があるか。クリアを待たせるのに使う。 */
 uint8_t rock_busy(void);
 void    rock_draw(void);

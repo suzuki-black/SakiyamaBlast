@@ -566,7 +566,13 @@ uint8_t coal_smash(int8_t cx, int8_t cy)
     if (!coal[i]) {
         return 0;
     }
-    pillar[i] = 0;                  /* 落盤を再帰させない */
+    if (pillar[i]) {
+        /* **炭柱が消えた = 天盤の支えが無くなった。** つるはしで割ったときと同じく
+           落盤にする。ただし**いまは岩の処理の最中**なので、その場では起こさず
+           rock_update() が終わってからにする (rock.c の rock_collapse_later)。 */
+        pillar[i] = 0;
+        rock_collapse_later();
+    }
     /* **先に「割れた」扱いにしてから掘る。** dig_sweep は cell_coal() を見て
        「黒ダイヤは掘れない」と撥ねるので、**割れていない升をそのまま渡すと
        掘られないまま take_one で炭だけ消え、採ったのに土のまま残る。**

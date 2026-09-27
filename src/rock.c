@@ -37,9 +37,12 @@ static uint8_t kills[ROCK_MAX];
 static uint8_t kill_c[ROCK_MAX], kill_r[ROCK_MAX];   /* 最初に潰した升 (得点を出す場所) */
 static uint8_t split_t[ROCK_MAX];   /* 割れた姿を出しておく残りフレーム */
 
+static uint8_t collapse_pend;   /* 予約された落盤。説明は rock_collapse_later */
+
 void rock_clear(void)
 {
     uint8_t i;
+    collapse_pend = 0;          /* **BSS は零で始まらない。** 面の頭で必ず落とす */
     for (i = 0; i < ROCK_MAX; i++) {
         rock_state[i] = ROCK_NONE;
         chute_n[i] = 0;
@@ -388,6 +391,24 @@ static void rock_fall_step(uint8_t i)
 }
 
 /*
+ * **炭柱が消えたら、誰が壊しても天盤は落ちる。**
+ * つるはしで割り切ったときだけでなく、**落ちてきた岩が炭柱を貫いて消したとき**も
+ * 落盤にする。以前は後者を外してあり (岩の処理の最中に落盤を呼ぶと、落とす岩を
+ * 数えている途中で状態が変わる)、**同じ「炭柱が無くなった」でも結果が違っていた。**
+ * 面7では出水の引き金もこれなので、「炭柱を割ったのに水が出ない」ことがあった
+ * (作者の指摘、2026-09-27)。
+ *
+ * **その場では呼ばず、1回ぶん遅らせる。** rock_update() が岩を1つずつ見ている
+ * 最中に落盤を起こすと、まだ見ていない岩の状態を書き換えてしまう。
+ * 予約しておいて、全部見終わってから起こす。
+ * **BSS は零で始まらない**ので、面を組むたびに rock_clear() で落としている。
+ */
+void rock_collapse_later(void)
+{
+    collapse_pend = 1;
+}
+
+/*
  * 炭柱が壊れたときの落盤。残柱式で天盤を支えていた柱が無くなるので、
  * **黒ダイヤに載っている岩が一斉に支えを失って落ちる。**
  *
@@ -403,6 +424,7 @@ static void rock_fall_step(uint8_t i)
 void rock_collapse(void)
 {
     uint8_t i, c;
+    collapse_pend = 0;
     for (i = 0; i < ROCK_MAX; i++) {
         uint8_t r;
         if (rock_state[i] != ROCK_WAIT && rock_state[i] != ROCK_JIG) {
@@ -488,6 +510,10 @@ void rock_update(void)
                 kills[i] = 0;
             }
         }
+    }
+    /* 岩を全部見終わってから、予約されていた落盤を起こす (rock_collapse_later) */
+    if (collapse_pend) {
+        rock_collapse();
     }
 }
 
