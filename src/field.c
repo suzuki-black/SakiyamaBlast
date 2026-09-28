@@ -967,15 +967,33 @@ void draw_water(uint8_t cx, uint8_t cy)
     if (under) {
         y1 = y;                                           /* 水中: 升いっぱい */
         vdp_fill(x1, y1, (uint16_t)(x2 - x1 + 1), (uint16_t)(y2 - y1 + 1), COL_BATH);
-        draw_water_seal(cx, cy, y1, y2);
-        return;
+    } else {
+        y1 = (uint16_t)(y + WATER_LEVEL);                 /* 水面 */
+        vdp_fill(x1, (uint16_t)(y1 + 1), (uint16_t)(x2 - x1 + 1), (uint16_t)(y2 - y1), COL_BATH);
+        vdp_fill(x1, y1, (uint16_t)(x2 - x1 + 1), 1, COL_RED);          /* 赤く熱した水面 */
+        vdp_fill((uint16_t)(x + 4), (uint16_t)(y + 4), 1, 1, COL_WHITE); /* 湯気 */
+        vdp_fill((uint16_t)(x + 10), (uint16_t)(y + 2), 1, 1, COL_WHITE);
     }
-    y1 = (uint16_t)(y + WATER_LEVEL);                     /* 水面 */
-    vdp_fill(x1, (uint16_t)(y1 + 1), (uint16_t)(x2 - x1 + 1), (uint16_t)(y2 - y1), COL_BATH);
-    vdp_fill(x1, y1, (uint16_t)(x2 - x1 + 1), 1, COL_RED);          /* 赤く熱した水面 */
-    vdp_fill((uint16_t)(x + 4), (uint16_t)(y + 4), 1, 1, COL_WHITE); /* 湯気 */
-    vdp_fill((uint16_t)(x + 10), (uint16_t)(y + 2), 1, 1, COL_WHITE);
     draw_water_seal(cx, cy, y1, y2);
+    /*
+     * **拾い物は水に浮く。** 火薬・落ちたダイナマイト・梅干しの升へ水が来たら、
+     * 水を塗ったあとで絵を描き直して**水の上に見せる**。沈めていたときは絵が
+     * 水に隠れ、**見えないのに踏めば拾える物**がそこにあった (作者の指摘、2026-09-28)。
+     *
+     * **「水のほうが避ける」案は測ってやめた。** 火薬は1面に10個撒いてあるので、
+     * 拾い物を水を止めるものにすると、面7の熱水が13升 -> 2升しか広がらず、
+     * 出水が起きていないのと同じになった (hostsim で実測)。
+     */
+    {
+        uint8_t i = (uint8_t)((uint8_t)(cy << 4) + cx);   /* 176升なので8ビットで足りる */
+        if (powder[i]) {
+            draw_powder(cx, cy);
+        } else if (bombdrop[i]) {
+            draw_bombdrop(cx, cy);
+        } else if (ume[i]) {
+            draw_ume(cx, cy);
+        }
+    }
 }
 
 /*
@@ -1208,32 +1226,6 @@ static uint16_t nearest_dug(uint8_t tc, uint8_t tr)
     return best;
 }
 
-/* 掘り済みセルのうち (tc,tr) から一番遠いものを返す。自機の出発点を敵の巣から
-   できるだけ離すのに使う (開始と同時に捕まる「出落ち」を避けるため)。 */
-static uint16_t farthest_dug(uint8_t tc, uint8_t tr)
-{
-    uint8_t c, r;
-    uint16_t best = 0xFFFF;
-    uint8_t bestd = 0;
-    for (r = 0; r < ROWS; r++) {
-        for (c = 0; c < COLS; c++) {
-            uint16_t i = (uint16_t)r * COLS + c;
-            uint8_t d;
-            int8_t dc, dr;
-            if (!dug[i] || used[i]) {
-                continue;
-            }
-            dc = (int8_t)(c - tc); if (dc < 0) { dc = (int8_t)-dc; }
-            dr = (int8_t)(r - tr); if (dr < 0) { dr = (int8_t)-dr; }
-            d = (uint8_t)(dc + dr);
-            if (best == 0xFFFF || d > bestd) {
-                bestd = d;
-                best = i;
-            }
-        }
-    }
-    return best;
-}
 
 /* (tc,tr) に近い掘り抜きのうち、(ac,ar) から mind 以上離れているものを返す。
    条件を満たすものが無ければ単に一番近いものを返す。 */
