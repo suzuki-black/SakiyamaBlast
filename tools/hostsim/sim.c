@@ -722,7 +722,7 @@ static void analyse(int st, unsigned sd)
      *   wseal : 四方が全部水の黒ダイヤの数。**0 でないと詰む**
      * 出水のある面だけ測る (他の面は 0 のまま)。
      */
-    if (st == WATER_ST) {
+    if (st >= WATER_ST && st <= WATER_ST_END) {
         int fr;
         build_stage();
         rock_collapse();

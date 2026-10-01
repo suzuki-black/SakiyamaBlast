@@ -1623,38 +1623,6 @@ static uint8_t mdist(uint8_t c, uint8_t r, uint8_t c2, uint8_t r2)
                      + (uint8_t)((r > r2) ? (r - r2) : (r2 - r)));
 }
 
-/*
- * 熱水の湧き出し口。**掘り抜きの上の升を1つ選ぶ**ので、面の開始から見えている。
- * 自機の出発点の近くだと落盤の直後に逃げ場が無くなるので、少し離す。
- */
-static void place_spring(void)
-{
-    uint8_t try_n;
-    uint16_t i;
-
-    if (stage != WATER_ST) {
-        return;                         /* 出水があるのは第三坑の試験面だけ */
-    }
-    build_candidates(0);                /* 掘り抜きの上 (dug かつ未使用) */
-    for (try_n = 0; try_n < 8; try_n++) {
-        uint8_t c, r;
-        i = take_candidate();
-        if (i == 0xFFFF) {
-            return;
-        }
-        c = (uint8_t)(i % COLS);
-        r = (uint8_t)(i / COLS);
-        if (mdist(c, r, start_c, start_r) < 4) {
-            continue;                   /* 出発点の近くは避ける */
-        }
-        used[i] = 1;
-        spring_c = c;
-        spring_r = r;
-        spring_on = 1;
-        return;
-    }
-}
-
 /* 指定した行の候補を落とす。
    スプライトは16px高なので、別の升行に置けば走査線が全く重ならない。
    MSX2 は横一列に9枚目以降が消えるので、**1行に岩は1個まで**にしておけば、
@@ -1952,11 +1920,21 @@ static void place_cave(void)
  */
 static uint8_t reach[NCELL];
 
+/* 1 = **熱水の通れる升だけ**を辿る (湧き出し口を選ぶときだけ立てる)。
+   黒ダイヤ・岩・水風呂・敵の巣で止まるところまで含めて数えたいので、
+   水の判定そのもの (water.c の flow_ok) を使う。
+   **BSS は零で始まらない**ので、面を組む頭で必ず落とす (set_stage_layout)。
+   立てっぱなしだと、通路を繋ぐときの塗り潰しまで水の規則で走って盤面が変わる。 */
+static uint8_t flood_wet;
+
 /* 掘れていてまだ印を付けていなければ、印を付けて積む。
    **熱水の升は通れない扱い** (敵が入れないので、溜まり湯を置く前の見積もりに使う)。
    面を組む途中では水はまだ1升も無いので、他の呼び出しの結果は変わらない。 */
 static uint8_t push_if(uint8_t sp, uint8_t *stk, uint8_t k)
 {
+    if (flood_wet && !flow_ok((int8_t)(k % COLS), (int8_t)(k / COLS))) {
+        return sp;
+    }
     if (dug[k] && !reach[k] && !water[k]) {
         reach[k] = 1;
         stk[sp++] = k;
@@ -2024,6 +2002,63 @@ static void connect_to_reach(uint8_t c, uint8_t r)
         dug[(uint16_t)rr * COLS + bc] = 1;
     }
     dug[(uint16_t)r * COLS + c] = 1;
+}
+
+/*
+ * 熱水の湧き出し口。**掘り抜きの上の升を1つ選ぶ**ので、面の開始から見えている。
+ * 自機の出発点の近くだと落盤の直後に逃げ場が無くなるので、少し離す。
+ */
+static void place_spring(void)
+{
+    uint8_t try_n, best_n = 0;
+    uint16_t i, k, best = 0xFFFF;
+
+    if (stage < WATER_ST || stage > WATER_ST_END) {
+        return;                         /* 出水があるのは第三坑 (面7〜9) だけ */
+    }
+    build_candidates(0);                /* 掘り抜きの上 (dug かつ未使用) */
+    for (try_n = 0; try_n < 12; try_n++) {
+        uint8_t c, r, n = 0;
+        i = take_candidate();
+        if (i == 0xFFFF) {
+            break;
+        }
+        c = (uint8_t)(i % COLS);
+        r = (uint8_t)(i / COLS);
+        if (mdist(c, r, start_c, start_r) < 4) {
+            continue;                   /* 出発点の近くは避ける */
+        }
+        if (!flow_ok((int8_t)c, (int8_t)r)) {
+            continue;                   /* **自分の升から水が出られること。** 岩が
+                                           載っていると一滴も出ないまま終わる */
+        }
+        /* **水の行き場がある場所を選ぶ。** 行き止まりに置くと数升で止まり、
+           「水が湧いた」ことが遊びに関与しない (面9 が3升で止まっていた)。
+           **実際に熱水が通れる升だけ**を数える (黒ダイヤ・岩・水風呂・敵の巣で
+           止まるぶんも勘定に入る)。**盤面そのものは動かない**ので面の並びは変わらない。 */
+        flood_wet = 1;
+        flood_from(c, r);
+        flood_wet = 0;
+        for (k = 0; k < NCELL; k++) {
+            if (reach[k]) {
+                n++;
+            }
+        }
+        if (n > best_n) {               /* **一番ましな候補を憶えておく。** */
+            best_n = n;
+            best = i;
+        }
+        if (n >= WATER_ROOM) {
+            break;                      /* 十分な行き場がある。これでよい */
+        }
+    }
+    if (best == 0xFFFF) {
+        return;                         /* 置ける升が無い */
+    }
+    used[best] = 1;
+    spring_c = (uint8_t)(best % COLS);
+    spring_r = (uint8_t)(best / COLS);
+    spring_on = 1;
 }
 
 /*
@@ -2161,6 +2196,7 @@ static void set_stage_layout(void)
         used[i] = 0;
     }
     water_reset();
+    flood_wet = 0;          /* **BSS は零で始まらない。** 通路を繋ぐ塗り潰しは水の規則で走らせない */
 
     set_dirt_palette();
 

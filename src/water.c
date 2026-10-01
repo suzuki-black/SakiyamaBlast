@@ -63,8 +63,9 @@ uint8_t cell_water(int8_t cx, int8_t cy)
     return water[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx];
 }
 
-/* そこへ広がれるか。**坑道で、黒ダイヤでも岩でも水風呂でもないこと。** */
-static uint8_t flow_ok(int8_t cx, int8_t cy)
+/* そこへ広がれるか。**坑道で、黒ダイヤでも岩でも水風呂でもないこと。**
+   湧き出し口を置くとき、水の行き場を数えるのに field.c からも使う。 */
+uint8_t flow_ok(int8_t cx, int8_t cy)
 {
     uint16_t i;
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
@@ -226,11 +227,13 @@ void water_tick(void)
     }
     wt = WATER_STEP;
     if (wn == 0) {                     /* 最初の1升 = 湧き出し口から噴き出す */
+        /* **まだ一滴も出ていないうちは諦めない。** 湧き出し口に岩が載っていると
+           出られないが、岩は押せるし落盤でも動くので、**待っていればいつか出る。**
+           ここで止めてしまうと、岩が1つ載っているだけで**その面の出水が丸ごと
+           無かったことになっていた** (面9 が実際にそうだった。実機で見つけた)。 */
         if (flow_ok((int8_t)spring_c, (int8_t)spring_r)) {
             wet((int8_t)spring_c, (int8_t)spring_r);
             snd_sfx(SFX_GUSH);
-        } else if (++wstall >= WATER_STALL) {
-            water_stop();              /* 湧き出し口が岩で塞がれている */
         }
         return;
     }

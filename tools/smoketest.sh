@@ -197,9 +197,18 @@ check WATERN   0 "面の開始時はまだ水が湧いていない"
 check POOLN    0 "第三坑には溜まり湯を置かない (湧き出す水と混ざらない)"
 check CHUTEN   2 "面7 も樋は2枚 (第二坑と同じ枚数)"
 
+# 出水は第三坑ぜんぶ (面7〜9)。幕の終わりの面9 でも湧き出し口があることを見る。
+OUT9=$(mktemp -t sakiyama-smoke9)
+trap 'rm -f "$OUT" "$OUT4" "$OUT7" "$OUT9"' EXIT
+run_stage 9 "$OUT9"
+OUT=$OUT9
+check SPRINGON 1 "面9 にも熱水の湧き出し口が置かれている (第三坑ぜんぶ)"
+check SPRINGDUG 1 "面9 の湧き出し口も坑道の上にある"
+check POOLN    0 "面9 に溜まり湯は無い"
+
 # ここから面12 (第四坑)。溜まり湯 (最初から止まっている熱水) はこの幕から。
 OUT12=$(mktemp -t sakiyama-smoke12)
-trap 'rm -f "$OUT" "$OUT4" "$OUT7" "$OUT12"' EXIT
+trap 'rm -f "$OUT" "$OUT4" "$OUT7" "$OUT9" "$OUT12"' EXIT
 run_stage 12 "$OUT12"
 OUT=$OUT12
 check POOLN    2 "面12 に溜まり湯が2升 置かれている"

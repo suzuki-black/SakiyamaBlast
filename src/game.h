@@ -420,6 +420,7 @@ void water_reset(void);
 void water_start(void);                 /* 落盤と同時に呼ぶ */
 void water_tick(void);                  /* 毎フレーム呼ぶ */
 uint8_t cell_water(int8_t cx, int8_t cy);
+uint8_t flow_ok(int8_t cx, int8_t cy);  /* そこへ熱水が広がれるか (湧き出し口選びにも使う) */
 uint16_t layout_seed(void);
 void    set_dirt_palette(void);
 void    cavein_flash(void);        /* 落盤の閃光を始める */
@@ -522,8 +523,11 @@ uint8_t player_cell_r(void);
 /* **出水 (第三坑のギミック)。** 落盤と同時に湧き出し口から熱水が出て、坑道を伝って
    1秒に1升ずつ広がる。浸かっている間は体温が毎フレーム上がるだけで、**失敗条件は
    既存のオーバーヒートのまま** (新しい死因を作らない)。docs/STAGE_ACTS_ROADMAP.md §4。
-   **まずは面7だけで試す。** 体感を見てから面8・9へ広げる。 */
-#define WATER_ST     7        /* この面だけ出水がある (試験導入) */
+   **第三坑 (面7〜9) ぜんぶにある** (2026-10-02。面7だけの試験導入から広げた。
+   1面だけでは出会う機会が少なく、作者が「全然沸いてこない」と感じていた)。 */
+#define WATER_ST     7        /* この面から出水がある */
+#define WATER_ST_END 9        /* この面まで (第三坑ぜんぶ) */
+#define WATER_ROOM  18        /* 湧き出し口から繋がっている坑道がこの升数以上あること */
 #define WATER_STEP  60        /* 1升広がるまでのフレーム数 (1秒) */
 #define WATER_MAX   24        /* 広がる上限の升数。際限なく広げると詰む */
 #define WATER_HEAT   1        /* 熱水の升に居る間、毎フレーム上がる体温 (4秒で満タン) */
