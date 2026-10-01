@@ -70,6 +70,24 @@ RAM がなぜ空いているかは openMSX で実測した。ページ3 (0xC000-
 数字で確かめる。実行後は openMSX のプロセスが残っていないか必ず確認する
 （`throttle off` のヘッドレスを残すと CPU を食い続ける）。
 
+**turbo R の実機 BIOS でも測れる**（2026-10-01 に作者がファームウェアを吸い出した）。
+
+```
+openmsx -machine My_FS-A1ST_512K -carta build/sakiyama.rom -romtype ASCII8
+MACHINE=My_FS-A1ST_512K sh tools/smoketest.sh build/sakiyama.rom
+```
+
+**出荷する形（turbo R / R800 DRAM）は 60fps 出る。** Z80 機との差は
+`docs/GAME_RULES.md` §13b の表にある。**速度の判断は turbo R と Z80 の両方で測ること。**
+
+**画面を絵にして見るときは、生きている VDP パレットを一緒に読むこと。**
+土の色は幕ごとに変えているので、`tools/palette.py` の既定の表で塗ると**色が嘘になる**
+（面10 の紫を茶色で見ていた）。`debug read {VDP palette} 0..31` を VRAM と一緒に落とす。
+
+**「遊んでいる最中」を体温で見分ける。** タイトル画面でも `frame_n` は進むので、
+fps を測るときは `temp` が上がり始めたことを確かめてから数え始める
+（確かめずに測って、タイトルの 60fps を「ゲーム中の fps」として報告しかけた）。
+
 ## ビルド
 
 `make` はヘッダにも依存させてある。`src/*.h` の定数だけを変えたときも再ビルドされる。
