@@ -771,6 +771,10 @@ void dig_sweep(uint8_t cx, uint8_t cy)
  * 実測で、火薬タイル1枚の描画だけで掘っている間の fps が 32 -> 44 に変わるほど
  * 重かった。OTIR で流せば1行1回の呼び出しで済む。
  */
+/* **タイルを読む間だけ窓を絵のセグメントへ向け、必ず DATA_SEG へ戻す。**
+   渡される tile は art_tile_of() が返す窓の中の番地で、実体は ART_TILE_SEG にある。
+   **この関数は固定領域にある**ので、窓を向けても自分が消えない。
+   呼び出し元が窓側 (BANKED_SRC) でも、戻るときには DATA_SEG に戻っている。 */
 static void draw_tile(uint8_t cx, uint8_t cy, const uint8_t *tile, uint8_t inset)
 {
     uint8_t y;
@@ -778,11 +782,13 @@ static void draw_tile(uint8_t cx, uint8_t cy, const uint8_t *tile, uint8_t inset
     uint16_t top = (uint16_t)cy << 4;
     const uint8_t *p = tile + ((uint16_t)inset << 3) + x0;
     vdp_blklen = (uint16_t)(8 - inset);
+    bank_select(ART_TILE_SEG);
     for (y = inset; y < (uint8_t)(16 - inset); y++) {
         vdp_setwrite((uint16_t)(((top + y) << 7) + ((uint16_t)cx << 3) + x0));
         vdp_wblock(p);
         p += 8;
     }
+    bank_select(DATA_SEG);
 }
 
 void draw_cell_dirt(int8_t cx, int8_t cy)

@@ -20,8 +20,23 @@
 
 **データだけでなくコードも逃がせる。** 窓が選ばれている限り同じ速度で動くので、
 `Makefile` の `BANKED_SRC` にモジュールを足すだけでよい（`--codeseg` と
-`--constseg` の両方が付く）。いまは `art` `music` `config` `bonus` `debris`
-`kanji` `sprite` `haze` を置いてある（`hud` は固定領域）。
+`--constseg` の両方が付く）。いまは `music` `config` `bonus` `debris` `kanji`
+`haze` `water` `hud` を置いてある。
+
+**絵は窓に置かない。自前のセグメントへ入れて、読むときだけ窓を向ける**（2026-10-02）。
+タイル (seg10) とスプライト (seg11) を `tools/png2art.py --bin` がバイナリで吐き、
+`tools/ihx2rom.py` が ROM へ入れる。`src/art.c` は**窓の中の番地を返すだけ**で、
+実際に読むのは次の3か所。**どれも固定領域に置くこと**（窓を絵へ向けている間、
+窓のコードは見えない）。
+
+| 読む場所 | 向ける先 |
+|---|---|
+| `draw_tile()`（`src/field.c`） | `ART_TILE_SEG` |
+| `spr_pattern_rows()` / `spr_color_lines()`（`src/sprite.c`） | `ART_SPR_SEG` |
+
+**必ず `bank_select(DATA_SEG)` で戻す。** 戻せば、窓側のコードから呼ばれても安全。
+これで窓が 3.2KB 空き、絵のほうも 8KB まで増やせるようになった
+（鉱車のような新しい絵を足す余地）。
 
 **唯一の制約は `title_draw()` の中から呼ばれるものを置けないこと。** あそこは窓を
 タイトル画像へ切り替えている最中なので、バンク側のコードは見えなくなる。

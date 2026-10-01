@@ -27,16 +27,24 @@ void spr_pattern(uint8_t pat, const uint8_t *data)
     vdp_upload((uint16_t)(VRAM_SPRPAT + ((uint16_t)pat << 5)), data, 32);
 }
 
+/*
+ * **絵を読む間だけ窓をスプライトのセグメントへ向け、必ず DATA_SEG へ戻す。**
+ * 渡される rows / cols は art_pattern() / art_colours() が返す窓の中の番地で、
+ * 実体は ROM の ART_SPR_SEG にある (src/art.c)。
+ * **このファイルは固定領域に置くこと。** 窓を向けている間、窓にあるコードは見えない。
+ */
 void spr_pattern_rows(uint8_t pat, const uint16_t *rows)
 {
     uint8_t i;
     vdp_setwrite((uint16_t)(VRAM_SPRPAT + ((uint16_t)pat << 5)));
+    bank_select(ART_SPR_SEG);
     for (i = 0; i < 16; i++) {          /* 左半分 (行0-15) */
         vdp_wdata((uint8_t)(rows[i] >> 8));
     }
     for (i = 0; i < 16; i++) {          /* 右半分 (行0-15) */
         vdp_wdata((uint8_t)(rows[i] & 0xFF));
     }
+    bank_select(DATA_SEG);
 }
 
 void spr_color(uint8_t plane, uint8_t color)
@@ -53,9 +61,11 @@ void spr_color_lines(uint8_t plane, const uint8_t *cols)
 {
     uint8_t i;
     vdp_setwrite((uint16_t)(VRAM_SPRCOL + ((uint16_t)plane << 4)));
+    bank_select(ART_SPR_SEG);           /* 色表も絵のセグメントにある */
     for (i = 0; i < 16; i++) {
         vdp_wdata(cols[i]);
     }
+    bank_select(DATA_SEG);
 }
 
 void spr_set(uint8_t plane, uint8_t x, uint8_t y, uint8_t pat)

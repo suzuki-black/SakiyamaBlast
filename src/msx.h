@@ -47,6 +47,14 @@ void bank_select(uint8_t seg) __z88dk_fastcall;
    **0xD000 -> 0xCE00 -> 0xCD00 と下げ、上も 0xEDFF -> 0xEFFF -> 0xF1FF へ伸ばした
    (2026-09-26)。** 変数との間の余裕は約110バイト、スタックとの間は271バイト。
    変数が伸びて食い込んだら tools/ihx2rom.py が止める。 */
+/* **絵は自前の ROM セグメントに置く。** 0xA000 の窓は 8KB しかなく、絵 (3.2KB) で
+   埋めると他のモジュールを置けなくなる。タイトル画像と同じやり方で、読むときだけ
+   窓をこのセグメントへ向け、**必ず DATA_SEG へ戻す** (src/sprite.c と draw_tile)。
+   実体は tools/png2art.py が build/tiles.bin / build/sprites.bin に書き出し、
+   tools/ihx2rom.py が ROM のこのセグメントへ入れる。 */
+#define ART_TILE_SEG 10        /* 背景タイル。1枚128バイト、先頭から順に */
+#define ART_SPR_SEG  11        /* スプライト: 形 (1枚32バイト) のあとに色 (1枚16バイト) */
+
 #define RAMCODE_SEG 8
 #define RAMCODE_ADDR 0xCD00
 /* 写す量。**リンカの l_RAMCODE は C から参照できない**ので、領域の大きさを

@@ -33,9 +33,11 @@ LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKD
 # **title_draw() の中から呼ばれるものは置けない。** あそこは窓をタイトル画像へ
 # 切り替えている最中なので、バンク側のコードは見えなくなる (vdp / lowlevel / msx は固定)。
 # それ以外は常に DATA_SEG が選ばれているので、コードを置いても同じ速度で動く。
-BANKED_SRC := $(SRCDIR)/art.c $(SRCDIR)/music.c \
+# **art と sprite は窓に置けない。** 絵のセグメントへ窓を向けている間に
+# 自分が見えなくなるため (art.c は番地を返すだけ、sprite.c は窓を切り替える側)。
+BANKED_SRC := $(SRCDIR)/music.c \
               $(SRCDIR)/config.c $(SRCDIR)/bonus.c $(SRCDIR)/debris.c $(SRCDIR)/kanji.c \
-              $(SRCDIR)/sprite.c $(SRCDIR)/haze.c
+              $(SRCDIR)/haze.c $(SRCDIR)/water.c $(SRCDIR)/hud.c
 
 # **RAM へ写して実行するモジュール。**
 # 0x4000-0xBFFF の 32KB はもう埋まっていて、並べ替えでは空きが作れない。
@@ -74,6 +76,10 @@ ART_SPR_SRC  := assets/sprites.png
 ART_TILE_SRC := assets/tiles.png
 ART_SPR      := $(BUILDDIR)/sprites.h
 ART_TILE     := $(BUILDDIR)/tiles.h
+ART_SPR_BIN  := $(BUILDDIR)/sprites.bin
+ART_TILE_BIN := $(BUILDDIR)/tiles.bin
+ART_TILE_SEG := 10
+ART_SPR_SEG  := 11
 PAL_H        := $(BUILDDIR)/palette.h
 # 名前はカンマ区切りで**1行**に書く。行継続で折ると空白が入って別の引数になる。
 ART_SPR_NAMES  := miner,bomb,rock,rat,bat,split,stun1,stun2,stun3,brace,wd1,wd2,wu1,wu2,wl1,wl2,wr1,wr2,bru,brl,brr,std,stu,stl,str,chip
@@ -98,11 +104,16 @@ $(TITLE_BIN) $(TITLE_PAL): $(TITLE_SRC) tools/png2sc5.py | $(BUILDDIR)
 $(PAL_H): tools/gen_palette_h.py tools/palette.py | $(BUILDDIR)
 	python3 tools/gen_palette_h.py $@
 
-$(ART_SPR): $(ART_SPR_SRC) tools/png2art.py tools/palette.py | $(BUILDDIR)
-	python3 tools/png2art.py $(ART_SPR_SRC) $@ --mode sprite --names $(ART_SPR_NAMES)
+# 絵は C の配列ではなく**バイナリ**にして、ROM の専用セグメントへ入れる
+# (0xA000 の窓は 8KB しかないので、絵で埋めるとコードが置けなくなる)。
+# ヘッダ側には枚数と名前の define だけが入る。
+$(ART_SPR) $(ART_SPR_BIN): $(ART_SPR_SRC) tools/png2art.py tools/palette.py | $(BUILDDIR)
+	python3 tools/png2art.py $(ART_SPR_SRC) $(ART_SPR) --mode sprite \
+	    --names $(ART_SPR_NAMES) --bin $(ART_SPR_BIN)
 
-$(ART_TILE): $(ART_TILE_SRC) tools/png2art.py tools/palette.py | $(BUILDDIR)
-	python3 tools/png2art.py $(ART_TILE_SRC) $@ --mode tile --names $(ART_TILE_NAMES)
+$(ART_TILE) $(ART_TILE_BIN): $(ART_TILE_SRC) tools/png2art.py tools/palette.py | $(BUILDDIR)
+	python3 tools/png2art.py $(ART_TILE_SRC) $(ART_TILE) --mode tile \
+	    --names $(ART_TILE_NAMES) --bin $(ART_TILE_BIN)
 
 # ヘッダにも依存させる。これが無いと game.h の定数を変えても再ビルドされず、
 # 古い ROM のまま「直したつもり」になる。
@@ -115,8 +126,9 @@ $(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(HEADERS) $(MAKEFILE) $(TITLE_PAL) $(ART_SPR) 
 $(IHX): $(BUILDDIR)/crt0.rel $(AOBJ) $(COBJ)
 	$(CC) $(LDFLAGS) -o $@ $(BUILDDIR)/crt0.rel $(filter-out $(BUILDDIR)/crt0.rel,$(AOBJ)) $(COBJ)
 
-$(ROM): $(IHX) $(TITLE_BIN) tools/ihx2rom.py
-	python3 tools/ihx2rom.py $(IHX) $(ROM) 128 $(TITLE_SEG):$(TITLE_BIN)
+$(ROM): $(IHX) $(TITLE_BIN) $(ART_TILE_BIN) $(ART_SPR_BIN) tools/ihx2rom.py
+	python3 tools/ihx2rom.py $(IHX) $(ROM) 128 $(TITLE_SEG):$(TITLE_BIN) \
+	    $(ART_TILE_SEG):$(ART_TILE_BIN) $(ART_SPR_SEG):$(ART_SPR_BIN)
 
 run: $(ROM)
 	openmsx -machine $(MACHINE) -carta $(ROM) -romtype ASCII8
