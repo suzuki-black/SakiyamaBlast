@@ -80,9 +80,11 @@ MACHINE=My_FS-A1ST_512K sh tools/smoketest.sh build/sakiyama.rom
 **出荷する形（turbo R / R800 DRAM）は 60fps 出る。** Z80 機との差は
 `docs/GAME_RULES.md` §13b の表にある。**速度の判断は turbo R と Z80 の両方で測ること。**
 
-**画面を絵にして見るときは、生きている VDP パレットを一緒に読むこと。**
-土の色は幕ごとに変えているので、`tools/palette.py` の既定の表で塗ると**色が嘘になる**
-（面10 の紫を茶色で見ていた）。`debug read {VDP palette} 0..31` を VRAM と一緒に落とす。
+**画面を絵にして見るときは `tools/vram2png.py` を使う。**
+`debug read {VDP palette} 0..31` を VRAM と一緒に落として `PAL <64桁>` の行で渡すと、
+**生きているパレットで塗る**（土の色は幕ごとに変えているので、`tools/palette.py` の
+既定の表で塗ると色が嘘になる。面10 の紫を茶色で見ていた）。ダンプの作り方は
+そのファイルの説明にある。
 
 **「遊んでいる最中」を体温で見分ける。** タイトル画面でも `frame_n` は進むので、
 fps を測るときは `temp` が上がり始めたことを確かめてから数え始める
