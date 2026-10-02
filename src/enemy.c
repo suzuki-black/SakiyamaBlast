@@ -189,11 +189,24 @@ static uint8_t near_cell(uint8_t i, int8_t cx, int8_t cy)
     return (uint8_t)((dx < 12 && dy < 12) ? 1 : 0);
 }
 
+/*
+ * **熱水は敵にとって地面と同じ。**
+ * 歩いては入れないが、**透明化すれば抜けられる** (土と同じ)。浸かっても敵は
+ * 平気なまま (湯でやられる絵も規則も無い) で、**遅くなるという形でだけ効く**
+ * ——「熱い湯の向こうへ回り込むには、透明になって時間をかけるしかない」
+ * (作者の案、2026-10-03)。自機にとっては体温が上がる危険、敵にとっては
+ * 回り道、と同じ升が二役になる。
+ */
+static uint8_t cell_solid(int8_t cx, int8_t cy)
+{
+    return (uint8_t)(!cell_dug(cx, cy) || cell_water(cx, cy));
+}
+
 /* こちらは坑道の中だけ。飛んでいるダイナマイトの当たり判定に使う。 */
 static uint8_t hits_cell(uint8_t i, int8_t cx, int8_t cy)
 {
-    if (!en_state[i] || (en_ghost[i] && !cell_dug(cx, cy))) {
-        return 0;
+    if (!en_state[i] || (en_ghost[i] && cell_solid(cx, cy))) {
+        return 0;                        /* 土の中 (熱水の中も同じ) は当たらない */
     }
     return near_cell(i, cx, cy);
 }
@@ -402,11 +415,8 @@ static uint8_t can_go(uint8_t i, uint8_t d)
         if (d == DIR_RIGHT) { return rock_can_push(ri, 1, 0); }
         return 0;                        /* 縦には押せない = 岩を避ける */
     }
-    if (!cell_dug(cx, cy)) {
-        return 0;                        /* 敵は自分では掘らない (Dig Dug 準拠) */
-    }
-    if (cell_water(cx, cy)) {
-        return 0;                        /* 熱水には入らない。熱いが安全な升になる */
+    if (cell_solid(cx, cy)) {
+        return 0;                        /* 土は掘らない (Dig Dug 準拠)。**熱水も同じ** */
     }
     /* 隣り合う坑道でも、間に土の膜が残っていれば歩いては抜けられない。
        抜けたければ透明化するしかない (=遅くなる)。 */
@@ -647,9 +657,9 @@ static void ghost_step(uint8_t i)
 
     c = (uint8_t)((en_x[i] + 8) >> 4);
     r = (uint8_t)((en_y[i] + 8) >> 4);
-    if (!cell_dug((int8_t)c, (int8_t)r)) {
-        en_gdirt[i] = 1;                 /* 土の中へ入った */
-        return;
+    if (cell_solid((int8_t)c, (int8_t)r)) {
+        en_gdirt[i] = 1;                 /* 土の中へ入った (**熱水の中も同じ**) */
+        return;                          /* 湯の中では実体化しない。出るまで透明のまま */
     }
     /* 一度も土へ入っていないうちは実体化しない。そうしないと、トンネルの中で
        透明化した敵がすぐ戻ってしまい、すり抜けがほとんど発動しない。 */
