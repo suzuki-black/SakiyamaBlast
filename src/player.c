@@ -202,6 +202,12 @@ void player_carve(void)
     for (r = r0; r <= r1 && r < ROWS; r++) {
         for (c = c0; c <= c1 && c < COLS; c++) {
             uint16_t i = (uint16_t)r * COLS + c;
+            /* **レールも描き直す。** 抜かすと、自機が通った升のレールだけが黒く消え、
+               鉱車が何も無いところを走っているように見える (作者の指摘、2026-10-04)。
+               置いてある物より先に描く (レールは床で、物はその上に載る)。 */
+            if (cart_on && r == cart_r && c >= cart_c0 && c <= cart_c1) {
+                draw_rail(c, r);
+            }
             if (coal[i]) {
                 draw_coal(c, r);
             } else if (bath_on && c == bath_c && r == bath_r) {
