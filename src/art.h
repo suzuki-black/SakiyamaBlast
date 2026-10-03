@@ -41,6 +41,9 @@ const uint8_t  *art_colours(uint8_t i);   /* mode-2 の行ごとの色 (16バイ
    (その板がどちらへ落とすはずだったかまで読める)。 */
 #define TILE_TOIBR  14     /* 折れた板 (もとは右下がり) */
 #define TILE_TOIBL  15     /* 折れた板 (もとは左下がり) */
+#define TILE_RAIL   16     /* 鉱車のレール */
+#define TILE_RAILL  17     /* レールの左端 (車止め) */
+#define TILE_RAILR  18     /* レールの右端 (車止め) */
 const uint8_t *art_tile_of(uint8_t i);
 
 #endif

@@ -269,6 +269,7 @@ static void draw_actors(void)
     rock_draw();
     enemy_draw();
     debris_draw();
+    cart_draw();
     oam_flush();
 }
 
@@ -596,6 +597,7 @@ void main(void)
         enemy_update();
         bonus_update();
         water_tick();                /* 出水 (第三坑)。落盤のあと1秒に1升ずつ広がる */
+        cart_update();               /* 鉱車 (第四坑)。レールの上を等速で往復する */
         tlimit_tick();               /* 持ち時間。0 で時間切れ = 1ミス */
 
         if (dead && cfg_invincible) {

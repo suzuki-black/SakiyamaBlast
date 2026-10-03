@@ -41,6 +41,7 @@ A_CFGSTAGE=$(addr cfg_start_stage)
 A_SPRINGON=$(addr spring_on); A_SPRINGC=$(addr spring_c); A_SPRINGR=$(addr spring_r)
 A_WATER=$(addr water)
 A_TLHI=$(addr tl_sec_hi); A_TLLO=$(addr tl_sec_lo)
+A_CARTON=$(addr cart_on); A_CARTR=$(addr cart_r); A_CARTC0=$(addr cart_c0); A_CARTC1=$(addr cart_c1)
 
 # 面1は掘り抜きが数字の「1」(15升) ＋ 敵の湧き出し口1升 = 16升。
 # 自機は掘り抜きの上端、湧き出し口は土の中の独立した1ブロック (位置は乱数)。
@@ -109,6 +110,12 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
                 if {\$wv == 3} { incr pn } elseif {\$wv} { incr wn } }; \
             puts \$f \"WATERN \$wn\"; \
             puts \$f \"POOLN \$pn\"; \
+            puts \$f \"CARTON [debug read memory $A_CARTON]\"; \
+            set rr [debug read memory $A_CARTR]; set r0 [debug read memory $A_CARTC0]; set r1 [debug read memory $A_CARTC1]; \
+            puts \$f \"CARTLEN [expr {\$r1 - \$r0 + 1}]\"; \
+            set ro 1; \
+            for {set k \$r0} {\$k<=\$r1} {incr k} { if {![debug read memory [expr {$A_DUG+\$rr*16+\$k}]]} { set ro 0 } }; \
+            puts \$f \"CARTOPEN \$ro\"; \
             puts \$f \"TIMEM [debug read memory $A_TLHI]\"; \
             puts \$f \"TIMES [debug read memory $A_TLLO]\"; \
             close \$f; \
@@ -172,6 +179,7 @@ check PX       $(( $(val STARTC) * 16 )) "自機のX (= 出発点の列 x16)"
 check PY       $(( $(val STARTR) * 16 )) "自機のY (= 出発点の行 x16)"
 check BATHON   1   "風呂が健在"
 check CHUTEN   0   "第一坑 (面1) には樋が無い"
+check CARTON   0   "第一坑 (面1) に鉱車は無い"
 check TIMEM    3   "持ち時間が3分から始まる"
 check TIMES    0   "持ち時間の秒が 00 から始まる"
 
@@ -212,6 +220,9 @@ trap 'rm -f "$OUT" "$OUT4" "$OUT7" "$OUT9" "$OUT12"' EXIT
 run_stage 12 "$OUT12"
 OUT=$OUT12
 check POOLN    2 "面12 に溜まり湯が2升 置かれている"
+check CARTON   1 "面12 に鉱車のレールが置かれている"
+check CARTLEN  5 "レールの長さが5升"
+check CARTOPEN 1 "レールの升が最初から開いている (鉱車が走れる)"
 check SPRINGON 0 "第四坑に湧き出し口は無い (溜まり湯は広がらない)"
 check BATHON   1 "水風呂が健在 (溜まり湯で潰されていない)"
 

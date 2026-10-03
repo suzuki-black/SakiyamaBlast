@@ -87,6 +87,7 @@ CHUTE_START_ST = 4
 # wet が小さい種は、敵の巣や岩で水路が塞がって数升しか広がらない (実測で3升の種があった)。
 WATER_ST = 7
 WATER_ST_END = 9
+CART_ST = 10          # 鉱車 (第四坑から)
 WATER_WET_MIN = 10
 _HPICK0_MIN = {1: 4, 2: 3, 3: 3}
 # **ずらして置いた岩 (2026-09-16)。** 面が進むと岩の一部を炭層の真上からずらして置く
@@ -112,6 +113,10 @@ def _require(r, st):
     if r['rowdup']:
         return False
     if WATER_ST <= st <= WATER_ST_END and (r['wet'] < WATER_WET_MIN or r['wseal']):
+        return False
+    # **鉱車。** レールが置けていること、そのレールの上の列に岩があること
+    # (載せる物が無いと、走っているだけの飾りになる)。
+    if st >= CART_ST and (not r['rail'] or r['railrock'] < 1):
         return False
     if st < CHUTE_START_ST and r['hbend']:
         return False                      # 第一坑に樋は置かない (置いたら生成側の不具合)

@@ -1041,6 +1041,15 @@ void draw_spring(uint8_t cx, uint8_t cy)
     draw_tile(cx, cy, art_tile_of(water_done ? TILE_SPRINGOFF : TILE_SPRING), 2);
 }
 
+/* 鉱車のレール。**升の端まで届く絵**なので inset 0 で描き、隣の升と繋がって見える。
+   両端は車止め (ここで鉱車が折り返す)。 */
+void draw_rail(uint8_t cx, uint8_t cy)
+{
+    uint8_t t = (uint8_t)((cx == cart_c0) ? TILE_RAILL
+                        : (cx == cart_c1) ? TILE_RAILR : TILE_RAIL);
+    draw_tile(cx, cy, art_tile_of(t), 0);
+}
+
 /* 風呂 (温泉)。触れると体温が一気に下がる。 */
 void draw_bath(uint8_t cx, uint8_t cy)
 {
@@ -1089,6 +1098,9 @@ void field_redraw_cell(int8_t cx, int8_t cy)
     }
     draw_cell_dirt(cx, cy);
     draw_dug_cell(cx, cy);
+    if (cart_on && (uint8_t)cy == cart_r && (uint8_t)cx >= cart_c0 && (uint8_t)cx <= cart_c1) {
+        draw_rail((uint8_t)cx, (uint8_t)cy);
+    }
     /* **板を描いてから、置いてある物を上に重ねる。** 落とし物は置かれないように
        してあるが (can_drop)、投げたダイナマイトだけは板の升へ落ちうる。
        ここで return すると**そのダイナマイトが見えなくなる**ので、重ねて描く。
@@ -2102,6 +2114,50 @@ static uint8_t coal_dry_ok(uint8_t c, uint8_t r)
 }
 
 /*
+ * **鉱車のレール。** 水平に CART_LEN 升ぶん、まとめて坑道にする
+ * (樋の升と同じで、**面の開始から開いている**。鉱車が走れないと意味が無い)。
+ *
+ * 置き方の約束:
+ *   - **盤面の上下の端は避ける。** 上に岩を載せられて、下へ落とせる行であること
+ *   - 出発点・水風呂・敵の巣とは重ねない (used[] が立っている升は使わない)
+ *   - **置いた升は used[] にする。** 黒ダイヤも岩も炭柱も湧き出し口も溜まり湯も
+ *     レールの上には来ない (鉱車の通り道を塞がせない)
+ *
+ * **炭と岩より先に置く。** 後から置くと、せっかく組んだ炭層や岩の上を
+ * レールが踏み潰してしまう。
+ */
+static void place_rail(void)
+{
+    uint8_t try_n, c, r, k;
+    uint16_t i;
+
+    if (stage < CART_ST) {
+        return;
+    }
+    for (try_n = 0; try_n < 24; try_n++) {
+        r = (uint8_t)(2 + rnd8() % (ROWS - 4));          /* 上下の端は避ける */
+        c = (uint8_t)(rnd8() % (COLS - CART_LEN + 1));
+        for (k = 0; k < CART_LEN; k++) {
+            i = (uint16_t)r * COLS + (uint16_t)(c + k);
+            if (used[i]) {
+                break;                                   /* 出発点・風呂・巣など */
+            }
+        }
+        if (k < CART_LEN) {
+            continue;
+        }
+        for (k = 0; k < CART_LEN; k++) {
+            i = (uint16_t)r * COLS + (uint16_t)(c + k);
+            dug[i] = 1;
+            used[i] = 1;
+            link_open((uint8_t)(c + k), r);
+        }
+        cart_place(c, (uint8_t)(c + CART_LEN - 1), r);
+        return;
+    }
+}
+
+/*
  * **溜まり湯。** 面の開始から坑道に溜まっている熱水で、**最初から止まっている。**
  * 湧き出し口の水 (面7) と違って広がらないが、縁にはいつも「せき止め」の印が出ている
  * ので、**面7で覚えた「この印より先へは来ない」がそのまま読める。**
@@ -2181,6 +2237,7 @@ static void place_pool(void)
 #define PH_CHUTE  6
 #define PH_WATER  7
 #define PH_POOL   8
+#define PH_RAIL   9
 
 static void phase_seed(uint8_t k)
 {
@@ -2196,6 +2253,7 @@ static void set_stage_layout(void)
         used[i] = 0;
     }
     water_reset();
+    cart_reset();
     flood_wet = 0;          /* **BSS は零で始まらない。** 通路を繋ぐ塗り潰しは水の規則で走らせない */
 
     set_dirt_palette();
@@ -2228,6 +2286,10 @@ static void set_stage_layout(void)
     connect_to_reach(bath_c, bath_r);
     flood_from(start_c, start_r);
     connect_to_reach(nest_c, nest_r);
+
+    /* **鉱車のレールは炭と岩より先。** 後から置くと炭層や岩を踏み潰す。 */
+    phase_seed(PH_RAIL);
+    place_rail();
 
     phase_seed(PH_POWDER);
     place_powder(POWDER_PER_STAGE);
@@ -2264,8 +2326,8 @@ static void set_stage_layout(void)
    落盤で採れる数 (taken) は 面1〜3 で4個、面15 で0個。難易度の軸はこちら。 */
 const uint16_t stage_seed[15] = {
     21997, 28674,  3566, 38747, 20932,
-    47939,  8498, 48857, 18880, 23334,
-    49856, 23219, 20976, 28082, 15316,
+    47939,  8498, 48857, 18880, 36334,
+    38638, 51353, 55830,  4250,  5020,
 };
 uint16_t layout_seed_force;      /* 0 以外なら強制的にこの種を使う (道具用) */
 
@@ -2345,6 +2407,9 @@ void build_stage(void)
                 continue;
             }
             draw_dug_cell((int8_t)c, (int8_t)r);
+            if (cart_on && r == cart_r && c >= cart_c0 && c <= cart_c1) {
+                draw_rail(c, r);
+            }
             if (chute[(uint16_t)r * COLS + c]) {
                 draw_chute(c, r);
                 continue;

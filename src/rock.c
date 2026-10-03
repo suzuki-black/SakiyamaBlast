@@ -142,6 +142,9 @@ static uint8_t supported(uint8_t i)
     if ((int8_t)player_cell_c() == c && (int8_t)player_cell_r() == (int8_t)(r + 1)) {
         return 1;                       /* 自機が真下で支えている */
     }
+    if (cart_at(c, (int8_t)(r + 1))) {
+        return 1;                       /* **鉱車も支え。** 下を通っている間だけ持つ */
+    }
     return rock_solid_at(c, (int8_t)(r + 1));
 }
 
@@ -468,6 +471,20 @@ uint8_t rock_busy(void)
         }
     }
     return 0;
+}
+
+/* **その岩をいますぐ落とす。** 鉱車が車止めで岩を放り出すときに使う
+   (揺れを挟まない。放り出されたのだから、ためらわずに落ちる)。 */
+void rock_drop_now(uint8_t i)
+{
+    if (rock_state[i] != ROCK_WAIT && rock_state[i] != ROCK_JIG) {
+        return;
+    }
+    rock_x[i] = (uint8_t)((uint8_t)rcx(i) << 4);
+    rock_state[i] = ROCK_FALL;
+    fall_r0[i] = (uint8_t)(rock_y[i] >> 4);
+    crushed[i] = 0;
+    kills[i] = 0;
 }
 
 void rock_update(void)

@@ -292,7 +292,8 @@ extern uint8_t combo_t;       /* HUD に出しておく残り時間 */
 #define SPR_ROCK   2                        /* 面 2..5 */
 #define SPR_ENEMY  (SPR_ROCK + ROCK_MAX)    /* 面 6..9 */
 #define SPR_DEBRIS (SPR_ENEMY + ENEMY_MAX)  /* 石炭のかけら */
-#define SPR_ACTIVE (SPR_DEBRIS + DEBRIS_MAX) /* 実際に使う面の数。OAM 転送量を抑える */
+#define SPR_CART   (SPR_DEBRIS + DEBRIS_MAX) /* 鉱車 (第四坑から) */
+#define SPR_ACTIVE (SPR_CART + 1)            /* 実際に使う面の数。OAM 転送量を抑える */
 
 /* スプライトの絵番号 */
 #define PAT_MINER 0
@@ -324,6 +325,8 @@ extern uint8_t combo_t;       /* HUD に出しておく残り時間 */
 #define PAT_STL  23
 #define PAT_STR  24
 #define PAT_CHIP 25      /* 石炭のかけら。採った升から自機へ吸い寄せられる */
+#define PAT_CART     26  /* 鉱車 (空) */
+#define PAT_CARTROCK 27  /* 岩を載せた鉱車。**合体した1枚**にして走査線を節約する */
 /* かけらは「岩でも採掘できる」を絵で説明するためのもの。言葉にしにくい仕組みなので、
    自機へ集まる動きで「いま手に入った」を伝える。 */
 #define DEBRIS_MAX     6
@@ -411,6 +414,7 @@ extern const uint16_t stage_seed[15];   /* 面ごとの盤面の種 (0=既定式
 extern uint16_t layout_seed_force;      /* 0 以外なら強制的にこの種を使う (道具用) */
 
 void draw_water(uint8_t cx, uint8_t cy);
+void draw_rail(uint8_t cx, uint8_t cy);
 void draw_spring(uint8_t cx, uint8_t cy);
 
 /* 出水 (src/water.c) */
@@ -455,6 +459,22 @@ void    draw_swing_fx(uint8_t cx, uint8_t cy, uint8_t dir, uint8_t phase);
 void    clear_sweat(void);
 extern uint8_t swing_pow;   /* いまの威力 (0 = 溜めていない) */
 void    link_smash(uint8_t cx, uint8_t cy);  /* 岩が縦に突き破った膜を開く */   /* 割れた瞬間の画面揺れと、採掘した升の閃き。毎フレーム呼ぶ */
+
+/* --- cart.c: 鉱車 (第四坑のギミック) --- */
+/* **岩を水平に数升運ぶ装置。** レールは面の開始から見えていて、鉱車は等速で往復する。
+   鉱車の升は岩の支えになり、真上の岩は一緒に運ばれて**車止めで放り出される**。
+   自機は轢かれると押されるだけ (挟まれたときだけミス)、敵は倒せる。
+   docs/STAGE_ACTS_ROADMAP.md §5 / docs/GAME_RULES.md §7d。 */
+#define CART_ST    10         /* この面から鉱車がある (第四坑から) */
+#define CART_LEN    5         /* レールの長さ (升) */
+#define CART_SPD   12         /* 速度の分子。SPD_UNIT 24 の半分 = 30px/s (自機の半分) */
+extern uint8_t cart_on;       /* 1 = この面に鉱車がある */
+extern uint8_t cart_r, cart_c0, cart_c1;   /* レールの行と左右の端 */
+void    cart_reset(void);
+void    cart_place(uint8_t c0, uint8_t c1, uint8_t r);
+void    cart_update(void);                 /* 遊んでいる間だけ毎フレーム */
+void    cart_draw(void);
+uint8_t cart_at(int8_t c, int8_t r);       /* その升に鉱車が居るか (岩の支え) */
 
 /* --- tlimit.c: 1面の制限時間 --- */
 /* **敵は無限に牽制できるので、時間をかければどの面もいつかは抜けられてしまう。**
@@ -582,6 +602,7 @@ void    rock_update(void);
 /* 炭柱が壊れた = 天盤が落ちる。盤面のすべての岩が真下の升を抜かれて落ちる。 */
 void    rock_collapse(void);
 void    rock_collapse_later(void);   /* 岩の処理が終わってから落盤を起こす */
+void    rock_drop_now(uint8_t i);    /* その岩をいますぐ落とす (鉱車が放り出す) */
 /* 揺れ・落下・破砕表示のいずれかが進行中の岩があるか。クリアを待たせるのに使う。 */
 uint8_t rock_busy(void);
 void    rock_draw(void);
