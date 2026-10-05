@@ -792,7 +792,8 @@ static void analyse(int st, unsigned sd)
 /*
  * **出水を試す (--water)。** 面を組んで落盤を起こし、熱水が広がる様子を升で出す。
  * 実機と同じ src/water.c を回すので、規則の確認はここでできる。
- *   . = 土 / 空白 = 坑道 / 数字 = 黒ダイヤ / O = 岩 / ~ = 熱水 / = = 溜まり湯 / S = 湧き出し口
+ *   . = 土 / 空白 = 坑道 / 数字 = 黒ダイヤ / O = 岩 / ~ = 熱水 / = = 溜まり湯
+ *   = = 鉱車のレール / | = 車止め / S = 湧き出し口
  *   B = 水風呂 / N = 敵の湧き出し口 / @ = 自機の出発点
  */
 static void water_demo(int st)
@@ -824,7 +825,11 @@ static void water_demo(int st)
     for (r = 0; r < ROWS; r++) {
         for (c = 0; c < COLS; c++) {
             i = r * COLS + c;
-            if (water[i] == WATER_POOL)            { putchar('='); }
+            if (cart_on && r == cart_r && c >= cart_c0 && c <= cart_c1
+                && !water[i] && !coal[i] && rock_at((int8_t)c, (int8_t)r) < 0) {
+                putchar((c == cart_c0 || c == cart_c1) ? '|' : '=');   /* レールと車止め */
+            }
+            else if (water[i] == WATER_POOL)       { putchar('='); }
             else if (water[i])                     { putchar('~'); }
             else if (spring_on && c == spring_c && r == spring_r) { putchar('S'); }
             else if (coal[i] && coal[i] != COAL_CRACKED) { putchar('0' + (coal[i] % 10)); }
