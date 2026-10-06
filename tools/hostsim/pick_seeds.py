@@ -115,8 +115,9 @@ def _require(r, st):
     if WATER_ST <= st <= WATER_ST_END and (r['wet'] < WATER_WET_MIN or r['wseal']):
         return False
     # **鉱車。** レールが置けていること、そのレールの上の列に岩があること
-    # (載せる物が無いと、走っているだけの飾りになる)。
-    if st >= CART_ST and (not r['rail'] or r['railrock'] < 1):
+    # (載せる物が無いと飾りになる)、そして**車止めの下に黒ダイヤがあること**
+    # (運んだ先に見返りが無いと、運ぶ意味が無い)。
+    if st >= CART_ST and (not r['rail'] or r['railrock'] < 1 or r['railpay'] < 1):
         return False
     if st < CHUTE_START_ST and r['hbend']:
         return False                      # 第一坑に樋は置かない (置いたら生成側の不具合)

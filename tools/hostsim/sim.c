@@ -438,7 +438,7 @@ static void analyse(int st, unsigned sd)
     int bump = 0, side = 0, cavef = 0, cbend = 0, nfall = 0, lost = 0, maxline = 0;
     int noff = 0, npush = 0, hpush = 0, hpbend = 0, rowdup = 0;
     int hprep = 0, hprepbend = 0, cbal = 0, rbal = 0, hpick0 = 0, wet = 0, wseal = 0;
-    int pool = 0, rail = 0, railrock = 0;
+    int pool = 0, rail = 0, railrock = 0, railpay = 0;
     int bi_d[ROCK_MAX], bi_k[ROCK_MAX], bi_got[ROCK_MAX];
     int seen[NCELL], veins = 0, vmax = 0;
     for (c = 0; c < COLS; c++) { col[c] = 0; }
@@ -753,9 +753,20 @@ static void analyse(int st, unsigned sd)
        岩が1つも無いと鉱車に載せる物が無く、ただ走っているだけの飾りになる。 */
     rail = cart_on;
     if (cart_on) {
+        int e, k;
         for (i = 0; i < ROCK_MAX; i++) {
             int rc = rock_x[i] >> 4, rr = rock_y[i] >> 4;
             if (rock_state[i] && rr < cart_r && rc >= cart_c0 && rc <= cart_c1) { railrock++; }
+        }
+        /* **車止めの下に黒ダイヤがあるか。** 運んだ先に何も無いと、
+           「岩を遠くへ運ぶ」ことに見返りが無く、鉱車がただの飾りになる。
+           途中の土は掘れるので、列に黒ダイヤが何個あるかだけを数える。 */
+        for (e = 0; e < 2; e++) {
+            int c = e ? cart_c1 : cart_c0, n = 0;
+            for (k = cart_r + 1; k < ROWS; k++) {
+                if (coal[k * COLS + c]) { n++; }
+            }
+            if (n > railpay) { railpay = n; }
         }
     }
 
@@ -781,12 +792,12 @@ static void analyse(int st, unsigned sd)
            "\"taken\":%d,\"crack\":%d,\"dug0\":%u,"
            "\"noff\":%d,\"npush\":%d,\"hpush\":%d,\"hpbend\":%d,\"rowdup\":%d,"
            "\"hprep\":%d,\"hprepbend\":%d,\"cbal\":%d,\"rbal\":%d,\"hpick0\":%d,"
-           "\"wet\":%d,\"wseal\":%d,\"pool\":%d,\"rail\":%d,\"railrock\":%d}\n",
+           "\"wet\":%d,\"wseal\":%d,\"pool\":%d,\"rail\":%d,\"railrock\":%d,\"railpay\":%d}\n",
            st, sd, coal0, nrock, free_max, haul, best, veins, vmax,
            chutes, reach, hand, hbend, hpick, bend, best_combo,
            bump, side, cavef, cbend, nfall, lost, maxline, taken, crack, dug_n0,
            noff, npush, hpush, hpbend, rowdup, hprep, hprepbend, cbal, rbal, hpick0,
-           wet, wseal, pool, rail, railrock);
+           wet, wseal, pool, rail, railrock, railpay);
 }
 
 /*
