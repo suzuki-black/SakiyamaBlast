@@ -475,6 +475,7 @@ void    cart_place(uint8_t c0, uint8_t c1, uint8_t r);
 void    cart_update(void);                 /* 遊んでいる間だけ毎フレーム */
 void    cart_draw(void);
 uint8_t cart_at(int8_t c, int8_t r);       /* その升に鉱車が居るか (岩の支え) */
+uint8_t cart_carrying(uint8_t i);          /* その岩を載せているか (岩の絵は出さない) */
 
 /* --- tlimit.c: 1面の制限時間 --- */
 /* **敵は無限に牽制できるので、時間をかければどの面もいつかは抜けられてしまう。**

@@ -77,18 +77,31 @@ static void cart_release(void)
     }
 }
 
-/* 真上の升に載っている岩を拾う。鉱車が支えているので岩は落ちずに待っている。 */
+/*
+ * **荷台の升に落ちてきた岩を拾う。**
+ * 岩は鉱車の升そのものに入る (上に積まない)。**高さは一段のまま**で、
+ * 絵も「岩を載せた鉱車」1枚に差し替える。上の升へ載せていたときは、
+ * 岩のスプライトが別に残って**二段に見えていた** (作者の指摘、2026-10-06)。
+ */
 static void cart_pickup(void)
 {
     int8_t c = (int8_t)((cart_x + 8) >> 4);
     int8_t i;
-    if (cart_load >= 0 || cart_r == 0) {
+    if (cart_load >= 0) {
         return;
     }
-    i = rock_at(c, (int8_t)(cart_r - 1));
+    i = rock_at(c, (int8_t)cart_r);
     if (i >= 0 && rock_state[(uint8_t)i] == ROCK_WAIT) {
         cart_load = i;
+        rock_y[(uint8_t)i] = (uint8_t)(cart_r << 4);   /* 升へ揃える */
     }
+}
+
+/* その岩を鉱車が載せているか。**載せている岩は絵を出さない**
+   (鉱車の絵に岩が描き込んであるので、二重に出すと二段に見える)。 */
+uint8_t cart_carrying(uint8_t i)
+{
+    return (uint8_t)(cart_on && cart_load >= 0 && (uint8_t)cart_load == i);
 }
 
 /*
