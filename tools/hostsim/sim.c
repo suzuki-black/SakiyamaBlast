@@ -405,6 +405,30 @@ static int push_try(int i, int d, int k, int v, int coal0, int *nb)
 }
 
 /*
+ * **鉱車の見返りを測る (--cart)。** 車止めから岩を落として、黒ダイヤを何個
+ * 持っていけるかを数える。**実際に岩を落として物理を回す**ので、途中の土や
+ * 別の岩で止まるぶんもそのまま出る。
+ *   そのまま     : 面の開始の盤面のまま落とした場合 (下が土なら止まる)
+ *   下を掘れば   : 車止めの下の列の土を掘ってから落とした場合 (プレイヤーの手入れ後)
+ */
+static int drop_from(int c, int r)
+{
+    /* **盤面にある岩を1つ借りて**、車止めの升から落とす (鉱車が運んでくるのと同じ)。
+       新しく置こうとすると、岩の枠を使い切っている面で置けない。 */
+    int i, f, before = coal_left, use = -1;
+    for (i = 0; i < ROCK_MAX; i++) {
+        if (rock_state[i] == ROCK_WAIT) { use = i; break; }
+    }
+    if (use < 0) { return -1; }
+    rock_x[use] = (uint8_t)(c << 4);
+    rock_y[use] = (uint8_t)(r << 4);
+    rock_state[use] = ROCK_WAIT;
+    rock_drop_now((uint8_t)use);
+    for (f = 0; f < 200; f++) { rock_update(); coal_shake_tick(); }
+    return before - coal_left;
+}
+
+/*
  * 盤面を**静的に**測る。ボットを走らせない。
  *
  * 貪欲ボットは面1すらクリアできないので、盤面の良し悪しの判定には使えない。
@@ -753,21 +777,23 @@ static void analyse(int st, unsigned sd)
        岩が1つも無いと鉱車に載せる物が無く、ただ走っているだけの飾りになる。 */
     rail = cart_on;
     if (cart_on) {
-        int e, k;
+        int e;
         for (i = 0; i < ROCK_MAX; i++) {
             int rc = rock_x[i] >> 4, rr = rock_y[i] >> 4;
             if (rock_state[i] && rr < cart_r && rc >= cart_c0 && rc <= cart_c1) { railrock++; }
         }
-        /* **車止めの下に黒ダイヤがあるか。** 運んだ先に何も無いと、
-           「岩を遠くへ運ぶ」ことに見返りが無く、鉱車がただの飾りになる。
-           途中の土は掘れるので、列に黒ダイヤが何個あるかだけを数える。 */
+        /* **車止めから岩を落として、実際に採れる黒ダイヤを数える。**
+           列に黒ダイヤが「ある」だけでは届かない (途中の岩や水風呂で止まる)。
+           机上で数えていたときは、6面中3面が**実際には0個**だった
+           (作者の問い「実際に鉱脈を潰す面は何面か」で分かった、2026-10-09)。
+           **盤面にある岩を1つ借りる** (鉱車が運んでくるのと同じ)。 */
         for (e = 0; e < 2; e++) {
-            int c = e ? cart_c1 : cart_c0, n = 0;
-            for (k = cart_r + 1; k < ROWS; k++) {
-                if (coal[k * COLS + c]) { n++; }
-            }
-            if (n > railpay) { railpay = n; }
+            int c = e ? cart_c1 : cart_c0, got;
+            build_stage();
+            got = drop_from(c, cart_r);
+            if (got > railpay) { railpay = got; }
         }
+        build_stage();
     }
 
     /* **左右の散らばり。** 少ない側の割合 (百分率)。0 = 片側だけ、50 = 均等 */
@@ -876,10 +902,29 @@ static void water_demo(int st)
            water[nest_r * COLS + nest_c] ? "水没" : "無事");
 }
 
+static void cart_demo(int st)
+{
+    int e;
+    build_stage();
+    if (!cart_on) { printf("面%d 鉱車なし\n", st); return; }
+    printf("面%d レール 行%d 列%d..%d\n", st, cart_r, cart_c0, cart_c1);
+    for (e = 0; e < 2; e++) {
+        int c = e ? cart_c1 : cart_c0, k, raw, dug_;
+        build_stage();
+        raw = drop_from(c, cart_r);
+        build_stage();
+        for (k = cart_r + 1; k < ROWS; k++) {
+            if (!coal[k * COLS + c]) { dig_sweep((uint8_t)c, (uint8_t)k); }
+        }
+        dug_ = drop_from(c, cart_r);
+        printf("  車止め 列%-2d : そのまま %d個 / 下を掘れば %d個\n", c, raw, dug_);
+    }
+}
+
 int main(int argc, char **argv)
 {
     int want_stage = 1, seed = 1, max_frames = 5400, greedy = 1, i, f;
-    int do_analyse = 0, sweep = 0, do_water = 0;
+    int do_analyse = 0, sweep = 0, do_water = 0, do_cart = 0;
     unsigned lseed = 0;
     uint32_t prev_score = 0;
 
@@ -893,6 +938,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--analyse")) { do_analyse = 1; }
         else if (!strcmp(argv[i], "--sweep") && i + 1 < argc) { sweep = atoi(argv[++i]); }
         else if (!strcmp(argv[i], "--water")) { do_water = 1; }
+        else if (!strcmp(argv[i], "--cart")) { do_cart = 1; }
     }
 
     /* 乱数の種。実機は起動からの経過で決まるので、ここでは明示的に回して合わせる。 */
@@ -912,6 +958,11 @@ int main(int argc, char **argv)
     layout_seed_force = (uint16_t)lseed;
     if (do_water) {
         water_demo(want_stage);
+        return 0;
+    }
+    if (do_cart) {
+        stage = want_stage;
+        cart_demo(want_stage);
         return 0;
     }
     build_stage();
