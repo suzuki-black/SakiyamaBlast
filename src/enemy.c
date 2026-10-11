@@ -428,17 +428,21 @@ static uint8_t can_go(uint8_t i, uint8_t d)
 
 static const uint8_t kind_speed[EN_KINDS] = { SPD_RED, SPD_PINK, SPD_CYAN, SPD_ORANGE };
 
-/* 色ごとのスプライト色。mode 2 は1行1色なので、行ごとの色表を色数ぶん持つ。
-   **姿は4種とも同じで色だけが違う**ので、色を見れば動きの癖が分かる。
-   5〜6行目だけ白くして目に見せている。 */
-#define KCOL(c) { (c),(c),(c),(c), COL_WHITE, COL_WHITE, (c),(c),(c),(c),(c),(c),(c),(c),(c),(c) }
-static const uint8_t kind_colours[EN_KINDS][16] = {
-    KCOL(COL_RED),      /* 赤: 追いかけ */
-    KCOL(COL_BAT),      /* 桃: 待ち伏せ */
-    KCOL(COL_DIA),      /* 水: 気まぐれ (赤の位置に連動) */
-    KCOL(COL_RAT)       /* 橙: お惚け */
+/*
+ * **種ごとの色。** 体の色は種を表す印で、色を見れば狙いの決め方が分かる
+ * (パックマンのゴーストと同じ)。状態表示に色を使ってはいけないのはこのため。
+ *
+ * 並びは {体, 耳と足, 目, 影} で、行の役 (RL_*) がそのまま添字になる。
+ * **耳と足は体から浮く色を種ごとに選ぶ。** 3種は肌色だが、橙の体 (COL_RAT) は
+ * 肌色とほとんど同じ色味で、肌色にすると耳も足も体に沈んで**一色に戻る**
+ * (実測の絵で確かめた)。橙だけ灰にしてある。
+ */
+static const uint8_t kind_pal[EN_KINDS][4] = {
+    { COL_RED, COL_SKIN, COL_WHITE, COL_DARK },   /* 赤: 追いかけ */
+    { COL_BAT, COL_SKIN, COL_WHITE, COL_DARK },   /* 桃: 待ち伏せ */
+    { COL_DIA, COL_SKIN, COL_WHITE, COL_DARK },   /* 水: 気まぐれ (赤の位置に連動) */
+    { COL_RAT, COL_ROCK, COL_WHITE, COL_DARK }    /* 橙: お惚け */
 };
-
 
 /* 各色の「自分の隅」。散開中と、橙が自機に近づきすぎたときに向かう。 */
 static const uint8_t corner_c[EN_KINDS] = { COLS - 1, 0, COLS - 1, 0 };
@@ -751,23 +755,48 @@ void enemy_update(void)
     }
 }
 
-/* よろけの段ごとの色表を組み立てる。潰れると体が下がるので、白い帯もそこへ合わせる。
-   段ごとに表を持つと 4種 x 4段 x 16行 = 256バイト要るので、その場で組む。 */
-static uint8_t stun_col[16];
-static const uint8_t stun_band[4] = { 4, 6, 8, 11 };   /* 白い帯の開始行 */
+/*
+ * **行ごとに役を決めて色を当てる (敵の多色化、2026-10-11)。**
+ * mode 2 のスプライトは1行1色なので、**色の違いは横の帯でしか出せない**。
+ * そこで絵の行を役で分け、耳と足を体から浮く色に、目の帯を白、足元を影にして、
+ * 残り (体) に種の色を置く。**体が一番広いので、種の色は遠目でも分かる。**
+ *
+ * 目は絵のほうが**穴**になっている。白い帯をその行に重ねると、穴が瞳として
+ * 抜ける (土の上なら土の色、坑道なら黒)。以前は白い帯を目より上に置いていたので、
+ * 体は一色のままだった。
+ *
+ * よろけると体が潰れて役の行が下がるので、**段ごとに表を持つ**。
+ * 4段 x 16行 = 64バイト。色そのものは変わらない (色は種の印であって状態表示ではない)。
+ */
+#define RL_BODY 0      /* 種の色 */
+#define RL_SKIN 1      /* 耳・足 */
+#define RL_EYE  2      /* 目の帯 (穴が瞳になる) */
+#define RL_DARK 3      /* 足元の影 */
+#define RL_NONE 0      /* 絵の無い行。何色でも見えない */
 
-static const uint8_t *stun_colours(uint8_t kind, uint8_t lv)
+/* 段ごとの役の並び。絵 (assets/sprites.png の rat / stun1-3) の行に合わせてある。 */
+static const uint8_t row_role[4][16] = {
+    /* 通常 */ { RL_NONE, RL_NONE, RL_SKIN, RL_SKIN, RL_BODY, RL_BODY, RL_BODY, RL_EYE,
+                 RL_BODY, RL_BODY, RL_BODY, RL_DARK, RL_SKIN, RL_NONE, RL_NONE, RL_NONE },
+    /* 1段  */ { RL_NONE, RL_NONE, RL_NONE, RL_NONE, RL_SKIN, RL_SKIN, RL_BODY, RL_BODY,
+                 RL_EYE,  RL_BODY, RL_BODY, RL_DARK, RL_SKIN, RL_NONE, RL_NONE, RL_NONE },
+    /* 2段  */ { RL_NONE, RL_NONE, RL_NONE, RL_NONE, RL_NONE, RL_NONE, RL_NONE, RL_SKIN,
+                 RL_BODY, RL_EYE,  RL_BODY, RL_BODY, RL_DARK, RL_SKIN, RL_NONE, RL_NONE },
+    /* 3段  */ { RL_NONE, RL_NONE, RL_NONE, RL_NONE, RL_NONE, RL_NONE, RL_NONE, RL_NONE,
+                 RL_NONE, RL_NONE, RL_SKIN, RL_BODY, RL_EYE,  RL_SKIN, RL_NONE, RL_NONE }
+};
+
+static uint8_t line_col[16];
+
+static const uint8_t *enemy_colours(uint8_t kind, uint8_t lv)
 {
-    uint8_t k, top;
-    if (lv == 0) {
-        return kind_colours[kind];
-    }
-    top = stun_band[lv];
+    const uint8_t *role = row_role[lv];
+    const uint8_t *pal = kind_pal[kind];
+    uint8_t k;
     for (k = 0; k < 16; k++) {
-        stun_col[k] = (uint8_t)((k == top || k == (uint8_t)(top + 1))
-                                ? COL_WHITE : kind_colours[kind][0]);
+        line_col[k] = pal[role[k]];
     }
-    return stun_col;
+    return line_col;
 }
 
 /* 透明化中の色。16行ぜんぶ同じ淡い色にして、輪郭だけが見える状態にする。 */
@@ -812,7 +841,7 @@ void enemy_draw(void)
                 spr_color_lines((uint8_t)(SPR_ENEMY + i), ghost_colours);
             } else {
                 spr_color_lines((uint8_t)(SPR_ENEMY + i),
-                                stun_colours(en_kind[i], en_stun[i]));
+                                enemy_colours(en_kind[i], en_stun[i]));
             }
         }
         spr_set((uint8_t)(SPR_ENEMY + i), en_x[i], (uint8_t)(en_y[i] - 1),
