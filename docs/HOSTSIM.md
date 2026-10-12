@@ -90,8 +90,9 @@ python3 tools/hostsim/pick_seeds.py --write      # src/field.c の stage_seed[] 
   `hprep` ≥ `hpush` + 2。全面で `cbal`・`rbal` ≥ 30）。15面を並列に総当たりする
 - **`PINNED`** … 点数では選べないときに、実行して見比べて決めた種を固定する（いまは空）
 
-狙いの表は `pick_seeds.py` の `TARGET`（つるはし1本で採れる数。面1〜3の5個から
-面13〜15の1個まで）。結果は `docs/GAME_RULES.md` §11 にある。
+狙いの表は `pick_seeds.py` の `TARGET`（つるはし1本で採れる数）。面1の5個から面15の1個まで
+下げつつ、**幕の頭（面4・7・10・13）だけ1つ上げる**（新しい仕掛けを触っている間も採れるように）。
+結果は `docs/GAME_RULES.md` §11 にある。
 
 ## 仕組み
 

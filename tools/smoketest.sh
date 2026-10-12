@@ -180,14 +180,18 @@ check PY       $(( $(val STARTR) * 16 )) "自機のY (= 出発点の行 x16)"
 check BATHON   1   "風呂が健在"
 check CHUTEN   0   "第一坑 (面1) には樋が無い"
 check CARTON   0   "第一坑 (面1) に鉱車は無い"
-check TIMEM    3   "持ち時間が3分から始まる"
-check TIMES    0   "持ち時間の秒が 00 から始まる"
+# **持ち時間は面ごと** (src/tlimit.c の tlimit_tbl)。面1 は 150秒 = 2:30。
+# 面4 でも読んで、表どおりに面ごとで変わっていることを確かめる (下)。
+check TIMEM    2   "面1 の持ち時間が 2:30 から始まる (分)"
+check TIMES    30  "面1 の持ち時間が 2:30 から始まる (秒)"
 
 # ここから面4 (第二坑)。樋が出るのはこの幕から。
 OUT4=$(mktemp -t sakiyama-smoke4)
 trap 'rm -f "$OUT" "$OUT4"' EXIT
 run_stage 4 "$OUT4"
 OUT=$OUT4
+check TIMEM    2   "面4 の持ち時間が 2:40 (面ごとの表が効いている・分)"
+check TIMES    40  "面4 の持ち時間が 2:40 (秒)"
 check CHUTEN   2   "面4 で樋が2枚置かれている (低次面)"
 check CHUTEOPEN 1  "すべての樋の升と、その落とし先が最初から開いている"
 # 板の色は**面開始の表示「第 n 坑 m 番方」が消えてから**読む (4秒後)。

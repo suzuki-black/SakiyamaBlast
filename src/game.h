@@ -184,7 +184,7 @@
    振っている間は動けないので、そこへ敵が寄ってくるのが駆け引きになる。 */
 #define PICK_FRAMES   18      /* 1回振り切るまで (0.3秒) */
 #define COAL_CRACKED  255     /* coal[] のこの値は「割れて採掘待ち」 */
-#define COAL_HP_MAX   8
+#define COAL_HP_MAX   11     /* 2桁は升の上辺に彫る (draw_coal)。炭柱は通常+3 */
 /*
  * **敵が踏み抜けた「割れたまま未採掘の黒ダイヤ」は塞がり直す。**
  *
