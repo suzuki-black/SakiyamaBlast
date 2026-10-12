@@ -429,6 +429,139 @@ static int drop_from(int c, int r)
 }
 
 /*
+ * ---- par: 「邪魔されずに掘ったら何秒か」の見積もり (2026-10-13) ----
+ *
+ * **持ち時間の表を、見積もりではなく盤面から出すための指標。**
+ * 出発点から、盤面の黒ダイヤ全部と水風呂を**近いものから順に**回り、
+ * かかるフレーム数を数える。コストはゲームの実値そのもの。
+ *
+ *   未掘の土へ1升入る  24フレーム (SPD_DIG   40px/s)
+ *   掘った升へ1升入る  16フレーム (SPD_TUNNEL 60px/s)
+ *   黒ダイヤを1枚割る  耐久 x PICK_FRAMES (1振り18フレーム)
+ *
+ * **下限寄りの見積もり。** 敵に追われて引き返す時間、岩が落ちるのを待つ時間、
+ * 二度目の風呂は入っていない。逆に、連鎖で岩がまとめて採ってくれるぶんも
+ * 引いていない。「この面を何にも邪魔されずに片付けたら何秒か」の床として読む。
+ *
+ * 膜 (cell_link) は見ない。自機は歩くだけで膜を破るので速度に関係しない
+ * (src/player.c の chewing は cell_dug だけを見る)。岩は押せる想定で素通りさせる。
+ *
+ *   par   : 合計フレーム数
+ *   dpar  : その道中で新しく掘る升の数
+ *   bathd : 出発点から水風呂までのフレーム数 (風呂の遠さ = 体温の階段の軸)
+ */
+#define PAR_INF (1 << 28)
+
+static uint8_t par_dug[NCELL];
+static int par_d[NCELL], par_from[NCELL];
+static int par_w_dug = 16, par_w_dirt = 24;
+
+static const int par_dc[4] = { 0, -1, 0, 1 };
+static const int par_dr[4] = { -1, 0, 1, 0 };
+
+static void par_dijkstra(int sc, int sr)
+{
+    static uint8_t done[NCELL];
+    int k, n;
+    for (k = 0; k < NCELL; k++) { par_d[k] = PAR_INF; par_from[k] = -1; done[k] = 0; }
+    par_d[sr * COLS + sc] = 0;
+    for (n = 0; n < NCELL; n++) {
+        int bestk = -1, bestv = PAR_INF, c, r;
+        for (k = 0; k < NCELL; k++) {
+            if (!done[k] && par_d[k] < bestv) { bestv = par_d[k]; bestk = k; }
+        }
+        if (bestk < 0) { break; }
+        done[bestk] = 1;
+        c = bestk % COLS; r = bestk / COLS;
+        for (k = 0; k < 4; k++) {
+            int nc = c + par_dc[k], nr = r + par_dr[k], j, w;
+            if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) { continue; }
+            j = nr * COLS + nc;
+            /* 黒ダイヤは割るまで通れない (割った升は par_dug で印を付ける) */
+            if (coal[j] && coal[j] != COAL_CRACKED && !par_dug[j]) { continue; }
+            w = par_dug[j] ? par_w_dug : par_w_dirt;
+            if (par_d[bestk] + w < par_d[j]) {
+                par_d[j] = par_d[bestk] + w;
+                par_from[j] = bestk;
+            }
+        }
+    }
+}
+
+/* 通った道を掘った跡にする (次の行き先はそのぶん速くなる)。新しく掘った升の数を返す。 */
+static int par_mark(int to)
+{
+    int n = 0;
+    while (to >= 0) {
+        if (!par_dug[to]) { par_dug[to] = 1; n++; }
+        to = par_from[to];
+    }
+    return n;
+}
+
+static int par_route(int *dpar_out, int *bathd_out, int *left_out)
+{
+    uint8_t want[NCELL];
+    int k, frames = 0, dug_cells = 0, cur, nleft = 0;
+
+    for (k = 0; k < NCELL; k++) {
+        par_dug[k] = (uint8_t)(dug[k] ? 1 : 0);
+        want[k] = 0;
+    }
+    for (k = 0; k < NCELL; k++) {
+        if (coal[k] && coal[k] != COAL_CRACKED) { want[k] = 1; nleft++; }
+    }
+    if (bath_on) {
+        k = bath_r * COLS + bath_c;
+        if (!want[k]) { want[k] = 1; nleft++; }
+    }
+    cur = start_r * COLS + start_c;
+
+    /* **風呂の遠さはフレームで測る。** 升の数ではない: 風呂は必ず掘ってある升に
+       置かれる (`nearest_dug_away`) ので、「掘る升の数」で測ると全面0になって
+       指標にならなかった (2026-10-13 の実測)。体温の階段に使えるのは
+       「冷やしに行って戻るのに何秒かかるか」のほう。 */
+    *bathd_out = -1;
+    if (bath_on) {
+        par_w_dug = 16; par_w_dirt = 24;
+        par_dijkstra(start_c, start_r);
+        k = bath_r * COLS + bath_c;
+        if (par_d[k] < PAR_INF) { *bathd_out = par_d[k]; }
+    }
+
+    par_w_dug = 16; par_w_dirt = 24;
+    while (nleft > 0) {
+        int best = -1, bestcost = PAR_INF, target = -1;
+        par_dijkstra(cur % COLS, cur / COLS);
+        for (k = 0; k < NCELL; k++) {
+            if (!want[k]) { continue; }
+            if (coal[k] && coal[k] != COAL_CRACKED && !par_dug[k]) {
+                int j;
+                for (j = 0; j < 4; j++) {          /* 隣に立って耐久ぶん振り、1歩入る */
+                    int nc = (k % COLS) + par_dc[j], nr = (k / COLS) + par_dr[j], nb, cost;
+                    if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) { continue; }
+                    nb = nr * COLS + nc;
+                    if (par_d[nb] >= PAR_INF) { continue; }
+                    cost = par_d[nb] + coal[k] * PICK_FRAMES + par_w_dug;
+                    if (cost < bestcost) { bestcost = cost; best = nb; target = k; }
+                }
+            } else if (par_d[k] < bestcost) {
+                bestcost = par_d[k]; best = k; target = k;
+            }
+        }
+        if (best < 0) { break; }                   /* 残りへは届かない */
+        dug_cells += par_mark(best);
+        frames += bestcost;
+        if (target != best && !par_dug[target]) { par_dug[target] = 1; dug_cells++; }
+        want[target] = 0; nleft--;
+        cur = target;
+    }
+    *dpar_out = dug_cells;
+    *left_out = nleft;
+    return frames;
+}
+
+/*
  * 盤面を**静的に**測る。ボットを走らせない。
  *
  * 貪欲ボットは面1すらクリアできないので、盤面の良し悪しの判定には使えない。
@@ -463,6 +596,7 @@ static void analyse(int st, unsigned sd)
     int noff = 0, npush = 0, hpush = 0, hpbend = 0, rowdup = 0;
     int hprep = 0, hprepbend = 0, cbal = 0, rbal = 0, hpick0 = 0, wet = 0, wseal = 0;
     int pool = 0, rail = 0, railrock = 0, railpay = 0;
+    int par = 0, dpar = 0, bathd = -1, parleft = 0;
     int bi_d[ROCK_MAX], bi_k[ROCK_MAX], bi_got[ROCK_MAX];
     int seen[NCELL], veins = 0, vmax = 0;
     for (c = 0; c < COLS; c++) { col[c] = 0; }
@@ -810,6 +944,11 @@ static void analyse(int st, unsigned sd)
         rbal = rn ? 100 * (rl < rn - rl ? rl : rn - rl) / rn : 50;
     }
 
+    /* **所要時間の見積もり。** 盤面を回って黒ダイヤを全部割るまでのフレーム数
+       (par)、その道中で掘る升の数 (dpar)、風呂の遠さ (bathd)。持ち時間の表は
+       これを基準に決める。parleft > 0 は「届かない黒ダイヤが残った」の印。 */
+    par = par_route(&dpar, &bathd, &parleft);
+
     printf("{\"stage\":%d,\"seed\":%u,\"coal\":%d,\"rocks\":%d,"
            "\"free\":%d,\"haul\":%d,\"colmax\":%d,\"veins\":%d,\"veinmax\":%d,"
            "\"chutes\":%d,\"reach\":%d,\"hand\":%d,\"hbend\":%d,\"hpick\":%d,"
@@ -818,12 +957,14 @@ static void analyse(int st, unsigned sd)
            "\"taken\":%d,\"crack\":%d,\"dug0\":%u,"
            "\"noff\":%d,\"npush\":%d,\"hpush\":%d,\"hpbend\":%d,\"rowdup\":%d,"
            "\"hprep\":%d,\"hprepbend\":%d,\"cbal\":%d,\"rbal\":%d,\"hpick0\":%d,"
-           "\"wet\":%d,\"wseal\":%d,\"pool\":%d,\"rail\":%d,\"railrock\":%d,\"railpay\":%d}\n",
+           "\"wet\":%d,\"wseal\":%d,\"pool\":%d,\"rail\":%d,\"railrock\":%d,\"railpay\":%d,"
+           "\"par\":%d,\"dpar\":%d,\"bathd\":%d,\"parleft\":%d}\n",
            st, sd, coal0, nrock, free_max, haul, best, veins, vmax,
            chutes, reach, hand, hbend, hpick, bend, best_combo,
            bump, side, cavef, cbend, nfall, lost, maxline, taken, crack, dug_n0,
            noff, npush, hpush, hpbend, rowdup, hprep, hprepbend, cbal, rbal, hpick0,
-           wet, wseal, pool, rail, railrock, railpay);
+           wet, wseal, pool, rail, railrock, railpay,
+           par, dpar, bathd, parleft);
 }
 
 /*
