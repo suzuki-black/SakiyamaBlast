@@ -37,7 +37,8 @@ LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKD
 # 自分が見えなくなるため (art.c は番地を返すだけ、sprite.c は窓を切り替える側)。
 BANKED_SRC := $(SRCDIR)/music.c \
               $(SRCDIR)/config.c $(SRCDIR)/bonus.c $(SRCDIR)/debris.c $(SRCDIR)/kanji.c \
-              $(SRCDIR)/haze.c $(SRCDIR)/water.c $(SRCDIR)/hud.c $(SRCDIR)/cart.c
+              $(SRCDIR)/haze.c $(SRCDIR)/water.c $(SRCDIR)/hud.c $(SRCDIR)/cart.c \
+              $(SRCDIR)/levels.c
 
 # **RAM へ写して実行するモジュール。**
 # 0x4000-0xBFFF の 32KB はもう埋まっていて、並べ替えでは空きが作れない。
@@ -154,6 +155,7 @@ clean:
 # ヘッドレスで走らせる。詳細は docs/HOSTSIM.md。
 HOSTSIM_SRC := $(SRCDIR)/field.c $(SRCDIR)/enemy.c $(SRCDIR)/player.c $(SRCDIR)/water.c \
                $(SRCDIR)/rock.c $(SRCDIR)/bomb.c $(SRCDIR)/bonus.c $(SRCDIR)/cart.c \
+               $(SRCDIR)/levels.c \
                tools/hostsim/stubs.c tools/hostsim/sim.c
 
 tools/hostsim/sim: $(HOSTSIM_SRC) $(HEADERS)

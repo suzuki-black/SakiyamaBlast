@@ -75,37 +75,16 @@ void enemy_clear(void)
     }
 }
 
-/* 透明化までのフレーム数。面が進むほど短く、さらに**自分が掘った升の数だけ**短くなる。
-   後者が切羽圧で、「掘るほど危険が増すが掘らないとクリアできない」を成立させる項。 */
+/* 透明化までのフレーム数。**自分が掘った升の数だけ**短くなる。
+   これが切羽圧で、「掘るほど危険が増すが掘らないとクリアできない」を成立させる項。
+   面ごとの値 (素の長さ・税率・下限) は `src/levels.c` の表にある。 */
 static uint16_t ghost_frames(void)
 {
-    uint16_t t = GHOST_BASE;
-    uint16_t d = (uint16_t)(stage - 1) * GHOST_STEP;
-    d = (uint16_t)(d + (uint16_t)(dug_n - dug_n0) * GHOST_PRESSURE);
-    if (d >= t || (uint16_t)(t - d) < GHOST_MIN) {
-        return GHOST_MIN;
-    }
-    return (uint16_t)(t - d);
-}
-
-/* 面ごとの総出現数。面が進むほど増える。 */
-/* この面のプール数。面が進むと増える。 */
-static uint8_t pool_size(void)
-{
-    uint16_t n = (uint16_t)(POOL_BASE + (stage - 1) / POOL_STEP);
-    if (n > ENEMY_MAX) {
-        n = ENEMY_MAX;
-    }
-    return (uint8_t)n;
-}
-
-/* 倒された敵が洞窟にこもる時間。面が進むほど短い＝早く戻ってくる。 */
-static uint16_t respawn_frames(void)
-{
-    uint16_t t = RESPAWN_BASE;
-    uint16_t d = (uint16_t)(stage - 1) * RESPAWN_STEP;
-    if (d >= t || (uint16_t)(t - d) < RESPAWN_MIN) {
-        return RESPAWN_MIN;
+    uint16_t t = lv_ghost();
+    uint16_t lo = lv_ghost_min();
+    uint16_t d = (uint16_t)((uint16_t)(dug_n - dug_n0) * lv_press());
+    if (d >= t || (uint16_t)(t - d) < lo) {
+        return lo;
     }
     return (uint16_t)(t - d);
 }
@@ -114,7 +93,7 @@ void enemy_stage_reset(void)
 {
     uint8_t i;
     enemy_clear();
-    en_pool = pool_size();
+    en_pool = lv_pool();
     for (i = 0; i < ENEMY_MAX; i++) {
         en_rest[i] = 0;
         en_kind[i] = (uint8_t)(i % EN_KINDS);   /* 赤→桃→水→橙 を順に配る */
@@ -145,7 +124,7 @@ static void enemy_spawn(uint8_t i)
 /*
  * 洞窟から1体ずつ出す。出られるのは「画面に居ない」かつ「静養が明けた」敵だけ。
  * 面の頭は全員の静養が0なので、SPAWN_GAP ごとに次々と出てくる。
- * 倒された敵は respawn_frames() ぶん洞窟にこもるので、戻ってくるまで間が空く。
+ * 倒された敵は lv_rest() ぶん洞窟にこもるので、戻ってくるまで間が空く。
  */
 static void spawn_tick(void)
 {
@@ -369,7 +348,7 @@ uint8_t enemy_kill_at(int8_t cx, int8_t cy, uint8_t by_rock)
     for (i = 0; i < ENEMY_MAX; i++) {
         if (hits_cell(i, cx, cy)) {
             en_state[i] = 0;
-            en_rest[i] = respawn_frames();   /* 倒された敵は洞窟で静養してから戻る */
+            en_rest[i] = lv_rest();          /* 倒された敵は洞窟で静養してから戻る */
             spr_park((uint8_t)(SPR_ENEMY + i));
             killed++;
             /* 落とし物。岩で潰したら梅干し (体温を下げる = 時間を買える)、
