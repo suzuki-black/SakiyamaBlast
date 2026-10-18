@@ -1202,8 +1202,8 @@ static uint8_t cell_ok(uint16_t i, uint8_t kind)
     if (dug[i] || coal[i] || chute[i] || rock_at((int8_t)c, (int8_t)r) >= 0) {
         return 0;
     }
-    if (used[i] == ROCK_OFF_RESV) {
-        return 0;                  /* 岩を押して運ぶ通り道。炭柱や板で塞がない */
+    if (used[i] == ROCK_OFF_RESV || used[i] == VEIN_GAP_RESV) {
+        return 0;                  /* 岩を押して運ぶ通り道と、掘らせる隙間。塞がない */
     }
     if (near_key_cell(i)) {
         return 0;
@@ -1427,6 +1427,121 @@ static uint16_t vein_next(uint16_t from)
 }
 
 /*
+ * **掘らないと繋がらない鉱脈 (2026-10-17)。**
+ *
+ * 縦の鉱脈に**土を1升ずつ挟んで**置く。落ちる岩が通れるのは「掘った升」と
+ * 「割れた黒ダイヤ」だけなので (rock.c の supported)、隙間を先に掘っておかないと
+ * 岩はそこで止まり、**一段ぶんしか採れない**。
+ *
+ *       .O.   岩          岩を支えているのは**一番上の黒ダイヤ**なので、
+ *       .4.   黒ダイヤ    そこを割った瞬間に岩が落ちる。だから段取りは
+ *       ...   ← 掘る      「下の段から割る → 隙間を掘る → 最後に一番上を割る」。
+ *       .4.   黒ダイヤ    順番を間違えると一段で終わる。
+ *       ...   ← 掘る
+ *       .4.   黒ダイヤ
+ *
+ * **普通にクリアするだけなら難しくない** (1枚ずつ割って歩いて採ればよい)。
+ * 連鎖させたいなら段取りが要る、という形にするための仕掛け (作者の案、2026-10-17)。
+ *
+ * 面ごとの段数。**第一坑の面1は教材なので仕込まない。** 第四坑からは2本置き、
+ * 一度の落盤では片付かない盤面にする。
+ */
+static const uint8_t vgap_tbl[MAX_STAGE] = {   /* 1本目の隙間の数 */
+    0, 1, 1, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3
+};
+static const uint8_t vgap2_tbl[MAX_STAGE] = {  /* 2本目 (第四坑から) */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 3, 3, 3
+};
+
+uint8_t gapv_c[2], gapv_r[2], gapv_n;
+
+/*
+ * (c,r) を一番上として、隙間 g 個の鉱脈が置けるか。place なら置く。
+ * **真上は岩の升**として予約する (そこが連鎖の引き金になる)。
+ */
+static uint8_t gap_vein_at(uint8_t c, uint8_t r, uint8_t g, uint8_t hp, uint8_t place)
+{
+    uint8_t k;
+    uint16_t i;
+    if (r < 1 || (uint8_t)(r + 2 * g) >= ROWS) {
+        return 0;
+    }
+    if (!cell_ok((uint16_t)(r - 1) * COLS + c, 2)) {
+        return 0;                   /* 真上に岩を置けない (坑道・端・風呂の上など) */
+    }
+    for (k = 0; k <= (uint8_t)(2 * g); k++) {
+        if (!cell_ok((uint16_t)(r + k) * COLS + c, 1)) {
+            return 0;               /* 段も隙間も、土のままの升でなければならない */
+        }
+    }
+    if (!place) {
+        return 1;
+    }
+    for (k = 0; k <= (uint8_t)(2 * g); k++) {
+        i = (uint16_t)(r + k) * COLS + c;
+        if (k & 1) {
+            used[i] = VEIN_GAP_RESV;        /* 隙間。板も炭柱も置かせない */
+            /* **横から入れる道を1本空けておく。** 隙間は上下が黒ダイヤなので、
+               左右も黒ダイヤで塞がると**掘りに行けない**（上を割ると岩が落ちて
+               その升に居座るので、上から降りることもできない）。隣がすでに
+               坑道ならそれが道になる。そうでなければ片側を予約して土のまま残す。 */
+            if (!cell_dug((int8_t)(c - 1), (int8_t)(r + k))
+                && !cell_dug((int8_t)(c + 1), (int8_t)(r + k))) {
+                uint8_t nc = (uint8_t)((c < COLS / 2) ? (c + 1) : (c - 1));
+                if (nc < COLS) {
+                    used[(uint16_t)(r + k) * COLS + nc] = VEIN_GAP_RESV;
+                }
+            }
+        } else {
+            coal[i] = hp;
+            coal_left++;
+        }
+    }
+    used[(uint16_t)(r - 1) * COLS + c] = VEIN_GAP_RESV;   /* 岩を載せる升 */
+    gapv_c[gapv_n] = c;
+    gapv_r[gapv_n] = r;
+    gapv_n++;
+    return 1;
+}
+
+/* 仕込む鉱脈を左右へ1本ずつ。端から内側へ探すので、2本は自然に離れる。 */
+static void place_gap_veins(void)
+{
+    uint8_t hp = coal_hp_tbl[stage - 1];
+    uint8_t side = (uint8_t)(rnd8() & 1);
+    uint8_t g[2], k;
+
+    gapv_n = 0;
+    g[0] = vgap_tbl[stage - 1];
+    g[1] = vgap2_tbl[stage - 1];
+    for (k = 0; k < 2; k++) {
+        uint8_t o = (uint8_t)(rnd8() % 3);      /* 端にべったり張り付かせない */
+        uint8_t r0 = (uint8_t)(1 + (rnd8() & 1));
+        uint8_t t, placed = 0, want = g[k];
+        if (!want) {
+            continue;
+        }
+        /* **入らなければ浅いほうへ落とす。** 掘り抜きが広い面では、1列に
+           土が8行続く場所が無いことがある (面12 で実際に起きた)。段数を
+           減らしてでも必ず1本は仕込む。狙いの段数に乗っているかは
+           tools/hostsim/pick_seeds.py が種を選ぶときに見る。 */
+        while (want && !placed) {
+            for (t = o; t < COLS && !placed; t++) {
+                uint8_t c = (uint8_t)(side ? (COLS - 1 - t) : t), r;
+                for (r = r0; (uint8_t)(r + 2 * want) < ROWS; r++) {
+                    if (gap_vein_at(c, r, want, hp, 1)) {
+                        placed = 1;
+                        break;
+                    }
+                }
+            }
+            want--;
+        }
+        side ^= 1;
+    }
+}
+
+/*
  * 黒ダイヤを**繋がった炭層**として置く。1個ずつばらまくと、1個掘るたびに次を探して
  * 長く掘る羽目になり、そこが遊びの大半を占めてしまう。鉱脈にすると、掘り当ててから
  * 一息に採れるので、掘る時間が減って手応えが出る。
@@ -1441,6 +1556,8 @@ static void place_coal(void)
     uint8_t side = (uint8_t)(rnd8() & 1);
 
     coal_left = 0;
+    /* **下ごしらえの要る鉱脈を先に置く。** 残りをいつもの鉱脈で埋める。 */
+    place_gap_veins();
     while (coal_left < want) {
         build_candidates(1);            /* 置くたびに作り直す (coal[] が増えるため) */
         i = take_candidate_side(side);  /* 炭層ごとに左右を入れ替える */
@@ -1558,6 +1675,12 @@ static uint8_t chute_dir_ok(uint8_t c, uint8_t r, int8_t d, uint8_t need_coal)
         }
         if (used[j] == ROCK_OFF_RESV) {
             return 0;               /* 押す通り道の下を開けると、押している途中で落ちる */
+        }
+        if (used[j] == VEIN_GAP_RESV) {
+            /* **掘らせるための隙間を開けてしまわない。** 板は落とし先の升を
+               開けるので、そこが仕込んだ隙間だと下ごしらえがタダになる
+               (面15で実際に1段ぶんタダになっていた。2026-10-17 の実測)。 */
+            return 0;
         }
     }
     /* **落とす先の真上に岩を残さない。** 落とす先を開けるので、真上の岩が
@@ -1805,6 +1928,24 @@ static void place_rocks(void)
      * (樋は岩を置いたあとで、岩の下の列へ置く)。
      */
     build_candidates(2);
+    /* **仕込んだ鉱脈の真上には必ず岩を載せる。** ここが下ごしらえの引き金になる
+       (割った瞬間に落ちる)。候補任せにすると載らない盤面が出て、隙間がただの
+       穴になってしまう。升は place_gap_veins() が予約してあるので空いている。 */
+    {
+        uint8_t k;
+        for (k = 0; k < gapv_n && n; k++) {
+            uint8_t rr = (uint8_t)(gapv_r[k] - 1);
+            if (rock_at((int8_t)gapv_c[k], (int8_t)rr) >= 0) {
+                continue;
+            }
+            rock_place(gapv_c[k], rr);
+            drop_row(rr);
+            n--;
+        }
+        if (off > n) {
+            off = n;
+        }
+    }
     if (off) {
         /* **一覧は1回だけ作って控えておく。** 真上の岩の段で作り直すと
            176升 x cell_ok をもう一度回すことになり、面13の暗転が約0.4秒伸びた
@@ -2336,9 +2477,9 @@ static void set_stage_layout(void)
 
    落盤で採れる数 (taken) は 面1〜3 で4個、面15 で0個。難易度の軸はこちら。 */
 const uint16_t stage_seed[15] = {
-     1448, 36243,  3566, 20457, 20932,
-    18405,  6848, 48857, 25604, 24316,
-    55913, 56885, 23384, 12676, 47123,
+    17612, 24442,    39,  6972, 35089,
+    35119,    76, 52263, 22545, 37978,
+     1846, 30169, 37468, 41184, 28965,
 };
 uint16_t layout_seed_force;      /* 0 以外なら強制的にこの種を使う (道具用) */
 

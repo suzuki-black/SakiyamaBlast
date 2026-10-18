@@ -104,17 +104,37 @@ _HPICK0_MIN = {1: 4, 2: 3, 3: 3}
 #
 # rowdup はずらす岩の無い面にも課す。**以前の面3が1行に岩2個で出荷されていた**
 # (真上の候補が尽きて「どこでも」に回ったとき、行を落とさずに候補を作り直していた)。
-def _rock_off_tbl():
-    m = re.search(r'rock_off_tbl\[MAX_STAGE\] = \{(.*?)\}', open('src/field.c').read(), re.S)
-    return [int(x) for x in m.group(1).replace('\n', ' ').split(',') if x.strip()]
+def _tbl(name):
+    m = re.search(name + r'\[MAX_STAGE\] = \{(.*?)\}', open('src/field.c').read(), re.S)
+    body = re.sub(r'/\*.*?\*/', ' ', m.group(1), flags=re.S)      # 注釈は落とす
+    return [int(x) for x in body.replace('\n', ' ').split(',') if x.strip()]
 
 
-ROCK_OFF = dict(zip(range(1, 16), _rock_off_tbl()))
+ROCK_OFF = dict(zip(range(1, 16), _tbl('rock_off_tbl')))
+# **押して揃えたときの伸び。** 下ごしらえ (隙間を掘る) を仕込んだ面では 1 に緩める。
+# 準備の軸が「押して揃える」と「掘って繋げる」の2本になったので、両方に満額を
+# 課すと盤面が作れない (面11 で 6万通り中 0 になった。2026-10-18 の実測)。
 PUSH_GAIN = 2
+PUSH_GAIN_GAP = 1
+
+# **掘らないと繋がらない鉱脈 (2026-10-17)。**
+# field.c の vgap_tbl / vgap2_tbl がそのまま狙い。隙間を掘ったぶんだけ取れ高が
+# 伸びること (digpay) と、仕込んだ本数 (gapn) が揃っていることを必須にする。
+# **本数が足りない種は落とす。** 掘り抜きが広くて1列に土が8行続かない面では
+# 生成側が段数を落として置くので、狙いどおりの深さで入った種だけを選ぶ。
+VGAP = dict(zip(range(1, 16), _tbl('vgap_tbl')))
+VGAP2 = dict(zip(range(1, 16), _tbl('vgap2_tbl')))
 
 
 def _require(r, st):
     if r['rowdup']:
+        return False
+    # **下ごしらえ (隙間を掘る) が狙いどおり効くこと。**
+    want = VGAP[st] + VGAP2[st]
+    veins = (1 if VGAP[st] else 0) + (1 if VGAP2[st] else 0)
+    if r['gapn'] != veins or r['digpay'] < want:
+        return False
+    if veins == 2 and r['digmin'] < min(VGAP[st], VGAP2[st]):
         return False
     if WATER_ST <= st <= WATER_ST_END and (r['wet'] < WATER_WET_MIN or r['wseal']):
         return False
@@ -138,7 +158,8 @@ def _require(r, st):
             return False
         if not ROCK_OFF[st]:
             return True
-        return r['npush'] >= ROCK_OFF[st] and r['hpush'] >= r['hand'] + PUSH_GAIN
+        return (r['npush'] >= ROCK_OFF[st]
+                and r['hpush'] >= r['hand'] + (PUSH_GAIN_GAP if VGAP[st] else PUSH_GAIN))
     if not ROCK_OFF[st]:
         return r['hpick'] >= _HPICK_MIN[st]
     # **樋を通る一本の線は、押して揃えたあとに成立してもよい。**
@@ -146,11 +167,12 @@ def _require(r, st):
     # 「押すと伸びる」と両立しなかった (面4で 6万通り中 0)。高次面の線は揃えて作るもの。
     line = (r['hpick'] >= _HPICK_MIN[st] or (r['hpush'] >= _HPICK_MIN[st] and r['hpbend'] >= 1)
             or (r['hprep'] >= _HPICK_MIN[st] and r['hprepbend'] >= 1))
-    if not (line and r['npush'] >= ROCK_OFF[st] and r['hpush'] >= r['hand'] + PUSH_GAIN):
+    gain = PUSH_GAIN_GAP if VGAP[st] else PUSH_GAIN
+    if not (line and r['npush'] >= ROCK_OFF[st] and r['hpush'] >= r['hand'] + gain):
         return False
     # **2個以上ずらす面では、全部揃えると1個だけより明らかに伸びること。**
     # 1個押せば済む盤面だと「何個も動かして準備してから」にならない。
-    if ROCK_OFF[st] >= 2 and r['hprep'] < r['hpush'] + PUSH_GAIN:
+    if ROCK_OFF[st] >= 2 and r['hprep'] < r['hpush'] + gain:
         return False
     return True
 

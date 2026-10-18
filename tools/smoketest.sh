@@ -42,6 +42,7 @@ A_SPRINGON=$(addr spring_on); A_SPRINGC=$(addr spring_c); A_SPRINGR=$(addr sprin
 A_WATER=$(addr water)
 A_TLHI=$(addr tl_sec_hi); A_TLLO=$(addr tl_sec_lo)
 A_CARTON=$(addr cart_on); A_CARTR=$(addr cart_r); A_CARTC0=$(addr cart_c0); A_CARTC1=$(addr cart_c1)
+A_GAPVN=$(addr gapv_n); A_GAPVC=$(addr gapv_c); A_GAPVR=$(addr gapv_r)
 
 # 面1は掘り抜きが数字の「1」(15升) ＋ 敵の湧き出し口1升 = 16升。
 # 自機は掘り抜きの上端、湧き出し口は土の中の独立した1ブロック (位置は乱数)。
@@ -118,6 +119,16 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
             puts \$f \"CARTOPEN \$ro\"; \
             puts \$f \"TIMEM [debug read memory $A_TLHI]\"; \
             puts \$f \"TIMES [debug read memory $A_TLLO]\"; \
+            set gn [debug read memory $A_GAPVN]; \
+            puts \$f \"GAPVN \$gn\"; \
+            set gok 1; \
+            for {set k 0} {\$k<\$gn} {incr k} { \
+                set gc [debug read memory [expr {$A_GAPVC+\$k}]]; \
+                set gr [debug read memory [expr {$A_GAPVR+\$k}]]; \
+                if {![debug read memory [expr {$A_COAL+\$gr*16+\$gc}]]} { set gok 0 }; \
+                if {[debug read memory [expr {$A_DUG+(\$gr+1)*16+\$gc}]]} { set gok 0 }; \
+                if {![debug read memory [expr {$A_COAL+(\$gr+2)*16+\$gc}]]} { set gok 0 } }; \
+            puts \$f \"GAPVOK \$gok\"; \
             close \$f; \
             if {\$cc < 0} { exit }; \
             after time 4 wood }; \
@@ -182,6 +193,7 @@ check CHUTEN   0   "第一坑 (面1) には樋が無い"
 check CARTON   0   "第一坑 (面1) に鉱車は無い"
 # **持ち時間は面ごと** (src/tlimit.c の tlimit_tbl)。面1 は 150秒 = 2:30。
 # 面4 でも読んで、表どおりに面ごとで変わっていることを確かめる (下)。
+check GAPVN    0   "面1 には下ごしらえの鉱脈を仕込まない (教材)"
 check TIMEM    2   "面1 の持ち時間が 2:30 から始まる (分)"
 check TIMES    30  "面1 の持ち時間が 2:30 から始まる (秒)"
 
@@ -190,6 +202,8 @@ OUT4=$(mktemp -t sakiyama-smoke4)
 trap 'rm -f "$OUT" "$OUT4"' EXIT
 run_stage 4 "$OUT4"
 OUT=$OUT4
+check GAPVN    1   "面4 に下ごしらえの鉱脈が1本ある"
+check GAPVOK   1   "その鉱脈が「黒ダイヤ・土・黒ダイヤ」の並びで、隙間が掘られていない"
 check TIMEM    2   "面4 の持ち時間が 2:40 (面ごとの表が効いている・分)"
 check TIMES    40  "面4 の持ち時間が 2:40 (秒)"
 check CHUTEN   2   "面4 で樋が2枚置かれている (低次面)"
@@ -224,6 +238,8 @@ trap 'rm -f "$OUT" "$OUT4" "$OUT7" "$OUT9" "$OUT12"' EXIT
 run_stage 12 "$OUT12"
 OUT=$OUT12
 check POOLN    2 "面12 に溜まり湯が2升 置かれている"
+check GAPVN    2 "面12 には下ごしらえの鉱脈が2本ある (第四坑から)"
+check GAPVOK   1 "2本とも隙間が掘られていない"
 check CARTON   1 "面12 に鉱車のレールが置かれている"
 check CARTLEN  5 "レールの長さが5升"
 check CARTOPEN 1 "レールの升が最初から開いている (鉱車が走れる)"

@@ -597,6 +597,7 @@ static void analyse(int st, unsigned sd)
     int hprep = 0, hprepbend = 0, cbal = 0, rbal = 0, hpick0 = 0, wet = 0, wseal = 0;
     int pool = 0, rail = 0, railrock = 0, railpay = 0;
     int par = 0, dpar = 0, bathd = -1, parleft = 0;
+    int gapn = 0, digpay = 0, digmin = 99, digcells = 0;
     int bi_d[ROCK_MAX], bi_k[ROCK_MAX], bi_got[ROCK_MAX];
     int seen[NCELL], veins = 0, vmax = 0;
     for (c = 0; c < COLS; c++) { col[c] = 0; }
@@ -944,10 +945,65 @@ static void analyse(int st, unsigned sd)
         rbal = rn ? 100 * (rl < rn - rl ? rl : rn - rl) / rn : 50;
     }
 
+    /*
+     * **digpay: 下ごしらえ (隙間を掘る) の見返り。**
+     *
+     * 仕込んだ鉱脈 (field.c の place_gap_veins) は縦に土を1升ずつ挟んである。
+     * 隙間を掘らずに一番上を割ると、岩はそこで止まって**一段ぶんしか採れない**。
+     * 先に隙間を掘ってから落とすと全段を貫く。その差を測る。
+     *
+     *   digpay   : 掘ったぶん増えた黒ダイヤの数 (仕込んだ鉱脈の合計)
+     *   digmin   : 1本あたりの最小。2本仕込む面で「片方が死んでいる」を弾く
+     *   digcells : そのために掘る升の数 (段取りの重さ)
+     *
+     * どちらの場合も**その列の黒ダイヤは全部割ってから**落とす。差が出るのは
+     * 掘ったかどうかだけになる。割る順番 (下から割って最後に一番上) は
+     * 遊ぶ側の話で、ここでは測らない。
+     */
+    {
+        int q;
+        for (q = 0; q < gapv_n; q++) {
+            int c, rtop, rlow, rr, f, before, got_a, got_b, cells = 0;
+            build_stage();
+            c = gapv_c[q]; rtop = gapv_r[q];
+            for (rlow = ROWS - 1; rlow > rtop; rlow--) {
+                if (coal[rlow * COLS + c] && coal[rlow * COLS + c] != COAL_CRACKED) { break; }
+            }
+            /* (A) 掘らずに落とす */
+            before = coal_left;
+            for (rr = rtop; rr <= rlow; rr++) {
+                while (cell_coal((int8_t)c, (int8_t)rr)) { coal_hit((int8_t)c, (int8_t)rr); }
+            }
+            for (f = 0; f < 400; f++) { rock_update(); coal_shake_tick(); }
+            got_a = before - coal_left;
+            /* (B) 隙間を掘ってから落とす。**掘るのは dug[] を直に立てる** —
+               岩の支えは cell_dug しか見ないので、膜 (cell_link) は要らない。 */
+            build_stage();
+            before = coal_left;
+            for (rr = rtop; rr <= rlow; rr++) {
+                int j = rr * COLS + c;
+                if (!coal[j] && !dug[j]) { dug[j] = 1; dug_n++; cells++; }
+            }
+            for (rr = rtop; rr <= rlow; rr++) {
+                while (cell_coal((int8_t)c, (int8_t)rr)) { coal_hit((int8_t)c, (int8_t)rr); }
+            }
+            for (f = 0; f < 400; f++) { rock_update(); coal_shake_tick(); }
+            got_b = before - coal_left;
+            if (got_b - got_a < digmin) { digmin = got_b - got_a; }
+            digpay += got_b - got_a;
+            digcells += cells;
+        }
+        if (!gapv_n) { digmin = 0; }
+    }
+
     /* **所要時間の見積もり。** 盤面を回って黒ダイヤを全部割るまでのフレーム数
        (par)、その道中で掘る升の数 (dpar)、風呂の遠さ (bathd)。持ち時間の表は
        これを基準に決める。parleft > 0 は「届かない黒ダイヤが残った」の印。 */
+    build_stage();                  /* **前の実験で盤面が荒れている。** 組み直してから測る
+                                       (digpay の実験のあとに測って、面7の par が
+                                       3.1秒になっていた。2026-10-18) */
     par = par_route(&dpar, &bathd, &parleft);
+    gapn = gapv_n;
 
     printf("{\"stage\":%d,\"seed\":%u,\"coal\":%d,\"rocks\":%d,"
            "\"free\":%d,\"haul\":%d,\"colmax\":%d,\"veins\":%d,\"veinmax\":%d,"
@@ -958,13 +1014,14 @@ static void analyse(int st, unsigned sd)
            "\"noff\":%d,\"npush\":%d,\"hpush\":%d,\"hpbend\":%d,\"rowdup\":%d,"
            "\"hprep\":%d,\"hprepbend\":%d,\"cbal\":%d,\"rbal\":%d,\"hpick0\":%d,"
            "\"wet\":%d,\"wseal\":%d,\"pool\":%d,\"rail\":%d,\"railrock\":%d,\"railpay\":%d,"
-           "\"par\":%d,\"dpar\":%d,\"bathd\":%d,\"parleft\":%d}\n",
+           "\"par\":%d,\"dpar\":%d,\"bathd\":%d,\"parleft\":%d,\"gapn\":%d,"
+           "\"digpay\":%d,\"digmin\":%d,\"digcells\":%d}\n",
            st, sd, coal0, nrock, free_max, haul, best, veins, vmax,
            chutes, reach, hand, hbend, hpick, bend, best_combo,
            bump, side, cavef, cbend, nfall, lost, maxline, taken, crack, dug_n0,
            noff, npush, hpush, hpbend, rowdup, hprep, hprepbend, cbal, rbal, hpick0,
            wet, wseal, pool, rail, railrock, railpay,
-           par, dpar, bathd, parleft);
+           par, dpar, bathd, parleft, gapn, digpay, digmin, digcells);
 }
 
 /*
@@ -974,6 +1031,43 @@ static void analyse(int st, unsigned sd)
  *   = = 鉱車のレール / | = 車止め / S = 湧き出し口
  *   B = 水風呂 / N = 敵の湧き出し口 / @ = 自機の出発点
  */
+/* 仕込んだ鉱脈の隙間か (上下が黒ダイヤの土升)。盤面を見るためだけの判定。 */
+static int gap_reserved(int c, int r)
+{
+    int i = r * COLS + c;
+    if (dug[i] || coal[i]) { return 0; }
+    if (r < 1 || r + 1 >= ROWS) { return 0; }
+    return coal[i - COLS] && coal[i + COLS];
+}
+
+
+/* **組み立て直後の盤面をそのまま出す (--board)。** --water は落盤を起こした
+   あとの姿なので、仕込みの形 (掘らせる隙間) を見るにはこちらを使う。
+   `*` = 掘らせる隙間 (used[] の予約) */
+static void board_demo(int st)
+{
+    int c, r, i;
+    build_stage();
+    printf("面%d 仕込んだ鉱脈 %d本", st, gapv_n);
+    for (i = 0; i < gapv_n; i++) { printf(" (列%d 行%d)", gapv_c[i], gapv_r[i]); }
+    putchar('\n');
+    for (r = 0; r < ROWS; r++) {
+        for (c = 0; c < COLS; c++) {
+            i = r * COLS + c;
+            if (water[i])                                { putchar('='); }
+            else if (coal[i] && coal[i] != COAL_CRACKED) { putchar('0' + (coal[i] % 10)); }
+            else if (rock_at((int8_t)c, (int8_t)r) >= 0) { putchar('O'); }
+            else if (bath_on && c == bath_c && r == bath_r) { putchar('B'); }
+            else if (c == nest_c && r == nest_r)         { putchar('N'); }
+            else if (c == start_c && r == start_r)       { putchar('@'); }
+            else if (dug[i])                             { putchar(' '); }
+            else if (gap_reserved(c, r))                 { putchar('*'); }
+            else                                         { putchar('.'); }
+        }
+        putchar('\n');
+    }
+}
+
 static void water_demo(int st)
 {
     int fr, c, r, i, seal = 0, dry = 0, wetn = 0;
@@ -1065,7 +1159,7 @@ static void cart_demo(int st)
 int main(int argc, char **argv)
 {
     int want_stage = 1, seed = 1, max_frames = 5400, greedy = 1, i, f;
-    int do_analyse = 0, sweep = 0, do_water = 0, do_cart = 0;
+    int do_analyse = 0, sweep = 0, do_water = 0, do_cart = 0, do_board = 0;
     unsigned lseed = 0;
     uint32_t prev_score = 0;
 
@@ -1077,6 +1171,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--safe") && i + 1 < argc) { safe_steps = atoi(argv[++i]); }
         else if (!strcmp(argv[i], "--layout-seed") && i + 1 < argc) { lseed = (unsigned)atoi(argv[++i]); }
         else if (!strcmp(argv[i], "--analyse")) { do_analyse = 1; }
+        else if (!strcmp(argv[i], "--board")) { do_board = 1; }
         else if (!strcmp(argv[i], "--sweep") && i + 1 < argc) { sweep = atoi(argv[++i]); }
         else if (!strcmp(argv[i], "--water")) { do_water = 1; }
         else if (!strcmp(argv[i], "--cart")) { do_cart = 1; }
@@ -1107,6 +1202,10 @@ int main(int argc, char **argv)
         return 0;
     }
     build_stage();
+    if (do_board) {
+        board_demo(want_stage);
+        return 0;
+    }
     if (do_analyse) {
         analyse(want_stage, lseed ? lseed : layout_seed());
         return 0;

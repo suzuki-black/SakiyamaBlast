@@ -8,6 +8,7 @@ make hostsim                                  # ビルド
 make grade                                    # 面1〜15を24回ずつ採点
 tools/hostsim/metrics.py --stage 7 --runs 50  # 1面だけ詳しく
 tools/hostsim/sim --stage 1 --seed 3          # 生ログ (JSONL) を見る
+tools/hostsim/sim --stage 7 --board           # 組み立て直後の盤面 (* = 掘らせる隙間)
 ```
 
 15面 × 24回で数秒。何百回でも回せる。
@@ -71,6 +72,10 @@ python3 tools/hostsim/pick_seeds.py --write      # src/field.c の stage_seed[] 
 | `dpar` | その道中で**新しく掘る升の数** |
 | `bathd` | 出発点から水風呂までの**フレーム数**（風呂の遠さ）。**升の数では測れない** — 風呂は必ず掘ってある升に置かれるので掘削数は全面0になる（2026-10-13 の実測） |
 | `parleft` | `par` の経路で**届かなかった黒ダイヤの数**。0 でなければ盤面がおかしい |
+| **`gapn`** | **下ごしらえを仕込んだ鉱脈の本数**（縦に土を挟んだ鉱脈。`src/field.c` の `vgap_tbl`） |
+| **`digpay`** | **隙間を掘ったぶん増える黒ダイヤの数。** 掘らずに落とした場合との差を、engine を回して測る |
+| `digmin` | 1本あたりの最小。2本仕込む面で「片方が死んでいる」を弾く |
+| `digcells` | そのために掘る升の数（段取りの重さ） |
 
 `taken` `reach` `bend` `combo` は**エンジンを回して測る**。とくに `reach` は
 板の向き・曲がった先が掘れるか・その列に炭があるか、が全部絡むので盤面を眺めても
