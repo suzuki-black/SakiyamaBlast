@@ -29,7 +29,7 @@ static int passable(int c, int r)
 {
     uint16_t i = (uint16_t)r * COLS + c;
     if (c < 0 || c >= COLS || r < 0 || r >= ROWS) { return 0; }
-    if (!dug[i]) { return 0; }
+    if (!cf_on(i, CF_DUG)) { return 0; }
     if (coal[i] && coal[i] != COAL_CRACKED) { return 0; }
     /* 岩は塞ぐ。横なら押せることもあるが、経路として当てにすると
        押せない岩に延々ぶつかり続けるので、通れない扱いにしておく。 */
@@ -371,7 +371,7 @@ static int finish(int v, int hc, int hr, int coal0, int *nb)
     if (v > 0) {
         hc = -1;
         for (q = 0; q < NCELL; q++) {
-            if (pillar[q] && cell_coal((int8_t)(q % COLS), (int8_t)(q / COLS)) && --v == 0) {
+            if (cf_on(q, CF_PILLAR) && cell_coal((int8_t)(q % COLS), (int8_t)(q / COLS)) && --v == 0) {
                 hc = q % COLS; hr = q / COLS; break;
             }
         }
@@ -505,7 +505,7 @@ static int par_route(int *dpar_out, int *bathd_out, int *left_out)
     int k, frames = 0, dug_cells = 0, cur, nleft = 0;
 
     for (k = 0; k < NCELL; k++) {
-        par_dug[k] = (uint8_t)(dug[k] ? 1 : 0);
+        par_dug[k] = (uint8_t)(cf_on(k, CF_DUG) ? 1 : 0);
         want[k] = 0;
     }
     for (k = 0; k < NCELL; k++) {
@@ -723,12 +723,12 @@ static void analyse(int st, unsigned sd)
         build_stage();
         if (rock_state[i] == 0) { continue; }
         for (k = 0; k < ROCK_MAX; k++) { if (k != i) { rock_state[k] = 0; } }
-        for (k = 0; k < NCELL; k++) { if (!coal[k]) { dug[k] = 1; } }
+        for (k = 0; k < NCELL; k++) { if (!coal[k]) { cf_set(k, CF_DUG); } }
         for (k = 0; k < NCELL; k++) {
             int kc = k % COLS, kr = k / COLS;
-            if (!dug[k]) { continue; }
-            if (kc + 1 < COLS && dug[k + 1])    { cell_link[k] |= LINK_RIGHT; }
-            if (kr + 1 < ROWS && dug[k + COLS]) { cell_link[k] |= LINK_DOWN; }
+            if (!cf_on(k, CF_DUG)) { continue; }
+            if (kc + 1 < COLS && cf_on(k + 1, CF_DUG))    { cell_link[k] |= LINK_RIGHT; }
+            if (kr + 1 < ROWS && cf_on(k + COLS, CF_DUG)) { cell_link[k] |= LINK_DOWN; }
         }
         /* **真下が黒ダイヤなら1枚だけ割っておく。** 黒ダイヤは静止した岩の支えなので、
            割らないと岩は一歩も動かない。これがゲーム側で言う「1枚ぶんの手間」。 */
@@ -772,7 +772,7 @@ static void analyse(int st, unsigned sd)
             int hc = idx[q] % COLS, hr = idx[q] / COLS, fr, got, k, nb = 0, isp;
             uint8_t ox[ROCK_MAX], oy[ROCK_MAX];
             build_stage();
-            isp = pillar[idx[q]] ? 1 : 0;
+            isp = cf_on(idx[q], CF_PILLAR) ? 1 : 0;
             while (cell_coal((int8_t)hc, (int8_t)hr)) { coal_hit((int8_t)hc, (int8_t)hr); }
             for (k = 0; k < ROCK_MAX; k++) { ox[k] = rock_x[k]; oy[k] = rock_y[k]; }
             for (fr = 0; fr < 400; fr++) {
@@ -976,13 +976,13 @@ static void analyse(int st, unsigned sd)
             }
             for (f = 0; f < 400; f++) { rock_update(); coal_shake_tick(); }
             got_a = before - coal_left;
-            /* (B) 隙間を掘ってから落とす。**掘るのは dug[] を直に立てる** —
+            /* (B) 隙間を掘ってから落とす。**掘るのは cf_on(, CF_DUG) を直に立てる** —
                岩の支えは cell_dug しか見ないので、膜 (cell_link) は要らない。 */
             build_stage();
             before = coal_left;
             for (rr = rtop; rr <= rlow; rr++) {
                 int j = rr * COLS + c;
-                if (!coal[j] && !dug[j]) { dug[j] = 1; dug_n++; cells++; }
+                if (!coal[j] && !cf_on(j, CF_DUG)) { cf_set(j, CF_DUG); dug_n++; cells++; }
             }
             for (rr = rtop; rr <= rlow; rr++) {
                 while (cell_coal((int8_t)c, (int8_t)rr)) { coal_hit((int8_t)c, (int8_t)rr); }
@@ -1035,7 +1035,7 @@ static void analyse(int st, unsigned sd)
 static int gap_reserved(int c, int r)
 {
     int i = r * COLS + c;
-    if (dug[i] || coal[i]) { return 0; }
+    if (cf_on(i, CF_DUG) || coal[i]) { return 0; }
     if (r < 1 || r + 1 >= ROWS) { return 0; }
     return coal[i - COLS] && coal[i + COLS];
 }
@@ -1060,7 +1060,7 @@ static void board_demo(int st)
             else if (bath_on && c == bath_c && r == bath_r) { putchar('B'); }
             else if (c == nest_c && r == nest_r)         { putchar('N'); }
             else if (c == start_c && r == start_r)       { putchar('@'); }
-            else if (dug[i])                             { putchar(' '); }
+            else if (cf_on(i, CF_DUG))                             { putchar(' '); }
             else if (gap_reserved(c, r))                 { putchar('*'); }
             else                                         { putchar('.'); }
         }
@@ -1109,7 +1109,7 @@ static void water_demo(int st)
             else if (bath_on && c == bath_c && r == bath_r) { putchar('B'); }
             else if (c == nest_c && r == nest_r)   { putchar('N'); }
             else if (c == start_c && r == start_r) { putchar('@'); }
-            else if (dug[i])                       { putchar(' '); }
+            else if (cf_on(i, CF_DUG))                       { putchar(' '); }
             else                                   { putchar('.'); }
         }
         putchar('\n');
@@ -1234,8 +1234,8 @@ int main(int argc, char **argv)
                 else if (rock_at((int8_t)c2, (int8_t)r2) >= 0)    { ch = 'O'; }
                 else if (coal[i2] == COAL_CRACKED)               { ch = 'x'; }
                 else if (coal[i2])                               { ch = (char)('0' + (coal[i2] > 9 ? 9 : coal[i2])); }
-                else if (powder[i2])                             { ch = 'p'; }
-                else if (!dug[i2])                               { ch = '.'; }
+                else if (cf_on(i2, CF_POWDER))                             { ch = 'p'; }
+                else if (!cf_on(i2, CF_DUG))                               { ch = '.'; }
                 else                                             { ch = ' '; }
                 putchar(ch);
             }

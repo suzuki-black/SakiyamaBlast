@@ -127,7 +127,7 @@ static void finish_blast(void)
 /* 飛べなくなったので、いまの升へ落として拾えるようにする。 */
 static void bomb_land(void)
 {
-    bombdrop[(uint16_t)bomb_r * COLS + bomb_c] = 1;
+    cf_set((uint16_t)bomb_r * COLS + bomb_c, CF_BOMB);
     draw_bombdrop(bomb_c, bomb_r);
     bomb_state = 0;
     spr_park(SPR_BOMB);

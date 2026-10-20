@@ -32,9 +32,10 @@ A_PX=$(addr px);        A_PY=$(addr py)
 A_STARTC=$(addr start_c); A_STARTR=$(addr start_r)
 A_NESTC=$(addr nest_c); A_NESTR=$(addr nest_r)
 A_BATHON=$(addr bath_on); A_BATHC=$(addr bath_c); A_BATHR=$(addr bath_r)
-A_POWDER=$(addr powder); A_COAL=$(addr coal); A_DUG=$(addr dug)
+# **升ごとの真偽値は cflag[] の1バイトにまとめてある** (src/game.h の CF_*)。
+# 掘り済み=0x01 / 火薬=0x02 / 梅干し=0x08 / 炭柱=0x10 / 支柱=0x20。
+A_COAL=$(addr coal); A_CFLAG=$(addr cflag)
 A_COALLEFT=$(addr coal_left)
-A_PILLAR=$(addr pillar)
 A_CHUTE=$(addr chute)
 A_PCT=$(addr dug_pct)
 A_CFGSTAGE=$(addr cfg_start_stage)
@@ -72,17 +73,17 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
             puts \$f \"STARTR [debug read memory $A_STARTR]\"; \
             set nc [debug read memory $A_NESTC]; set nr [debug read memory $A_NESTR]; \
             set sc [debug read memory $A_STARTC]; set sr [debug read memory $A_STARTR]; \
-            puts \$f \"NESTDUG [debug read memory [expr {$A_DUG+\$nr*16+\$nc}]]\"; \
+            puts \$f \"NESTDUG [expr {[debug read memory [expr {$A_CFLAG+\$nr*16+\$nc}]] & 1}]\"; \
             puts \$f \"NESTFAR [expr {(abs(\$nc-\$sc)+abs(\$nr-\$sr)) >= 6}]\"; \
-            puts \$f \"NESTOPEN [expr {[debug read memory [expr {$A_DUG+(\$nr-1)*16+\$nc}]] || [debug read memory [expr {$A_DUG+(\$nr+1)*16+\$nc}]] || [debug read memory [expr {$A_DUG+\$nr*16+\$nc-1}]] || [debug read memory [expr {$A_DUG+\$nr*16+\$nc+1}]]}]\"; \
+            puts \$f \"NESTOPEN [expr {[expr {[debug read memory [expr {$A_CFLAG+(\$nr-1)*16+\$nc}]] & 1}] || [expr {[debug read memory [expr {$A_CFLAG+(\$nr+1)*16+\$nc}]] & 1}] || [expr {[debug read memory [expr {$A_CFLAG+\$nr*16+\$nc-1}]] & 1}] || [expr {[debug read memory [expr {$A_CFLAG+\$nr*16+\$nc+1}]] & 1}]}]\"; \
             puts \$f \"BATHON [debug read memory $A_BATHON]\"; \
             set p 0; set d 0; set g 0; \
             for {set i 0} {\$i<176} {incr i} { \
-                incr p [debug read memory [expr {$A_POWDER+\$i}]]; \
+                incr p [expr {([debug read memory [expr {$A_CFLAG+\$i}]] >> 1) & 1}]; \
                 if {[debug read memory [expr {$A_COAL+\$i}]]} {incr d}; \
-                incr g [debug read memory [expr {$A_DUG+\$i}]] }; \
+                incr g [expr {[debug read memory [expr {$A_CFLAG+\$i}]] & 1}] }; \
             set pl 0; \
-            for {set i 0} {\$i<176} {incr i} { if {[debug read memory [expr {$A_PILLAR+\$i}]]} {incr pl} }; \
+            for {set i 0} {\$i<176} {incr i} { if {[expr {[debug read memory [expr {$A_CFLAG+\$i}]] & 0x10}]} {incr pl} }; \
             puts \$f \"PILLARN \$pl\"; \
             set cn 0; set cc -1; set cr -1; \
             for {set i 0} {\$i<176} {incr i} { \
@@ -93,18 +94,18 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
             for {set i 0} {\$i<176} {incr i} { \
                 set v [debug read memory [expr {$A_CHUTE+\$i}]]; \
                 if {!\$v} continue; \
-                if {![debug read memory [expr {$A_DUG+\$i}]]} { set cok 0 }; \
+                if {![expr {[debug read memory [expr {$A_CFLAG+\$i}]] & 1}]} { set cok 0 }; \
                 set x [expr {\$i%16}]; \
                 set nx [expr {\$x + (\$v==1 ? 1 : -1)}]; \
                 if {\$nx>=0 && \$nx<16} { \
-                    if {![debug read memory [expr {$A_DUG+\$i-\$x+\$nx}]]} { set cok 0 } } }; \
+                    if {![expr {[debug read memory [expr {$A_CFLAG+\$i-\$x+\$nx}]] & 1}]} { set cok 0 } } }; \
             puts \$f \"CHUTEOPEN \$cok\"; \
             set ::cc \$cc; set ::cr \$cr; \
             puts \$f \"POWDERN \$p\"; puts \$f \"COALN \$d\"; puts \$f \"COALLEFT [debug read memory $A_COALLEFT]\"; puts \$f \"DUGN \$g\"; \
             puts \$f \"PCT [debug read memory $A_PCT]\"; \
             puts \$f \"SPRINGON [debug read memory $A_SPRINGON]\"; \
             set sp_c [debug read memory $A_SPRINGC]; set sp_r [debug read memory $A_SPRINGR]; \
-            puts \$f \"SPRINGDUG [debug read memory [expr {$A_DUG+\$sp_r*16+\$sp_c}]]\"; \
+            puts \$f \"SPRINGDUG [expr {[debug read memory [expr {$A_CFLAG+\$sp_r*16+\$sp_c}]] & 1}]\"; \
             set wn 0; set pn 0; \
             for {set i 0} {\$i<176} {incr i} { \
                 set wv [debug read memory [expr {$A_WATER+\$i}]]; \
@@ -115,7 +116,7 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
             set rr [debug read memory $A_CARTR]; set r0 [debug read memory $A_CARTC0]; set r1 [debug read memory $A_CARTC1]; \
             puts \$f \"CARTLEN [expr {\$r1 - \$r0 + 1}]\"; \
             set ro 1; \
-            for {set k \$r0} {\$k<=\$r1} {incr k} { if {![debug read memory [expr {$A_DUG+\$rr*16+\$k}]]} { set ro 0 } }; \
+            for {set k \$r0} {\$k<=\$r1} {incr k} { if {![expr {[debug read memory [expr {$A_CFLAG+\$rr*16+\$k}]] & 1}]} { set ro 0 } }; \
             puts \$f \"CARTOPEN \$ro\"; \
             puts \$f \"TIMEM [debug read memory $A_TLHI]\"; \
             puts \$f \"TIMES [debug read memory $A_TLLO]\"; \
@@ -126,7 +127,7 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
                 set gc [debug read memory [expr {$A_GAPVC+\$k}]]; \
                 set gr [debug read memory [expr {$A_GAPVR+\$k}]]; \
                 if {![debug read memory [expr {$A_COAL+\$gr*16+\$gc}]]} { set gok 0 }; \
-                if {[debug read memory [expr {$A_DUG+(\$gr+1)*16+\$gc}]]} { set gok 0 }; \
+                if {[expr {[debug read memory [expr {$A_CFLAG+(\$gr+1)*16+\$gc}]] & 1}]} { set gok 0 }; \
                 if {![debug read memory [expr {$A_COAL+(\$gr+2)*16+\$gc}]]} { set gok 0 } }; \
             puts \$f \"GAPVOK \$gok\"; \
             close \$f; \

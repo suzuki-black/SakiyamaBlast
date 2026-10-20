@@ -5,11 +5,7 @@
 #include "text.h"
 #include "sound.h"
 
-uint8_t  dug[NCELL];
-uint8_t  powder[NCELL];
-uint8_t  bombdrop[NCELL];
-uint8_t  ume[NCELL];
-uint8_t  pillar[NCELL];
+uint8_t  cflag[NCELL];      /* 升ごとの真偽値 (CF_*)。game.h の説明を参照 */
 uint8_t  chute[NCELL];
 uint8_t  coal[NCELL];
 uint8_t  coal_left;
@@ -98,7 +94,7 @@ uint8_t coal_refill_at(int8_t cx, int8_t cy)
     if (coal[i] != COAL_CRACKED) {
         return 0;                       /* 割れて採掘待ちの升だけが対象 */
     }
-    if (pillar[i]) {
+    if (cf_on(i, CF_PILLAR)) {
         return 0;                       /* 炭柱は耐久が高く、割り直しの代償が大きすぎる */
     }
     if (refill_t && refill_cell == (uint8_t)i) {
@@ -111,7 +107,7 @@ uint8_t coal_refill_at(int8_t cx, int8_t cy)
         return 0;                       /* 別の敵が居座っている升も塞がない */
     }
     coal[i] = REFILL_HP;
-    dug[i] = 0;                         /* 通れなくなる。dug_n は据え置き */
+    cf_clr(i, CF_DUG);                         /* 通れなくなる。dug_n は据え置き */
     cell_link[i] = 0;                   /* 土の膜も閉じる */
     if (cx > 0) {
         cell_link[i - 1] &= (uint8_t)~LINK_RIGHT;
@@ -423,7 +419,7 @@ uint8_t cell_dug(int8_t cx, int8_t cy)
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
         return 0;
     }
-    return dug[(uint8_t)cy * COLS + (uint8_t)cx];
+    return cf_on((uint8_t)cy * COLS + (uint8_t)cx, CF_DUG);
 }
 
 /* 立ちはだかっている黒ダイヤなら1。割れたもの (COAL_CRACKED) は通れるので0。 */
@@ -485,9 +481,9 @@ uint8_t coal_hit(int8_t cx, int8_t cy)
     coal[i]--;
     if (coal[i] == 0) {
         {
-            uint8_t was_pillar = pillar[i];
+            uint8_t was_pillar = cf_on(i, CF_PILLAR);
             coal[i] = COAL_CRACKED;
-            pillar[i] = 0;                     /* 割れたらもう支えではない */
+            cf_clr(i, CF_PILLAR);                     /* 割れたらもう支えではない */
             if (was_pillar) {
                 rock_collapse();               /* 天盤を支える柱が消えた = 落盤 */
             }
@@ -536,7 +532,7 @@ void coal_crack_by_rock(int8_t cx, int8_t cy)
         return;
     }
     coal[i] = COAL_CRACKED;
-    pillar[i] = 0;                  /* 落盤を再帰させないため、ここで降ろす */
+    cf_clr(i, CF_PILLAR);                  /* 落盤を再帰させないため、ここで降ろす */
     dig_sweep((uint8_t)cx, (uint8_t)cy);
     link_open((uint8_t)cx, (uint8_t)cy);
     draw_coal((uint8_t)cx, (uint8_t)cy);
@@ -566,11 +562,11 @@ uint8_t coal_smash(int8_t cx, int8_t cy)
     if (!coal[i]) {
         return 0;
     }
-    if (pillar[i]) {
+    if (cf_on(i, CF_PILLAR)) {
         /* **炭柱が消えた = 天盤の支えが無くなった。** つるはしで割ったときと同じく
            落盤にする。ただし**いまは岩の処理の最中**なので、その場では起こさず
            rock_update() が終わってからにする (rock.c の rock_collapse_later)。 */
-        pillar[i] = 0;
+        cf_clr(i, CF_PILLAR);
         rock_collapse_later();
     }
     /* **先に「割れた」扱いにしてから掘る。** dig_sweep は cell_coal() を見て
@@ -745,10 +741,10 @@ void dig_sweep(uint8_t cx, uint8_t cy)
         return;
     }
     i = (uint16_t)cy * COLS + cx;
-    if (dug[i] || cell_coal((int8_t)cx, (int8_t)cy)) {
+    if (cf_on(i, CF_DUG) || cell_coal((int8_t)cx, (int8_t)cy)) {
         return;                     /* 黒ダイヤは掘れない。つるはしで割るしかない */
     }
-    dug[i] = 1;
+    cf_set(i, CF_DUG);
     dug_n++;
     dug_pct = (uint8_t)((dug_n * 100u) / NCELL);
     score_add(PTS_DIG);
@@ -837,7 +833,7 @@ static uint8_t can_drop(int8_t cx, int8_t cy)
         return 0;
     }
     i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
-    if (!dug[i] || coal[i] || chute[i] || powder[i] || bombdrop[i] || ume[i]) {
+    if (!cf_on(i, CF_DUG) || coal[i] || chute[i] || cf_on(i, CF_POWDER) || cf_on(i, CF_BOMB) || cf_on(i, CF_UME)) {
         return 0;                       /* 樋の升は板が占めている */
     }
     if (bath_on && (uint8_t)cx == bath_c && (uint8_t)cy == bath_r) {
@@ -870,10 +866,10 @@ void drop_item_at(int8_t cx, int8_t cy, uint8_t is_ume)
     }
     i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
     if (is_ume) {
-        ume[i] = 1;
+        cf_set(i, CF_UME);
         draw_ume((uint8_t)cx, (uint8_t)cy);
     } else {
-        powder[i] = 1;
+        cf_set(i, CF_POWDER);
         draw_powder((uint8_t)cx, (uint8_t)cy);
     }
 }
@@ -902,7 +898,7 @@ void draw_coal(uint8_t cx, uint8_t cy)
         return;
     }
     {
-        uint8_t is_p = pillar[(uint16_t)cy * COLS + cx];
+        uint8_t is_p = cf_on((uint16_t)cy * COLS + cx, CF_PILLAR);
         uint8_t x = 8;
         draw_tile(cx, cy, art_tile_of(is_p ? TILE_PILLAR : TILE_DIA), 0);
         if (hp == 0) {
@@ -998,11 +994,11 @@ void draw_water(uint8_t cx, uint8_t cy)
      */
     {
         uint8_t i = (uint8_t)((uint8_t)(cy << 4) + cx);   /* 176升なので8ビットで足りる */
-        if (powder[i]) {
+        if (cf_on(i, CF_POWDER)) {
             draw_powder(cx, cy);
-        } else if (bombdrop[i]) {
+        } else if (cf_on(i, CF_BOMB)) {
             draw_bombdrop(cx, cy);
-        } else if (ume[i]) {
+        } else if (cf_on(i, CF_UME)) {
             draw_ume(cx, cy);
         }
     }
@@ -1114,7 +1110,7 @@ void field_redraw_cell(int8_t cx, int8_t cy)
     if (chute[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
         draw_chute((uint8_t)cx, (uint8_t)cy);
     }
-    if (powder[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
+    if (cf_on((uint16_t)(uint8_t)cy * COLS + (uint8_t)cx, CF_POWDER)) {
         draw_powder((uint8_t)cx, (uint8_t)cy);
     }
     if (bath_on && (uint8_t)cx == bath_c && (uint8_t)cy == bath_r) {
@@ -1123,7 +1119,7 @@ void field_redraw_cell(int8_t cx, int8_t cy)
     if (bonus_on && (uint8_t)cx == bonus_c && (uint8_t)cy == bonus_r) {
         draw_bonus((uint8_t)cx, (uint8_t)cy, bonus_kind);
     }
-    if (bombdrop[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
+    if (cf_on((uint16_t)(uint8_t)cy * COLS + (uint8_t)cx, CF_BOMB)) {
         draw_bombdrop((uint8_t)cx, (uint8_t)cy);
     }
     /* **熱水は一番上に重ねる。** 湧き出し口も水に沈んだら水で描く。 */
@@ -1157,7 +1153,7 @@ static void carve_digit(uint8_t d, uint8_t col0)
         uint8_t bits = digit_rows[d][r];
         for (c = 0; c < 5; c++) {
             if (bits & (0x10 >> c)) {
-                dug[(uint16_t)(DIGIT_TOP + r) * COLS + (uint8_t)(col0 + c)] = 1;
+                cf_set((uint16_t)(DIGIT_TOP + r) * COLS + (uint8_t)(col0 + c), CF_DUG);
             }
         }
     }
@@ -1197,9 +1193,9 @@ static uint8_t cell_ok(uint16_t i, uint8_t kind)
 {
     uint8_t c = (uint8_t)(i % COLS), r = (uint8_t)(i / COLS);
     if (kind == 0) {
-        return (uint8_t)(dug[i] && !used[i]);
+        return (uint8_t)(cf_on(i, CF_DUG) && !used[i]);
     }
-    if (dug[i] || coal[i] || chute[i] || rock_at((int8_t)c, (int8_t)r) >= 0) {
+    if (cf_on(i, CF_DUG) || coal[i] || chute[i] || rock_at((int8_t)c, (int8_t)r) >= 0) {
         return 0;
     }
     if (used[i] == ROCK_OFF_RESV || used[i] == VEIN_GAP_RESV) {
@@ -1212,7 +1208,7 @@ static uint8_t cell_ok(uint16_t i, uint8_t kind)
         if (r + 1 >= ROWS) {
             return 0;
         }
-        if (dug[i + COLS]) {
+        if (cf_on(i + COLS, CF_DUG)) {
             return 0;              /* 真下が坑道では支えが無い */
         }
         /* **真下が黒ダイヤでもよい。** 黒ダイヤは未掘の升に置かれるので、そのまま
@@ -1235,7 +1231,7 @@ static uint16_t nearest_dug(uint8_t tc, uint8_t tr)
             uint16_t i = (uint16_t)r * COLS + c;
             uint8_t d;
             int8_t dc, dr;
-            if (!dug[i] || used[i]) {
+            if (!cf_on(i, CF_DUG) || used[i]) {
                 continue;
             }
             dc = (int8_t)(c - tc); if (dc < 0) { dc = (int8_t)-dc; }
@@ -1263,7 +1259,7 @@ static uint16_t nearest_dug_away(uint8_t tc, uint8_t tr, uint8_t ac, uint8_t ar,
             uint16_t i = (uint16_t)r * COLS + c;
             uint8_t d;
             int8_t dc, dr;
-            if (!dug[i] || used[i]) {
+            if (!cf_on(i, CF_DUG) || used[i]) {
                 continue;
             }
             dc = (int8_t)(c - ac); if (dc < 0) { dc = (int8_t)-dc; }
@@ -1288,7 +1284,7 @@ static void dug_centre(uint8_t *oc, uint8_t *orr)
 {
     uint16_t sc = 0, sr = 0, n = 0, i;
     for (i = 0; i < NCELL; i++) {
-        if (dug[i]) {
+        if (cf_on(i, CF_DUG)) {
             sc = (uint16_t)(sc + (i % COLS));
             sr = (uint16_t)(sr + (i / COLS));
             n++;
@@ -1376,7 +1372,7 @@ static void place_powder(uint8_t n)
             return;                                  /* 置ける升目が尽きた */
         }
         used[i] = 1;
-        powder[i] = 1;
+        cf_set(i, CF_POWDER);
         n--;
     }
 }
@@ -1602,7 +1598,7 @@ static void place_pillars(void)
             return;
         }
         coal[i] = hp;
-        pillar[i] = 1;
+        cf_set(i, CF_PILLAR);
         coal_left++;
     }
 }
@@ -1750,8 +1746,8 @@ static void place_chutes(void)
                開けておけば**落とす前に岩の通り道を最後まで目で追える**。 */
             {
                 uint8_t nc = (uint8_t)((int8_t)c + ((dir == CHUTE_R) ? 1 : -1));
-                dug[i] = 1;
-                dug[(uint16_t)r * COLS + nc] = 1;
+                cf_set(i, CF_DUG);
+                cf_set((uint16_t)r * COLS + nc, CF_DUG);
                 link_open(c, r);
                 link_open(nc, r);
             }
@@ -1824,7 +1820,7 @@ static uint8_t off_path_ok(uint8_t c, uint8_t r, int8_t d, uint8_t k)
         }
         i += COLS;
         if (j < k) {
-            if (dug[i] || coal[i]) {
+            if (cf_on(i, CF_DUG) || coal[i]) {
                 return 0;
             }
         } else if (!coal[i]) {
@@ -2018,7 +2014,7 @@ static uint8_t cave_ok(uint16_t i, uint8_t need_open)
 {
     uint8_t c = (uint8_t)(i % COLS), r = (uint8_t)(i / COLS);
     int8_t dc, dr;
-    if (dug[i]) {
+    if (cf_on(i, CF_DUG)) {
         return 0;
     }
     dc = (int8_t)(c - start_c); if (dc < 0) { dc = (int8_t)-dc; }
@@ -2066,7 +2062,7 @@ static void place_cave(void)
         if (hit == 0) {
             nest_c = (uint8_t)(i % COLS);
             nest_r = (uint8_t)(i / COLS);
-            dug[i] = 1;                  /* 1ブロックだけ開ける */
+            cf_set(i, CF_DUG);                  /* 1ブロックだけ開ける */
             used[i] = 1;
             return;
         }
@@ -2099,7 +2095,7 @@ static uint8_t push_if(uint8_t sp, uint8_t *stk, uint8_t k)
     if (flood_wet && !flow_ok((int8_t)(k % COLS), (int8_t)(k / COLS))) {
         return sp;
     }
-    if (dug[k] && !reach[k] && !water[k]) {
+    if (cf_on(k, CF_DUG) && !reach[k] && !water[k]) {
         reach[k] = 1;
         stk[sp++] = k;
     }
@@ -2115,7 +2111,7 @@ static void flood_from(uint8_t c, uint8_t r)
     for (k = 0; k < NCELL; k++) {
         reach[k] = 0;
     }
-    if (!dug[i]) {
+    if (!cf_on(i, CF_DUG)) {
         return;
     }
     reach[i] = 1;
@@ -2158,14 +2154,14 @@ static void connect_to_reach(uint8_t c, uint8_t r)
     cc = c;
     while (cc != bc) {
         cc = (uint8_t)((cc < bc) ? cc + 1 : cc - 1);
-        dug[(uint16_t)r * COLS + cc] = 1;
+        cf_set((uint16_t)r * COLS + cc, CF_DUG);
     }
     rr = r;
     while (rr != br) {
         rr = (uint8_t)((rr < br) ? rr + 1 : rr - 1);
-        dug[(uint16_t)rr * COLS + bc] = 1;
+        cf_set((uint16_t)rr * COLS + bc, CF_DUG);
     }
-    dug[(uint16_t)r * COLS + c] = 1;
+    cf_set((uint16_t)r * COLS + c, CF_DUG);
 }
 
 /*
@@ -2300,7 +2296,7 @@ static void place_rail(void)
         }
         for (k = 0; k < CART_LEN; k++) {
             i = (uint16_t)r * COLS + (uint16_t)(c + k);
-            dug[i] = 1;
+            cf_set(i, CF_DUG);
             used[i] = 1;
             link_open((uint8_t)(c + k), r);
         }
@@ -2499,11 +2495,11 @@ void build_stage(void)
     uint8_t c, r;
 
     for (i = 0; i < NCELL; i++) {
-        dug[i] = 0;
-        powder[i] = 0;
-        bombdrop[i] = 0;
-        ume[i] = 0;
-        pillar[i] = 0;
+        cf_clr(i, CF_DUG);
+        cf_clr(i, CF_POWDER);
+        cf_clr(i, CF_BOMB);
+        cf_clr(i, CF_UME);
+        cf_clr(i, CF_PILLAR);
         chute[i] = 0;
         coal[i] = 0;
         cell_link[i] = 0;
@@ -2526,7 +2522,7 @@ void build_stage(void)
 
     dug_n = 0;
     for (i = 0; i < NCELL; i++) {
-        if (dug[i]) {
+        if (cf_on(i, CF_DUG)) {
             dug_n++;
         }
     }
@@ -2538,11 +2534,11 @@ void build_stage(void)
     for (r = 0; r < ROWS; r++) {
         for (c = 0; c < COLS; c++) {
             uint16_t k = (uint16_t)r * COLS + c;
-            if (!dug[k]) {
+            if (!cf_on(k, CF_DUG)) {
                 continue;
             }
-            if (c + 1 < COLS && dug[k + 1])    { cell_link[k] |= LINK_RIGHT; }
-            if (r + 1 < ROWS && dug[k + COLS]) { cell_link[k] |= LINK_DOWN; }
+            if (c + 1 < COLS && cf_on(k + 1, CF_DUG))    { cell_link[k] |= LINK_RIGHT; }
+            if (r + 1 < ROWS && cf_on(k + COLS, CF_DUG)) { cell_link[k] |= LINK_DOWN; }
         }
     }
 
@@ -2566,10 +2562,10 @@ void build_stage(void)
                 draw_chute(c, r);
                 continue;
             }
-            if (powder[(uint16_t)r * COLS + c]) {
+            if (cf_on((uint16_t)r * COLS + c, CF_POWDER)) {
                 draw_powder(c, r);
             }
-            if (bombdrop[(uint16_t)r * COLS + c]) {
+            if (cf_on((uint16_t)r * COLS + c, CF_BOMB)) {
                 draw_bombdrop(c, r);
             }
         }

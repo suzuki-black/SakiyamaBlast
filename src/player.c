@@ -214,9 +214,9 @@ void player_carve(void)
                 draw_bath(c, r);
             } else if (c == nest_c && r == nest_r) {
                 draw_cave(c, r);
-            } else if (powder[i]) {
+            } else if (cf_on(i, CF_POWDER)) {
                 draw_powder(c, r);
-            } else if (bombdrop[i]) {
+            } else if (cf_on(i, CF_BOMB)) {
                 draw_bombdrop(c, r);
             } else if (bonus_on && c == bonus_c && r == bonus_r) {
                 draw_bonus(c, r, bonus_kind);
@@ -327,23 +327,23 @@ static void collect(void)
         bonus_take();
         snd_sfx(SFX_PICK);
     }
-    if (powder[i]) {
-        powder[i] = 0;
+    if (cf_on(i, CF_POWDER)) {
+        cf_clr(i, CF_POWDER);
         draw_dug_cell((int8_t)c, (int8_t)r);   /* 火薬の絵を消して坑道へ戻す */
         player_carve();
         stock++;
         score_add(PTS_POWDER);
         snd_sfx(SFX_PICK);
     }
-    if (ume[i]) {                              /* 梅干し。塩分補給で体温が下がる */
-        ume[i] = 0;
+    if (cf_on(i, CF_UME)) {                              /* 梅干し。塩分補給で体温が下がる */
+        cf_clr(i, CF_UME);
         draw_dug_cell((int8_t)c, (int8_t)r);
         player_carve();
         temp = (uint8_t)((temp > UME_COOL) ? (temp - UME_COOL) : 0);
         snd_sfx(SFX_PICK);
     }
-    if (bombdrop[i]) {                         /* 投げて落ちたダイナマイトを拾い直す */
-        bombdrop[i] = 0;
+    if (cf_on(i, CF_BOMB)) {                         /* 投げて落ちたダイナマイトを拾い直す */
+        cf_clr(i, CF_BOMB);
         draw_dug_cell((int8_t)c, (int8_t)r);
         player_carve();
         stock++;

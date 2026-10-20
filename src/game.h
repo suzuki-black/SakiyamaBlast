@@ -347,11 +347,29 @@ void    debris_draw(void);
 uint8_t player_pattern(void);
 
 /* --- field.c --- */
-extern uint8_t  dug[NCELL];      /* 掘り済みフラグ */
-extern uint8_t  powder[NCELL];   /* 火薬 (ダイナマイトの弾薬) */
-extern uint8_t  bombdrop[NCELL]; /* 投げて落ちたダイナマイト。拾い直せる */
-extern uint8_t  ume[NCELL];      /* 梅干し。倒した敵が落とす。拾うと体温が下がる */
-extern uint8_t  pillar[NCELL];   /* 0 = 通常 / 1 = 炭柱 */
+/*
+ * **升ごとの真偽値は1バイトにまとめてある** (2026-10-20)。
+ *
+ * 掘り済み・火薬・ダイナマイト・梅干し・炭柱・支柱は、どれも「有る/無い」しか
+ * 持たないのに、**1升1バイトの配列を6本**持っていた (176 x 6 = 1056バイト)。
+ * カートリッジから見える RAM はページ3の16KBしかなく、そのうち 9.25KB は
+ * RAM 実行のコードで埋まっている (CLAUDE.md)。変数の空きが91バイトまで
+ * 減っていたので、ここを詰めた。**1本 176バイトで済む。**
+ *
+ * **ビットごとに配列を分けない。** 添字の計算が1回で済み、読み書きは
+ * AND / OR 1回で足りるので、コードはほとんど増えない
+ * (ビット詰めにすると、升ごとにシフト量を計算することになって逆に太る)。
+ */
+extern uint8_t  cflag[NCELL];
+#define CF_DUG      0x01     /* 掘り済み */
+#define CF_POWDER   0x02     /* 火薬 (ダイナマイトの弾薬) */
+#define CF_BOMB     0x04     /* 投げて落ちたダイナマイト。拾い直せる */
+#define CF_UME      0x08     /* 梅干し。岩で潰した敵が落とす。拾うと体温が下がる */
+#define CF_PILLAR   0x10     /* 炭柱 */
+#define CF_PROP     0x20     /* 支柱 (つっかい棒)。立っている間、真上の岩は落ちない */
+#define cf_on(i, b)   (cflag[i] & (uint8_t)(b))
+#define cf_set(i, b)  (cflag[i] = (uint8_t)(cflag[i] | (uint8_t)(b)))
+#define cf_clr(i, b)  (cflag[i] = (uint8_t)(cflag[i] & (uint8_t)~(uint8_t)(b)))
 /* 黒ダイヤ (石炭)。土と違って自機の掘りでは進めず、障害物として立ちはだかる。
    つるはしで1回叩くごとに耐久度が1減り、0になると COAL_CRACKED (割れた状態) になる。
    割れると通れるようになり、その升に入ると採掘できる。

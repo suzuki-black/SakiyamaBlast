@@ -72,7 +72,7 @@ uint8_t flow_ok(int8_t cx, int8_t cy)
         return 0;
     }
     i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
-    if (water[i] || !dug[i] || coal[i]) {
+    if (water[i] || !cf_on(i, CF_DUG) || coal[i]) {
         return 0;
     }
     if (rock_at(cx, cy) >= 0) {
