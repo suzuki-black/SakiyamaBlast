@@ -87,8 +87,12 @@ def sprite_pixels(lines, height):
         if y == 216:                      # 以降の面は表示されない (行終端)
             continue
         base = pn * 8                     # パターン番号 x 32 バイト (16x16)
+        yy = y - 256 if y >= 225 else y   # **225〜255 は負の座標** (-31〜-1)。
+                                          # 画面の上から入ってくる絵のため。
+                                          # ここを素直に足すと、行0 に置いた岩が
+                                          # 「写らない」と誤診する (2026-10-20)
         for r in range(16):
-            sy = y + 1 + r                # VDP は Y+1 行目から出す
+            sy = yy + 1 + r               # VDP は Y+1 行目から出す
             if sy < 0 or sy >= height:
                 continue
             # **枚数は形や色に関係なく数える。** その行に掛かっていれば、

@@ -23,6 +23,26 @@
 
 uint8_t rock_state[ROCK_MAX];
 uint8_t rock_x[ROCK_MAX], rock_y[ROCK_MAX];
+/*
+ * **支柱 (つっかい棒)。立っている間、その岩は何があっても落ちない** (2026-10-20)。
+ *
+ * 狙いは「段取りを増やすこと」であって難しくすることではない (作者の指示)。
+ * 支柱が無いと、仕込んだ鉱脈は**一番上を割った瞬間に岩が落ちる**ので、
+ * 「下から割る → 隙間を掘る → 最後に上を割る」という**順番の罠**になっていた。
+ * 支柱があると順番を気にせず準備でき、**引き金を独立した1手**にできる。
+ * 手数は増えて見えるのに、失敗の罠は減る。
+ *
+ * 規則:
+ *   - 立っている間は支え。**落盤でも落ちない** (炭柱を割っても、この岩だけ残る)
+ *   - **つるはしで1回叩けば折れる** (威力は問わない。木だから)
+ *   - 折れるまで**押せない** (柱が岩を固定している)
+ *   - 絵は「支柱に載った岩」1枚 (PAT_ROCKPROP)。岩と柱を別のスプライトにすると
+ *     その行に2枚並び、**1走査線8枚の制限**と競合する (鉱車と同じ理由)
+ */
+uint8_t rock_prop[ROCK_MAX];
+/* いま色表を焼いてある絵。支柱の有無で色が変わるので、変わったときだけ張り替える
+   (坑木は黄、岩は灰。mode 2 は1行1色なので、絵が変われば色表も変わる)。 */
+static uint8_t rock_cpat[ROCK_MAX];
 
 static uint8_t jig_t[ROCK_MAX];     /* 揺れの残りフレーム */
 static uint8_t pushed[ROCK_MAX];    /* 押されて動いた直後か。揺れの長さを変える */
@@ -46,6 +66,8 @@ void rock_clear(void)
     for (i = 0; i < ROCK_MAX; i++) {
         rock_state[i] = ROCK_NONE;
         chute_n[i] = 0;
+        rock_prop[i] = 0;
+        rock_cpat[i] = 0xFF;            /* 次の rock_draw で必ず張り直す */
         spr_park((uint8_t)(SPR_ROCK + i));
     }
 }
@@ -127,12 +149,31 @@ static uint8_t rock_solid_at(int8_t cx, int8_t cy)
     return (uint8_t)(rock_state[i] != ROCK_FALL);
 }
 
+/*
+ * **支柱を折る。** つるはしが届いた升に支柱で止めてある岩が居れば、1回で折れる。
+ * 折れた岩はいつもの規則に戻るので、支えが無ければ揺れてから落ちる。
+ * 戻り値 1 = 折った (空振りではない)。
+ */
+uint8_t rock_prop_break(int8_t c, int8_t r)
+{
+    int8_t i = rock_at(c, r);
+    if (i < 0 || !rock_prop[(uint8_t)i]) {
+        return 0;
+    }
+    rock_prop[(uint8_t)i] = 0;
+    snd_sfx(SFX_WOOD);                  /* 樋の板と同じ「バキッ」。坑木が折れる音 */
+    return 1;
+}
+
 /* 真下が支えられているか。地形(未掘の土)・盤面の底・静止した岩に加えて、
    **真下の升目に自機が居る場合も支え**とする (Dig Dug 準拠)。 */
 static uint8_t supported(uint8_t i)
 {
     int8_t c = rcx(i);
     int8_t r = (int8_t)(rock_y[i] >> 4);
+    if (rock_prop[i]) {
+        return 1;                       /* 支柱。折られるまで落ちない (落盤でも) */
+    }
     if (r + 1 >= ROWS) {
         return 1;
     }
@@ -160,6 +201,9 @@ uint8_t rock_can_push(int8_t i, int8_t dx, uint8_t into_dirt)
     int8_t r, nc;
     if (i < 0 || rock_state[i] == ROCK_NONE || rock_state[i] == ROCK_FALL) {
         return 0;                       /* 落ちている岩は押せない */
+    }
+    if (rock_prop[(uint8_t)i]) {
+        return 0;                       /* 支柱が固定している。折ってから押す */
     }
     r = (int8_t)(rock_y[i] >> 4);
     /* **これから踏み込む升は「進む側の端」で決める。中心ではない。**
@@ -557,8 +601,13 @@ void rock_draw(void)
             if (rock_state[i] == ROCK_JIG && (jig_t[i] & 2)) {
                 x = (uint8_t)(x + 1);
             }
+            uint8_t cpat = (uint8_t)(rock_prop[i] ? PAT_ROCKPROP : PAT_ROCK);
+            if (cpat != rock_cpat[i]) {
+                rock_cpat[i] = cpat;
+                spr_color_lines((uint8_t)(SPR_ROCK + i), art_colours(cpat));
+            }
             spr_set((uint8_t)(SPR_ROCK + i), x, (uint8_t)(rock_y[i] - 1),
-                    (uint8_t)(rock_state[i] == ROCK_SPLIT ? PAT_SPLIT : PAT_ROCK));
+                    (uint8_t)(rock_state[i] == ROCK_SPLIT ? PAT_SPLIT : cpat));
         }
     }
 }

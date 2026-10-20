@@ -768,6 +768,31 @@ static void analyse(int st, unsigned sd)
         for (i = 0; i < NCELL; i++) {
             if (coal[i] && coal[i] != COAL_CRACKED) { idx[n++] = i; }
         }
+        /* **支柱を折るのも「つるはし1本」。** 仕込んだ鉱脈の岩は支柱で止めてあるので、
+           黒ダイヤを割る手だけを数えると最善手を見落とす (2026-10-20)。 */
+        for (q = 0; q < ROCK_MAX; q++) {
+            int fr, got, k, nb = 0;
+            uint8_t ox[ROCK_MAX], oy[ROCK_MAX];
+            build_stage();
+            if (!rock_prop[q]) { continue; }
+            rock_prop[q] = 0;
+            for (k = 0; k < ROCK_MAX; k++) { ox[k] = rock_x[k]; oy[k] = rock_y[k]; }
+            for (fr = 0; fr < 400; fr++) {
+                rock_update();
+                coal_shake_tick();
+                for (k = 0; k < ROCK_MAX; k++) {
+                    if (rock_state[k] && rock_y[k] == oy[k] && rock_x[k] != ox[k]
+                        && (rock_x[k] & 15) == 0) { nb++; }
+                    ox[k] = rock_x[k]; oy[k] = rock_y[k];
+                }
+            }
+            got = coal0 - coal_left;
+            if (got > hand || (got == hand && nb > hbend)) {
+                if (got > hand) { hand = got; hbend = nb; } else { hbend = nb; }
+            }
+            if (got > hpick0) { hpick0 = got; }
+        }
+        build_stage();
         for (q = 0; q < n; q++) {
             int hc = idx[q] % COLS, hr = idx[q] / COLS, fr, got, k, nb = 0, isp;
             uint8_t ox[ROCK_MAX], oy[ROCK_MAX];
@@ -974,6 +999,7 @@ static void analyse(int st, unsigned sd)
             for (rr = rtop; rr <= rlow; rr++) {
                 while (cell_coal((int8_t)c, (int8_t)rr)) { coal_hit((int8_t)c, (int8_t)rr); }
             }
+            rock_prop_break((int8_t)c, (int8_t)(rtop - 1));   /* 支柱を折る = 引き金 */
             for (f = 0; f < 400; f++) { rock_update(); coal_shake_tick(); }
             got_a = before - coal_left;
             /* (B) 隙間を掘ってから落とす。**掘るのは cf_on(, CF_DUG) を直に立てる** —
@@ -987,6 +1013,7 @@ static void analyse(int st, unsigned sd)
             for (rr = rtop; rr <= rlow; rr++) {
                 while (cell_coal((int8_t)c, (int8_t)rr)) { coal_hit((int8_t)c, (int8_t)rr); }
             }
+            rock_prop_break((int8_t)c, (int8_t)(rtop - 1));
             for (f = 0; f < 400; f++) { rock_update(); coal_shake_tick(); }
             got_b = before - coal_left;
             if (got_b - got_a < digmin) { digmin = got_b - got_a; }

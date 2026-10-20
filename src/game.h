@@ -332,6 +332,7 @@ extern uint8_t combo_t;       /* HUD に出しておく残り時間 */
 #define PAT_CHIP 25      /* 石炭のかけら。採った升から自機へ吸い寄せられる */
 #define PAT_CART     26  /* 鉱車 (空) */
 #define PAT_CARTROCK 27  /* 岩を載せた鉱車。**合体した1枚**にして走査線を節約する */
+#define PAT_ROCKPROP 28  /* 支柱で止めてある岩。叩くと折れて落ちる */
 /* かけらは「岩でも採掘できる」を絵で説明するためのもの。言葉にしにくい仕組みなので、
    自機へ集まる動きで「いま手に入った」を伝える。 */
 #define DEBRIS_MAX     6
@@ -619,6 +620,8 @@ extern uint8_t rock_x[ROCK_MAX], rock_y[ROCK_MAX];
 void    rock_clear(void);
 void    rock_place(uint8_t c, uint8_t r);
 int8_t  rock_at(int8_t cx, int8_t cy);          /* そのセルの岩の番号 / 無ければ -1 */
+extern uint8_t rock_prop[ROCK_MAX];  /* 支柱で止めてある岩 (rock.c の説明を参照) */
+uint8_t rock_prop_break(int8_t c, int8_t r);  /* つるはしで支柱を折る。1 = 折った */
 uint8_t rock_can_push(int8_t i, int8_t dx, uint8_t into_dirt);    /* 押せるか調べるだけ */
 uint8_t rock_push(int8_t i, int8_t dx, uint8_t into_dirt);   /* 1ドットだけ動かす。1=押せた */
 /* (x,y) の者が dx へ進むとき押すことになる岩。無ければ -1。升ではなくドットで見る。 */

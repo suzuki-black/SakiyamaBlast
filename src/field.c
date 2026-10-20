@@ -1931,10 +1931,18 @@ static void place_rocks(void)
         uint8_t k;
         for (k = 0; k < gapv_n && n; k++) {
             uint8_t rr = (uint8_t)(gapv_r[k] - 1);
+            int8_t ri;
             if (rock_at((int8_t)gapv_c[k], (int8_t)rr) >= 0) {
                 continue;
             }
             rock_place(gapv_c[k], rr);
+            /* **支柱で止めておく。** この岩は仕込んだ鉱脈の引き金なので、
+               一番上を割った拍子に落ちてしまうと段取りが崩れる。支柱があれば
+               順番を気にせず準備でき、**折る1手が引き金**になる (rock.c)。 */
+            ri = rock_at((int8_t)gapv_c[k], (int8_t)rr);
+            if (ri >= 0) {
+                rock_prop[(uint8_t)ri] = 1;
+            }
             drop_row(rr);
             n--;
         }
@@ -2473,9 +2481,9 @@ static void set_stage_layout(void)
 
    落盤で採れる数 (taken) は 面1〜3 で4個、面15 で0個。難易度の軸はこちら。 */
 const uint16_t stage_seed[15] = {
-    17612, 24442,    39,  6972, 35089,
-    35119,    76, 52263, 22545, 37978,
-     1846, 30169, 37468, 41184, 28965,
+    17612, 24442,  4491,  6972, 35089,
+    29123, 29237, 52263,  1123, 24137,
+    12328,  6459, 45399, 27511, 28965,
 };
 uint16_t layout_seed_force;      /* 0 以外なら強制的にこの種を使う (道具用) */
 

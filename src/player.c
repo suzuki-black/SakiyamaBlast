@@ -133,6 +133,11 @@ static void do_swing(uint8_t pow)
     if (enemy_stun_at(cx, cy, fdx, fdy, pow)) {
         hit = 1;
     }
+    /* **支柱は1回で折れる。** 威力は問わない (木なので溜めても意味が無い)。
+       折った瞬間にその岩が落ち始めるので、**引き金を自分で引いた感触**になる。 */
+    if (rock_prop_break(cx, cy)) {
+        hit = 1;
+    }
     if (hit) {
         snd_sfx_up(SFX_MINE, (uint8_t)((pow - 1) * 4));   /* 溜めるほど高く鳴る */
     } else {
