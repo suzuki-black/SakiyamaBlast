@@ -1,296 +1,476 @@
-# SakiyamaBlast
+# クロダイヤ 〜先山丹野3時〜 / KURODAIYA — Black Diamond
 
-昭和初期・常磐炭鉱の坑内を舞台にした1画面固定の「掘り＋発破」アクション（MSX turbo R / SDCC）。
+<p align="center">
+  <img src="docs/media/title.png" width="640" alt="KURODAIYA — title screen">
+</p>
 
-**ライセンス: [MIT License](LICENSE)**
+> ⚠️ **This is a prototype** (work in progress), published for feedback and experimentation.
+> **試作品（プロトタイプ・開発中）です。** フィードバックと実験のために公開しています。
 
-仕様の正は **[DESIGN.md](DESIGN.md)**、移植の経緯と保つべき中核は **[HANDOFF_SDCC.md](HANDOFF_SDCC.md)**。
-`proto/digbomb.msxb` は FunctionBASIC 製プロト（メカニクス検証済みの参照実装。移植元コードではない）。
+A single-screen dig-and-blast action game for the **MSX2 and later** (MSX turbo R recommended),
+set in a Jōban coal mine in early-Shōwa Japan. You play **Tanno San-ji**, a *sakiyama* — the
+face boss who swings the pick at the coal seam. Dig through the strata, crack the black diamonds,
+and drop rocks through them so the seam comes down in one chain.
 
-## ビルド・実行
+**Repository:** <https://github.com/suzuki-black/SakiyamaBlast>
 
-```bash
-make            # build/sakiyama.rom を作る
-make run        # openMSX で起動
-make clean
-```
+<p align="center">
+  <img src="docs/media/stage04.png" width="320" alt="Stage 4 — chutes and the first dig-prep vein">
+  <img src="docs/media/stage13.png" width="320" alt="Stage 13 — mine cart, hot pools and two prepared veins">
+  <br><sub>Stage 4 · chutes and a propped rock / ステージ4 樋と支柱　　Stage 13 · mine cart and hot pools / ステージ13 鉱車と溜まり湯</sub>
+</p>
 
-必要なもの: `sdcc` (4.6 で確認)、`python3` ＋ **Pillow**（タイトル画像の変換に使う）、`openmsx`。
+**Language:** [🇬🇧 English](#english) · [🇯🇵 日本語](#japanese)
+
+---
+
+<a name="english"></a>
+## English
+
+- [Story](#story)
+- [Overview](#overview)
+- [Features](#features)
+- [Controls](#controls)
+- [Requirements](#requirements)
+- [Building](#building)
+- [Running](#running)
+- [Project structure](#project-structure)
+- [Documentation](#documentation)
+- [Lineage — how it got here](#lineage--how-it-got-here)
+- [Scope & honest positioning](#scope--honest-positioning)
+- [Feedback](#feedback)
+- [Credits](#credits)
+- [License](#license)
+- [Disclaimer](#disclaimer)
+
+### Story
+
+> The pit is 40°C and wet. The man who goes in first, cuts the face and decides where the
+> roof will come down is the *sakiyama*. He takes a bath in cold water every half hour,
+> eats a pickled plum for the salt, and goes back in.
+>
+> Tanno San-ji is a sakiyama. He has a pick, a stick of dynamite and a seam of black diamonds
+> above his head.
+
+### Overview
+
+- **Target:** MSX2 or later (SCREEN 5 is required). **MSX turbo R recommended** — it holds 60fps.
+  128 KB (1 Mbit) ASCII8 MegaROM.
+- **Genre:** single-player, single-screen dig-and-blast action.
+- **Structure:** 15 stages in 5 acts (3 stages each). The tunnel you start in is carved in the
+  shape of the stage number.
+- **Clear condition:** mine **every black diamond** on the board. How much you dug is a score
+  bonus, not a goal.
+- **The core is the chain.** A falling rock punches straight through cracked coal and mines it
+  on the way down; what the rock takes and what you take on foot count as the **same chain**
+  if they happen within 3 seconds.
+
+### Features
+
+- **Chain mining.** Crack a vertical seam, then drop a rock through it. Score doubles per link
+  (200 → 400 → 800 …), the sound rises a semitone each time, and the screen shakes harder.
+- **Four ways to prepare a chain**, introduced one act at a time:
+  - **Push** a rock sideways to line it up over a seam (it can be pushed into dirt).
+  - **Dig** — veins are laid with one cell of dirt between the segments, so a rock stops after
+    one segment unless you open the gaps first.
+  - **Chutes** (act 2) — a plank that deflects a falling rock one column sideways, once.
+  - **Mine cart** (act 4) — carries a rock several cells along a rail and throws it off at the stop.
+- **Props** — the trigger rock stands on a wooden post. While it stands the rock cannot fall,
+  *even in a cave-in*. One pick swing breaks it. The order trap disappears and the trigger
+  becomes a move of its own.
+- **Pillars and cave-ins.** Two high-durability black diamonds per board. Break one and **every
+  rock on the board falls at once**.
+- **Four enemies, told apart by colour** (after the Pac-Man ghosts): red chases, pink cuts ahead,
+  cyan plays off red's position, orange backs off when it gets close. They cannot dig — instead
+  they turn transparent and cut diagonally through the dirt, and **the more you dig, the sooner
+  they do it**. A pick swing stuns them; a falling rock kills them.
+- **Body heat.** It rises with time and with every swing. Overheat and you lose a life. A tub of
+  cold water cools you down if you stay in it for two seconds; a pickled plum dropped by a crushed
+  enemy cools you instantly.
+- **Hot water** (act 3) — a spring floods the tunnels cell by cell. Rocks dam it, items float on
+  it, enemies treat it as ground they cannot cross without going transparent.
+- **Per-stage time limit** (2:20–3:00). A fanfare at 30 seconds; the clock turns red; at zero it
+  costs a life. Whatever is left is converted into score in a fast tally at the end of the stage.
+- **Dynamite is a thrown weapon.** It flies up to five cells, explodes on the enemy it hits, and
+  does not dig terrain. Powder carries over to the next stage.
+- **Hidden settings menu** — the Konami code on the title screen (lives, continue, invincibility,
+  starting stage, instant retry, heat haze).
+- **Music on the PSG**: *Jōban Tankō-bushi* (a Jōban coal-mining folk song) in the pit and
+  *Down in a Coal Mine* (J. B. Geoghegan, 1872, public domain) on the title — both transcribed
+  and arranged for three channels for this game.
+- **The level design is measured, not guessed.** The real game logic is compiled with gcc and run
+  headless (`tools/hostsim`), and each stage's board is chosen by sweeping 60,000 seeds against
+  measured conditions — "one swing without preparation pays this much", "digging the gaps pays
+  this much more", "no row holds two rocks".
+
+### Controls
+
+| Input | Action |
+|-------|--------|
+| Arrow keys / joystick | Move (4 directions, no diagonals) |
+| **Space / trigger A** | Swing the pick — **hold it** to charge up to 3× power |
+| **B key / trigger B** | Throw dynamite |
+| `R` (when enabled in the settings) | Rebuild the current stage from scratch |
+| ↑↑↓↓←→←→ B A on the title screen | Hidden settings menu |
+
+### Requirements
+
+- **MSX2 or later** — SCREEN 5 is required. The code is built for the Z80, so it runs on MSX2 /
+  MSX2+ as well; on **MSX turbo R** it simply runs faster (60fps, which is what it is tuned for).
+- **openMSX** for development. The default machine is **C-BIOS** (a free BIOS), so you can build
+  and test without owning a BIOS ROM. With a real turbo R BIOS dump you can run the shipping
+  machine as well — both are checked on every change.
+- Real-hardware BIOS ROMs are copyrighted and are **not included** in this repository.
+
+### Building
+
+[SDCC](https://sdcc.sourceforge.net/) 4.6, Python 3 with **Pillow**, and openMSX.
 
 ```bash
 pip3 install Pillow
+make                 # -> build/sakiyama.rom (128 KB ASCII8 MegaROM)
+make run             # launch it in openMSX
+make check           # smoke test: boot it headless and inspect RAM/VRAM
+make clean
 ```
 
-実機 turbo R の BIOS ROM を持っていれば機種を指定できる。既定は C-BIOS（フリー BIOS）。
+The art lives in `assets/*.png` and is converted on every build — **edit the PNG, run `make`,
+and the ROM has it**. For external pattern editors there is a JSON round-trip:
 
 ```bash
-make run MACHINE=Panasonic_FS-A1GT
+make gamedata          # assets/*.png -> gamedata.json
+make gamedata-import   # gamedata.json -> assets/*.png (validated)
 ```
 
-## ターゲットと ROM 構成
-
-- **実装 = SDCC で C → ROM 化**。コードは `-mz80` で吐くので turbo R 専用にはせず MSX2/2+ 実機でも動く
-  （SCREEN 5 を使うため MSX2 以降は必須）。turbo R では R800 でそのまま速く走る。
-- **ROM = MegaROM (ASCII8) / 64KB**。8KB セグメント。
-
-| セグメント | アドレス | 用途 |
-|---|---|---|
-| 0 | 0x4000-0x5FFF | 固定。ROM ヘッダ + コード |
-| 1 | 0x6000-0x7FFF | 固定。コード |
-| 2 | 0x8000-0x9FFF | 固定。コード |
-| 3 | 0xA000-0xBFFF | 可変データ窓。`bank_select(seg)` で差し替え |
-| 4〜7 | 同上（切替） | タイトル1枚絵 27,136 バイト（VRAM の 8KB ブロック 0〜3 に1対1で対応） |
-
-固定コードは 0x4000-0x9FFF（24KB）に収める。超えると `tools/ihx2rom.py` がエラーで止める。
-RAM/スタックはページ3（`--data-loc 0xC000`、SP=0xF380）。
-
-## 画面
-
-SCREEN 5（GRAPHIC 4, 256x212, 16色/512パレット, 16x16 mode-2 スプライト）。
-
-| VRAM | 用途 |
-|---|---|
-| 0x0000 | ビットマップ（ページ0） |
-| 0x7400 | スプライト色テーブル（mode 2） |
-| 0x7600 | スプライト属性テーブル（OAM） |
-| 0x7800 | スプライトパターン |
-
-盤面は 16列 x 11行（16px セル）= 256x176px、その下 y=176-211 が HUD。
-
-## ソース構成
-
-| ファイル | 役割 |
-|---|---|
-| `src/crt0.s` | ROM ヘッダ、ASCII8 マッパー設定、ページ2のスロット有効化、gsinit |
-| `src/lowlevel.s` | VDP レジスタ/VRAM/コマンドエンジン、OAM 一括転送、バンク切り替え |
-| `src/bios.s` | BIOS 呼び出しラッパ（GTSTCK / GTTRIG） |
-| `src/vdp.c` | SCREEN 5 初期化、パレット、矩形塗り（LMMV）、VRAM 転送 |
-| `src/sprite.c` | OAM 複製の管理、16x16 パターン/色の登録 |
-| `src/game.h` | 盤面定数と共有状態の宣言（COLS/ROWS/速度/色/方向） |
-| `src/field.c` | 掘り地図・火薬・ステージ構築とセル描画（膜つきトンネル） |
-| `src/player.c` | 自機の移動・掘り・火薬拾い・リスポーン |
-| `src/bomb.c` | ダイナマイト（設置/導火/十字爆発/後始末） |
-| `src/rock.c` | 岩（Mr. Do! の apple 準拠：押し/支え/揺れ/落下/割れ/潰し） |
-| `src/enemy.c` | 敵（画面中央の巣からの出現／Mr. Do! 式の坑道 AI／掘り屋化）と乱数 |
-| `src/hud.c` | HUD（残機・ストック・採掘率バー・体温ゲージ） |
-| `src/title.c` | タイトル1枚絵の展開（ROM の可変バンク → VRAM） |
-| `src/art.c` | 生成された絵データの置き場（他モジュールはここから参照する） |
-| `src/config.c` | 隠しコンフィグ（コマンド入力の判定と設定画面） |
-| `src/bonus.c` | ボーナスアイテム（出現条件・時間切れ・効果） |
-| `src/text.c` | 本体 BIOS の 8x8 フォントによる文字表示（ROM にフォントを持たない） |
-| `src/sound.c` | PSG (AY-3-8910) の音楽ドライバ（BGM・ファンファーレ・効果音） |
-| `src/music.c` | 曲データ（常磐炭坑節・Down in a Coal Mine の採譜＋編曲、ファンファーレ）。**差し替えはここだけ** |
-| `assets/title.png` | タイトルの元絵（マスター）。ビルド時に SC5 形式へ変換される |
-| `tools/png2sc5.py` | PNG → SCREEN 5（16色）変換。パレットは C ヘッダで出力 |
-| `src/main.c` | メインループとゲーム進行 |
-| `tools/ihx2rom.py` | .ihx → MegaROM イメージ変換（配置チェック付き） |
-| `tools/png2art.py` | PNG → スプライト／背景タイルの C 配列 |
-| `tools/palette.py` | ゲームのパレット定義（絵の変換が参照する） |
-| `tools/make_art.py` | たたき台の PNG を ASCII アートから生成（任意） |
-| `tools/export_gamedata.py` | ゲーム1本ぶんのグラフィックデータを JSON へ書き出す |
-| `tools/import_gamedata.py` | 編集された JSON を検証して `assets/` の PNG へ書き戻す |
-| `tools/smoketest.sh` | openMSX 上で起動〜描画結果を検査（`make check`） |
-
-## 実装状況
-
-- [x] ROM 起動・SCREEN 5 初期化・パレット
-- [x] OAM 直書きによるスプライト表示
-- [x] 自機のスムーズ移動（60fps / 坑道 60px/s）
-- [x] **方向転換（Dig Dug 準拠）** — 節点で曲がる。半歩ずれていれば最寄りの節点へ寄せてから曲がる
-- [x] **掘削中の減速（Mr.Do! 準拠）** — 未掘の土を食い進む間は 40px/s
-- [x] Dig-Dug 流の掘り跡（内側2px 抜き＝隣接トンネル間に薄い土の膜が残る）。
-      **膜は見た目だけでなく本物の壁**で、`cell_link[]` が升と升の境目ごとに
-      「抜けているか」を持つ。両側が掘れていても膜が残っていれば敵は歩いて通れず、
-      透明化して抜けるしかない（＝遅くなる）
-- [x] DUG 記録はセル完全整列時のみ（掠めただけでは掘れた扱いにしない）
-- [x] **弾薬（火薬）** — 拾うとストック+1、**次ステージへ持ち越し**
-- [x] **出発点・水風呂・湧き出し口は必ず掘り抜きだけで行き来できる**。面番号の掘り抜きは
-      数字の形なのでばらばらの島に分かれる（面2は7つ、面12は9つ）ため、届いていなければ
-      最寄りの到達済みの升までL字に通路を掘って繋ぐ
-- [x] **ステージ構成（全15面）** — 掘り抜きが面番号の形（算用数字1〜15）／ダイヤは土の面積の
-      `(面-1)×2%` を切り上げ／火薬10個／敵 `4+面` 体／岩2〜4個／自機は巣から一番遠い升目から開始
-- [x] **ステージクリア = 盤面の黒ダイヤ(石炭)を全部採掘する**。掘削率はクリア条件ではなく、
-      クリア時の得点ボーナス（1%あたり `PTS_DUG_PCT` 点）
-- [x] **つるはし**（スペース／ジョイスティックA）— 向いている先の黒ダイヤを1回叩くと耐久度−1。
-      振り切るまで `PICK_FRAMES` は動けないので、その間に敵が寄ってくる。使用回数は無制限
-- [x] **黒ダイヤ（石炭）** — 障害物として立ちはだかる。耐久度は面ごとの表 `coal_hp_tbl` で決める。
-      0になると割れた絵に変わって通れるようになり、**その升に入ると採掘**（`coal_left` が減る）。
-      立ちはだかっている間は**右上に残りの耐久度**を表示する。
-      配置は1個ずつではなく**繋がった炭層**（1本あたり最大 `COAL_VEIN_MAX` 個）。
-      叩くたびに高い「キンキン」、耐久0で割れた瞬間は破砕音「ザッシュ」＋**画面を縦に揺らす**
-      （R#18 = SET ADJUST。中立値は BIOS の保存領域 0xFFF1 から読むので本体の調整設定を壊さない）
-- [x] **ダイナマイトは投げる武器**（Bキー／ジョイスティックB）— 向いている方向へ最大5升。
-      途中に敵が居ればそこで爆発（**爆風は1升だけ・地形は掘らない**）、障害物があれば手前、
-      何も無ければ5升先に落ちる。落ちたものはアイテムで拾い直せ、敵は素通りする
-- [x] 残機とリスポーン
-- [x] **スコアと HUD**（下帯2段：スコア6桁／面番号／体温メーター16目盛り／残機／
-      ダイナマイト所持数（数字）／採掘率バー）
-- [x] **岩** — **横へ押し込んだ先に居る敵も潰せる**（落とさなくても武器になる。押した岩は割れない）／
-      落下距離での割れ・潰しは Mr.Do! 準拠／**支えは Dig Dug 準拠で、
-      自機が真下に居る間は落ちない**（離れた瞬間に揺れ→約0.75秒で落下）／自機を潰すと1ミス／爆風で吹き飛ぶ
-- [x] **敵は4色。色ごとに狙う升の決め方が違う**（パックマンのゴーストに倣った）。
-      姿は同じで色だけ変わるので、色を見れば動きの癖が読める。
-      赤＝自機の升／桃＝自機の向きの4升先／水＝自機の2升先を**赤の位置から見て倍に伸ばした升**
-      （＝敵同士の連携）／橙＝6升より遠ければ追い、近ければ自分の隅へ引く。
-      さらに全員が「散開（各自の隅へ）」と「追跡」を5秒／20秒で切り替える。
-      交差点では引き返し以外で狙う升にいちばん近づく方向を選ぶ（同点は 上→左→下→右）
-- [x] **（旧）敵（ネズミ／コウモリ）** — Dig Dug の Pooka / Fygar に倣って性格を分けた（ネズミ＝執拗・35px/s／コウモリ＝気紛れ・25px/s）。**速さは原作より落としてある**（原作の Pooka は自機より僅かに速いが、本作は敵数が多く飛び道具も無いため）
-      湧き出し口から、面ごとの総数まで一定時間ごと／全滅した瞬間に出現／通れるなら現在の
-      向きを維持し、選び直すときは自機へ寄る方向を選ぶ／**敵は掘らない（Dig Dug 準拠）**。
-      一定時間（面1で10秒、高次面でも5秒まで）で透明化し、土をすり抜けて自機へ斜めに直進。
-      **土の中は素の速さの半分以下**（ネズミ 35→15px/s／コウモリ 25→10px/s、Dig Dug 準拠）。
-      トンネルに入ると実体化。透明化中は色が抜ける。土の中では倒せず、トンネルの中では倒せる／
-      接触で1ミス
-- [x] **湧き出し口**（数字の掘り抜きとは別に開けた1ブロックの横穴。**坑道に面した升に置く**ので、
-      敵は湧いた後3秒間その場で点滅し、その間は動かず触れても当たらない（出会い頭の事故を防ぐ）。
-      敵は実体のまま歩いて出てくる。孤立させると湧いた瞬間に透明化して土を突っ切り、
-      盤面のどこからともなく現れてしまう。
-      自機の出発点から6升以上離す。穴に閉じ込められた敵はすぐ透明化して出てくる）
-- [x] **つるはし1振りごとに体温+3**（時間経過だけだと風呂へ行く必要がほとんど無かった）
-- [x] **体温オーバーヒート＋風呂** — 体温が上限で1ミス／風呂の升目を通過すると一気に下がる／
-      風呂は敵には壊されず、落下する岩とダイナマイトの爆風で壊れる／HUD に体温ゲージ
-- [ ] **特殊な黒ダイヤ（TODO）** — 絵が異なり、耐久度がさらに高いもの。未実装
-- [x] **タイトル画面**（1枚絵・SC5 16色）とゲーム進行（タイトル→プレイ→残機ゼロでタイトルへ）
-- [x] **テーマ用の絵**（丹野3時／ダイナマイト／岩／ネズミ／コウモリ／火薬／風呂／黒ダイヤ／割れた黒ダイヤ）
-      — PNG を描き替えて `make` するだけで差し替わる（上記「絵の差し替え」）
-- [x] **面の開始表示**（盤面を描き切って `STAGE n START` を1秒 → BGM とともに開始）
-- [x] **クリア演出**（自機も敵もその場で停止 → ファンファーレ → 次の面）
-- [x] **BGM = 常磐炭坑節**（PSG 3声）— 日本民謡協会の盆踊りレクチャー動画の歌から旋律だけを採譜し、ゲーム向けに自前で編曲。
-- [x] **タイトル BGM = Down in a Coal Mine**（J. B. Geoghegan 作曲、1872年／作曲者1889年没で著作権切れ）— ハ長調・6/8 の譜面から旋律を読み取り、PSG 3声（旋律＋ベース＋ノイズドラム）に自前で編曲。
-      旋律＋ベース＋ノイズドラム
-- [x] **効果音**（掘る／拾う／投げる／爆発／ミス／つるはし／破砕）— ch C を一時的に奪って鳴らす方式
-
-
-## 絵の差し替え
-
-絵はすべて `assets/` の PNG が正で、`make` するたびに C の配列へ変換される。
-**差し替えたいときは PNG を描き替えて `make` し直すだけでよい**（コードは触らない）。
-
-| ファイル | 中身 | 変換ツール |
-|---|---|---|
-| `assets/title.png` | タイトル1枚絵 | `tools/png2sc5.py` → 16色 SC5 画像（ROM のバンク4〜7へ） |
-| `assets/sprites.png` | スプライト5枚（左から 丹野3時／ダイナマイト／岩／ネズミ／コウモリ） | `tools/png2art.py --mode sprite` |
-| `assets/tiles.png` | 背景タイル6枚（左から 火薬／風呂／金塊／水滴／ヘルメット／ダイヤ） | `tools/png2art.py --mode tile` |
-
-守ってほしい約束事は次のとおり。
-
-- **セルは 16x16 で左から順に並べる**。順番が絵の番号になる（`Makefile` の `ART_SPR_NAMES` /
-  `ART_TILE_NAMES` と対応）。透明（アルファ0）は「描かない画素」。
-- **スプライトは1行に1色**しか使えない（MSX の mode-2 スプライトの制約）。1行に複数色を
-  置くと、その行で一番多い色に丸められる。
-- **色は 512色中16色**の決め打ち。使える色は `tools/palette.py` に定義してあり、PNG の色は
-  一番近いものへ写される。**`tools/palette.py` と `src/main.c` の `set_game_palette()` は
-  必ず一致させること**。
-- タイルのうち火薬と風呂は坑道の上に重ねるので、**外周2pxは描かれない**（掘り跡の
-  「薄い土の膜」を消さないため）。絵は内側 12x12 に収める。ダイヤは 16x16 全部使う。
-
-たたき台の PNG は `python3 tools/make_art.py` で作り直せる（ASCII アートから生成）。
-ただし**正は PNG のほう**なので、ドット絵エディタで直接描き替えて構わない。
-
-## 外部ツールへの受け渡し（gamedata.json）
-
-画面・パレット・スプライト・背景タイル・キャラと動作・面構成を**1つの JSON** にまとめて
-書き出せる。パターンエディタなど外部ツールへ渡すためのもの。
+To measure the boards instead of guessing at them:
 
 ```bash
-make gamedata          # assets/*.png -> gamedata.json （書き出し）
-make gamedata-import   # gamedata.json -> assets/*.png （取り込み）
+make hostsim                              # build the headless simulator
+make grade                                # score all 15 stages
+tools/hostsim/sim --stage 7 --board       # print a board (* = a gap you must dig)
+python3 tools/hostsim/pick_seeds.py       # sweep 60,000 seeds per stage and pick
 ```
 
-- 形式の仕様は **[docs/GAMEDATA_FORMAT.md](docs/GAMEDATA_FORMAT.md)**
-- 絵の正は `assets/` の PNG。JSON はそこから書き出す
-- 絵は16行の文字列で持つ（`.`＝透明／`0`〜`F`＝パレット番号）。手で直せて diff も取れる
-- 取り込みは `pixels` だけを見て PNG を書き戻す。そのあと `make` すれば
-  既存の `tools/png2art.py` が C の配列へ変換して ROM に載る
-- 取り込みは **MSX で表示できない絵を弾く**（1行2色のスプライト、0番（透明）で塗った
-  ドット、16x16 でない、など）。1つでも引っかかったら PNG を書かずに中止する。
-  `--dry-run` で検証だけできる
-- パレットは取り込みで書き換えない。食い違っていたら警告を出すので
-  `tools/palette.py` を直す（`build/palette.h` はそこから自動生成）
+### Running
 
-## ゲームルール一覧
+```bash
+openmsx -machine C-BIOS_MSX2+_JP -carta build/sakiyama.rom -romtype ASCII8
+```
 
-現状のルールを、未実装・保留・既知の弱点まで含めて **[docs/GAME_RULES.md](docs/GAME_RULES.md)**
-にまとめてある。外部に相談を持ちかけるときはこれを渡す。
+With a real turbo R BIOS dump installed as an openMSX machine:
 
-## クリア条件の再設計（検討中）
+```bash
+make run MACHINE=My_FS-A1ST_512K
+MACHINE=My_FS-A1ST_512K sh tools/smoketest.sh build/sakiyama.rom
+```
 
-現在のクリア条件は「盤面の90%を掘る」だが、1面が3〜5分と長く、掘ること自体が目的に
-なっている。現状の数字・問題点・改善案の得失を **[docs/CLEAR_CONDITION.md](docs/CLEAR_CONDITION.md)**
-にまとめてある。**まだ何も変更していない。**
+### Project structure
 
-## Mr. Do! 準拠について
+```
+src/          the game. C (SDCC) + three .s files for the ROM header, the VDP and BIOS calls
+  crt0.s        ROM header, ASCII8 mapper setup, page-2 slot enable
+  lowlevel.s    VDP registers / VRAM / command engine, OAM transfer, bank switching
+  field.c       the board: digging, coal seams, rocks, chutes, stage construction, drawing
+  rock.c        rocks: push, support, jiggle, fall, break, crush, props
+  enemy.c       enemies: the four targeting rules, ghosting, stun, the spawn pool
+  player.c      movement, digging, the pick and the charged swing
+  levels.c      per-stage difficulty tables (enemy pool, respawn, ghost timing, face pressure)
+  water.c       hot water: flooding, damming, pools
+  cart.c        the mine cart
+  music.c       the song data (the only file to touch when changing the music)
+assets/       the art. PNG is the master; `make` converts it
+tools/        ROM packing, PNG converters, the headless simulator, the smoke test
+  hostsim/      compiles the real game logic with gcc and measures the boards
+docs/         design notes, rules, research
+proto/        the FunctionBASIC prototype the mechanics were proven in
+```
 
-岩・敵の追跡・穴掘りの挙動は一次情報（逆アセンブル解析を含む）で再調査した。
-根拠は **[docs/MRDO_RESEARCH.md](docs/MRDO_RESEARCH.md)**。
+### Documentation
 
-ただし**現在の実装は、岩の支え・敵の移動・方向転換については Dig Dug 準拠**に戻している
-（岩は自機が真下の升目に居座っている間は落ちない／敵は自分で掘らず透明化して土を抜ける／
-方向転換は升目へスナップして受け付ける）。`docs/MRDO_RESEARCH.md` の記述のうち
-「Mr. Do! のタイル支え」へ寄せた部分は現行の挙動ではない。
+- **[DESIGN.md](DESIGN.md)** — the specification of record.
+- **[HANDOFF_SDCC.md](HANDOFF_SDCC.md)** — the port from BASIC and the core that must be kept.
+- **[docs/GAME_RULES.md](docs/GAME_RULES.md)** — every rule as it stands, including the unfinished
+  ones. This is the document to hand to someone you are asking for advice.
+- **[docs/HOSTSIM.md](docs/HOSTSIM.md)** — the headless simulator: how boards are measured and
+  how the seeds are chosen.
+- **[docs/STAGE_ACTS_ROADMAP.md](docs/STAGE_ACTS_ROADMAP.md)** — the five acts and what each one adds.
+- **[docs/ART_PATTERNS.md](docs/ART_PATTERNS.md)** — every sprite and tile, and when each is shown.
+- **[docs/HISTORY.md](docs/HISTORY.md)** — the Jōban coal mine: the history the game is built on.
+- **[docs/MRDO_RESEARCH.md](docs/MRDO_RESEARCH.md)** — what *Mr. Do!* and *Dig Dug* actually do,
+  from primary sources, and where this game deliberately differs.
+- **[docs/PITFALLS.md](docs/PITFALLS.md)** — what went wrong and why: the VDP command engine,
+  sprite quirks, how speed is measured, and the rules for replacing the art.
+- **[docs/GAMEDATA_FORMAT.md](docs/GAMEDATA_FORMAT.md)** — the JSON round-trip for external art tools.
+- Consultation briefs written to ask others for help: **[levelling](docs/CONSULT_LEVELING.md)**,
+  **[one more gimmick](docs/CONSULT_GIMMICK.md)**, **[playfulness](docs/CONSULT_PLAYFULNESS.md)**.
 
-## タイトル画像の差し替え
+### Lineage — how it got here
 
-`assets/title.png` を置き換えて `make` すれば ROM に反映される。素材の条件:
+| # | Title | Where | What it was |
+|---|---|---|---|
+| 1 | *(prototype)* | [`proto/digbomb.msxb`](proto/digbomb.msxb) | Written in MSX-BASIC with [FunctionBASIC](https://github.com/suzuki-black/FunctionBASIC). The mechanics were proven here first: digging, the rock, the blast. |
+| 2 | **クロダイヤ** | this repository | Rewritten from scratch in C (SDCC) as a 128 KB ASCII8 MegaROM. The BASIC version is kept as a reference implementation, **not** as the source of the port. |
 
-- **256×212 相当**（4:3 で作る。`Makefile` の `TITLE_OPTS` で切り出しと透かし消しを指定している）
-- **フラットな塗り・硬い輪郭**が16色に落としやすい。写真調の広いグラデーションは帯が出る
-- **PNG（可逆）**。JPEG の圧縮ノイズは減色時に汚く出る
-- 背景の黒にノイズが乗っていると減色器がパレットを何枠も食うので、`--blackfloor`（既定1）で
-  暗すぎる色を黒へ寄せている
+### Scope & honest positioning
 
-## 速度（実測）
+This is an **experimental study piece**, and a tribute: the protagonist is modelled on the
+author's grandfather, who was a sakiyama in the Jōban coal mine.
 
-C-BIOS MSX2+（**Z80 3.58MHz＝一番遅い条件**）での実測。turbo R の R800 はこれより数倍速い。
+- **It is still a prototype.** Stages 1–3 have been played properly; the later acts are verified
+  by measurement (headless simulation plus openMSX on both C-BIOS and a real turbo R BIOS)
+  rather than by playing them to death.
+- **It does not set out to match *Dig Dug* or *Mr. Do!*** Only the mechanics are taken from them,
+  and only where they are the right answer; the art, the music, the names and the subject are
+  this game's own.
+- **The difficulty is deliberately lopsided.** Clearing a stage is not meant to be hard. Clearing
+  it *with chains* is where the preparation — and the difficulty — lives.
 
-| 状況 | fps |
-|---|---|
-| 敵0体 | 59.8 |
-| 敵4体 | 60.0 |
+### Feedback
 
-自機の速度も実測で確認できる（0.2秒ごとに `px` を読む）。掘削中は 0.2秒あたり 8px
-= 40px/s、坑道は 12px = 60px/s。障害物で止まると 0px の区間が混ざるので、
-平均だけを見ると遅く見える点に注意。
+This is an experimental prototype published for feedback. Bug reports and impressions are welcome
+in GitHub Issues; pull requests with a clear scope are welcome too.
 
-`tools/` に用意はしていないが、速度計測は次の手順で行える。
+### Credits
 
-1. `frame_n`（`src/main.c`）が1フレームごとに増えるので、openMSX の `debug read memory` で
-   2点の値を読んで差を取る。
-2. 内訳は openMSX から `reg pc` を定期サンプリングし、リンクマップの記号へ割り当てる。
-   **`wait_vsync` は static なので直前の関数に誤って集計される**点に注意（実測では
-   ここが38%＝待ち時間だった）。
+- **Concept & direction:** suzuki-black
+- **Programming, graphics and sound:** Claude Code (Anthropic Claude)
+- **Music:**
+  - *Jōban Tankō-bushi* — a folk song of the Jōban coal mine (traditional). The melody was
+    transcribed by ear and arranged for the PSG for this game.
+  - *Down in a Coal Mine* — J. B. Geoghegan, 1872. Public domain (the composer died in 1889);
+    read from sheet music and arranged for three PSG channels.
+- **Everything else** — sprites, tiles, the title picture, the sound effects — was made for this game.
 
-処理は一点に集中しておらず全体に散っている（SDCC の C コードらしい分布）。
+### License
 
-## 実装メモ（つまずいた点）
+**MIT** © 2026 suzuki-black. See [LICENSE](LICENSE). **Code, graphics and music in this repository
+are all released under the MIT licence** — all of it was made for this game, and no claim beyond
+the MIT terms is made.
 
-- V9938 のコマンドコードは **`1000`=LMMV / `1100`=HMMV**。`0xC0` を LMMV と取り違えると
-  バイト単位の塗りになり、SCREEN 5 では1ピクセルおきに色0が残る（縦縞になる）。
-- **コマンドレジスタを R#17 の間接ポート（0x9B）へ `OTIR` で流すと取りこぼす。**
-  NY が化けて画面全体を塗る暴走コマンドになり、CE が下りずハングした。
-  R#36..R#46 を通常のレジスタ書き込み（値→レジスタ番号）で送れば確実。
-- **コマンド発行直後は S#2 の CE がまだ立っていない。** そこで完了待ちをすると「終わった」と
-  誤判定し、実行中のコマンドの上から DY/NX/NY を書き換えてしまう（エンジンがこの3つを作業用に
-  更新するため暴走する）。CMD 書き込み後に短い待ちを入れる。
-- **VDP コマンド実行中に CPU から VRAM を触らない。** OAM 転送やスプライト色の書き込み前にも
-  CE の完了を待つ（`vdp_setwrite` / `oam_flush` の先頭で待つようにしてある）。
-- 16x16 スプライトの VRAM 並びは「左半分16バイト → 右半分16バイト」。行交互に書くと絵が崩れる。
-  作画は `spr_pattern_rows()`（16行 x 16bit の表）を使う。
-- ポート 0x99 への2バイト書き込みは first/second フリップフロップを使うので、BIOS 割り込みが
-  割って入ると壊れる。VDP アクセスは DI/EI で囲む。
-- スプライトのパーク Y は **212**。216 は mode 2 の行終端マーカーなので使わない。
-- **垂直帰線待ちで「次の JIFFY 変化」を待つと、1フレームが 16.7ms をわずかに超えただけで
-  60fps→30fps へ半減する**（移動が1フレーム1pxなので速度もそのまま半分になる）。
-  既に遅れている場合は待たずに進めると、落ち方がなだらかになる。
-- 文字描画は**1行につきアドレス設定1回**にする。文字ごとに設定し直すと6桁のスコアで48回
-  必要になり、実測で処理時間の1割強を占めていた。
-- 32KB を超えるカートは BIOS がページ2を有効化してくれない。crt0 で ENASLT を呼ぶ。
+Mechanics referenced from *Dig Dug* and *Mr. Do!* are rules, which are not copyrightable; no
+names, characters, images or sound from those games are used.
 
-## 権利方針
+### Disclaimer
 
-絵・音・曲・キャラ名はすべてオリジナル。Mr.Do! / Dig Dug からはメカニクス（著作対象外）のみ。
-詳細は `DESIGN.md §権利方針`。
+The Jōban coal mine was a real place and the working practices in this game (the cold-water bath,
+the pickled plum, the three shifts, the pillar method) are taken from its history — but **this is
+fiction**. The protagonist is an invented character whose name is a play on a real person's, and
+the layout of the pit, the creatures in it and everything else are made for the game.
 
-## ライセンス
+---
 
-**MIT License。** 全文は [LICENSE](LICENSE) を参照。
+<a name="japanese"></a>
+## 日本語
+
+- [あらすじ](#あらすじ)
+- [概要](#概要)
+- [特徴](#特徴)
+- [操作](#操作-1)
+- [動作環境](#動作環境)
+- [ビルド](#ビルド)
+- [実行](#実行)
+- [ディレクトリ構成](#ディレクトリ構成)
+- [ドキュメント](#ドキュメント)
+- [ここに至るまで（系譜）](#ここに至るまで系譜)
+- [位置づけ（正直な自己評価）](#位置づけ正直な自己評価)
+- [フィードバック](#フィードバック)
+- [クレジット](#クレジット)
+- [ライセンス](#ライセンス)
+- [免責](#免責)
+
+### あらすじ
+
+> 坑内は40度、湿気で濡れている。先に入って切羽を削り、**どこの天井を落とすかを決める**のが
+> 先山である。半時間ごとに水風呂で体を冷やし、梅干しで塩を補って、また入っていく。
+>
+> 丹野3時は先山である。手にはつるはしと一本のダイナマイト、頭の上には黒ダイヤの鉱脈。
+
+### 概要
+
+- **対応機種:** MSX2 以降（SCREEN 5 を使うため必須）。**MSX turbo R 推奨**（60fps を保てる）。
+  128KB（1メガビット）の ASCII8 メガROM。
+- **ジャンル:** 1人用・1画面固定の「掘り＋発破」アクション。
+- **構成:** 全15面、3面ずつ5つの幕。面の最初に掘り抜かれている坑道は**面番号の形**をしている。
+- **クリア条件:** 盤面の**黒ダイヤ（石炭）を全部採掘する**。掘削率はクリア条件ではなく得点ボーナス。
+- **核は連鎖。** 落ちる岩は割れた黒ダイヤを**突き抜けて、その場で採掘する**。
+  岩が採ったぶんも自分で採ったぶんも、**3秒以内なら同じ連鎖**として数える。
+
+### 特徴
+
+- **連鎖採掘。** 縦の鉱脈を割っておいて岩を落とす。得点は1個ごとに倍（200→400→800…）、
+  効果音は半音ずつ上がり、画面の揺れも大きくなる。
+- **連鎖の段取りは4種類**。幕ごとに1つずつ増える。
+  - **押す** — 岩を横へ押して鉱脈の真上へ揃える（土の中へも押し込める）。
+  - **掘る** — 鉱脈は**縦に土を1升ずつ挟んで**置いてある。隙間を先に掘らないと、岩は一段で止まる。
+  - **樋**（第二坑）— 落ちてきた岩を隣の列へ1升逸らす板。使い切り。
+  - **鉱車**（第四坑）— レールの上を往復し、岩を数升運んで車止めで放り出す。
+- **支柱。** 引き金の岩は坑木に載っている。立っている間は**落盤でも落ちない**。
+  つるはしで1回叩けば折れる。順番の罠が消えて、**引き金が独立した1手**になる。
+- **炭柱と落盤。** 耐久の高い黒ダイヤが面に2本。割ると**盤面の岩が一斉に落ちる**。
+- **敵は4色で、色が性格**（パックマンのゴーストに倣った）。赤は追い、桃は先回りし、
+  水は赤の位置と連携し、橙は近づくと離れる。**敵は掘らない**かわりに、透明化して土を斜めに
+  突っ切ってくる。**こちらが掘るほど、その時間が早まる**（切羽圧）。
+  つるはしで叩けばよろけ、落ちてきた岩で倒せる。
+- **体温。** 時間とつるはしの振りで上がり、上限でミス。**水風呂に2秒浸かる**と下がり、
+  岩で潰した敵が落とす**梅干し**なら一瞬で下がる。
+- **出水**（第三坑）— 湧き出した熱水が坑道を1升ずつ満たす。岩で堰き止められ、
+  アイテムは浮き、敵は透明化しないと越えられない。
+- **面ごとの持ち時間**（2:20〜3:00）。残り30秒でファンファーレ、数字が赤くなり、
+  0でミス。クリア時は残り時間が高速に得点へ変わる。
+- **ダイナマイトは投げる武器。** 最大5升飛び、当たった敵のところで爆発する。**地形は掘らない**。
+  火薬は次の面へ持ち越す。
+- **隠しの設定メニュー** — タイトルでコナミコマンド（残機・継続・無敵・開始面・面の組み直し・陽炎）。
+- **音楽は PSG 3声**。坑内は**常磐炭坑節**、タイトルは **Down in a Coal Mine**
+  （J. B. Geoghegan 作曲、1872年。著作権切れ）。どちらも旋律を採ってこのゲーム用に編曲したもの。
+- **面の出来は勘ではなく実測で決めている。** 実機と同じゲームロジックを gcc でビルドして
+  ヘッドレスで回し（`tools/hostsim`）、「段取り無しの一手で何個採れるか」「隙間を掘ると
+  何個増えるか」「1行に岩が2個ないか」などを測って、6万通りの種から面ごとの盤面を選んでいる。
+
+### 操作
+
+| 入力 | 動作 |
+|------|------|
+| カーソルキー／ジョイスティック | 移動（4方向。斜めなし） |
+| **スペース／トリガA** | つるはしを振る。**押しっぱなしで溜める**（最大3段） |
+| **B キー／トリガB** | ダイナマイトを投げる |
+| `R`（設定で ON のとき） | その面を最初から組み直す |
+| タイトルで ↑↑↓↓←→←→ B A | 隠しの設定メニュー |
+
+### 動作環境
+
+- **MSX2 以降**（SCREEN 5 を使うため）。コードは Z80 で吐いているので MSX2／2+ の実機でも動く。
+  **turbo R ではそのまま速く走る**（60fps。本作はそこに合わせて調整してある）。
+- 開発と検証は **openMSX**。既定の機種は **C-BIOS**（フリーBIOS）なので、BIOS ROM を持っていなくても
+  ビルドして動かせる。実機の turbo R BIOS を吸い出してあれば出荷時の機種でも検証できる
+  （本作は**両方で毎回検査している**）。
+- 実機の BIOS ROM は著作物なので**同梱していない**。
+
+### ビルド
+
+[SDCC](https://sdcc.sourceforge.net/) 4.6、Python 3 ＋ **Pillow**、openMSX が要る。
+
+```bash
+pip3 install Pillow
+make                 # build/sakiyama.rom（128KB の ASCII8 メガROM）ができる
+make run             # openMSX で起動
+make check           # スモークテスト（ヘッドレスで起動して RAM/VRAM を検査）
+make clean
+```
+
+絵は `assets/*.png` が正で、ビルドのたびに変換される。**PNG を描き替えて `make` すれば
+ROM に乗る**（コードは触らない）。外部のパターンエディタ用に JSON の往復も用意してある。
+
+```bash
+make gamedata          # assets/*.png -> gamedata.json
+make gamedata-import   # gamedata.json -> assets/*.png（検証つき）
+```
+
+盤面を勘ではなく実測で決めるための道具:
+
+```bash
+make hostsim                              # ヘッドレスの測定器をビルド
+make grade                                # 全15面を採点
+tools/hostsim/sim --stage 7 --board       # 盤面を出す（* = 掘らせる隙間）
+python3 tools/hostsim/pick_seeds.py       # 面ごとに6万通りの種を総当たりして選ぶ
+```
+
+### 実行
+
+```bash
+openmsx -machine C-BIOS_MSX2+_JP -carta build/sakiyama.rom -romtype ASCII8
+```
+
+実機 turbo R の BIOS を openMSX の機種として入れてあるなら:
+
+```bash
+make run MACHINE=My_FS-A1ST_512K
+MACHINE=My_FS-A1ST_512K sh tools/smoketest.sh build/sakiyama.rom
+```
+
+### ディレクトリ構成
+
+```
+src/          ゲーム本体。C（SDCC）＋ ROM ヘッダ・VDP・BIOS 呼び出しの .s が3本
+  crt0.s        ROM ヘッダ、ASCII8 マッパー設定、ページ2のスロット有効化
+  lowlevel.s    VDP レジスタ／VRAM／コマンドエンジン、OAM 転送、バンク切り替え
+  field.c       盤面。掘り地図・炭層・岩・樋の配置とセル描画
+  rock.c        岩。押し・支え・揺れ・落下・割れ・潰し・支柱
+  enemy.c       敵。4色の狙い方、透明化、よろけ、湧き出しのプール
+  player.c      自機の移動・掘り・つるはし（溜め打ち）
+  levels.c      面ごとの難易度の表（敵の数・静養・透明化・切羽圧）
+  water.c       熱水。出水・堰き止め・溜まり湯
+  cart.c        鉱車
+  music.c       曲データ（**曲の差し替えはここだけ**）
+assets/       絵。**PNG が正**で、make するたびに変換される
+tools/        ROM 化、PNG 変換、ヘッドレスの測定器、スモークテスト
+  hostsim/      実機と同じゲームロジックを gcc でビルドして盤面を測る
+docs/         設計・ルール・調査のノート
+proto/        メカニクスを検証した FunctionBASIC のプロトタイプ
+```
+
+### ドキュメント
+
+- **[DESIGN.md](DESIGN.md)** — 仕様の正。
+- **[HANDOFF_SDCC.md](HANDOFF_SDCC.md)** — BASIC からの移植の経緯と、保つべき中核。
+- **[docs/GAME_RULES.md](docs/GAME_RULES.md)** — 現状のルール全部。未実装・保留・既知の弱点も含む。
+  **外部に相談を持ちかけるときはこれを渡す。**
+- **[docs/HOSTSIM.md](docs/HOSTSIM.md)** — ヘッドレスの測定器。盤面の測り方と種の選び方。
+- **[docs/STAGE_ACTS_ROADMAP.md](docs/STAGE_ACTS_ROADMAP.md)** — 5幕構成と、幕ごとに増えるもの。
+- **[docs/ART_PATTERNS.md](docs/ART_PATTERNS.md)** — スプライトとタイルの一覧、どの状態で何が出るか。
+- **[docs/HISTORY.md](docs/HISTORY.md)** — 常磐炭鉱の史実。本作の土台。
+- **[docs/MRDO_RESEARCH.md](docs/MRDO_RESEARCH.md)** — 『Mr. Do!』『Dig Dug』が実際に何をしているかの
+  一次情報調査と、本作が意図的に違えている点。
+- **[docs/PITFALLS.md](docs/PITFALLS.md)** — つまずいた点。VDP コマンドエンジン、スプライトの癖、
+  速度の測り方、絵を差し替えるときの約束。
+- **[docs/GAMEDATA_FORMAT.md](docs/GAMEDATA_FORMAT.md)** — 外部の絵エディタへ渡す JSON の往復。
+- 人に相談するために書いた資料: **[レベリング](docs/CONSULT_LEVELING.md)**、
+  **[もう一つのギミック](docs/CONSULT_GIMMICK.md)**、**[遊び心](docs/CONSULT_PLAYFULNESS.md)**。
+
+### ここに至るまで（系譜）
+
+| # | タイトル | 置き場 | どんなものか |
+|---|---|---|---|
+| 1 | （プロトタイプ） | [`proto/digbomb.msxb`](proto/digbomb.msxb) | [FunctionBASIC](https://github.com/suzuki-black/FunctionBASIC) を使った MSX-BASIC 版。掘る・岩・発破というメカニクスは、まずここで確かめた。 |
+| 2 | **クロダイヤ** | 本リポジトリ | C（SDCC）で一から書き直し、128KB の ASCII8 メガROM にした。BASIC 版は**移植元ではなく参照実装**として残してある。 |
+
+### 位置づけ（正直な自己評価）
+
+本作は**実験的な習作**であり、**手向け**でもあります。主人公は、常磐炭鉱で先山をしていた
+作者の祖父がモデルです。
+
+- **まだ試作品です。** 面1〜3 はちゃんと遊んでいますが、後半の幕は**実測で確かめている**段階です
+  （ヘッドレスの測定と、openMSX の C-BIOS・実機 turbo R BIOS の両方での検査）。
+- **『Dig Dug』『Mr. Do!』に並ぶつもりはありません。** 借りているのはメカニクスだけで、
+  それも「そちらが正解だから」という場所に限っています。絵・音・名前・題材は本作のものです。
+- **難しさは意図的に偏らせています。** クリアするだけなら難しくないように作ってあり、
+  **連鎖で採ろうとしたときにだけ**段取りと難しさが現れます。
+
+### フィードバック
+
+フィードバックのために公開している実験的な試作品です。不具合報告や感想は GitHub Issues で
+お願いします。範囲の明確な Pull Request も歓迎します。
+
+### クレジット
+
+- **原案・ディレクション:** suzuki-black
+- **プログラム／グラフィック／サウンド:** Claude Code（Anthropic Claude）
+- **音楽:**
+  - **常磐炭坑節** — 常磐炭鉱の民謡（伝承曲）。旋律を耳で採り、本作用に PSG 3声へ編曲。
+  - **Down in a Coal Mine** — J. B. Geoghegan 作曲、1872年。著作権切れ（作曲者1889年没）。
+    譜面から旋律を読み、PSG 3声（旋律＋ベース＋ノイズドラム）へ編曲。
+- **それ以外**（スプライト・背景タイル・タイトル画・効果音）は、すべて本作のために作ったものです。
+
+### ライセンス
+
+**MIT** © 2026 suzuki-black。全文は [LICENSE](LICENSE) を参照。
+**コード・グラフィック・音楽を含む本リポジトリのすべてを MIT ライセンスで公開**します
+（いずれも本作のために制作したもので、MIT の条件を超える権利主張はしません）。
+
+『Dig Dug』『Mr. Do!』から参照しているのは**ルール（メカニクス）**で、これは著作の対象外です。
+両作の名称・キャラクター・画像・音源は一切使用していません。
+
+### 免責
+
+常磐炭鉱は実在した炭鉱で、本作の水風呂・梅干し・三交代・残柱式といった働き方は
+その史実から採っています。ただし**本作はフィクション**です。主人公は実在の人物の名前を
+もじった架空の人物で、坑内の配置も、そこに居る生き物も、ゲームのために作ったものです。
