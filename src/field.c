@@ -9,7 +9,6 @@ uint8_t  cflag[NCELL];      /* 升ごとの真偽値 (CF_*)。game.h の説明�
 uint8_t  chute[NCELL];
 uint8_t  coal[NCELL];
 uint8_t  coal_left;
-uint8_t  cell_link[NCELL];
 uint8_t  combo;
 uint8_t  hitstop;
 uint8_t  combo_t;               /* HUD に連鎖数を出しておく残り時間 */
@@ -39,7 +38,7 @@ uint8_t cell_linked(int8_t cx, int8_t cy, uint8_t dir)
     if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) {
         return 0;
     }
-    return (uint8_t)(cell_link[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx] & mask);
+    return (uint8_t)(cf_on((uint16_t)(uint8_t)cy * COLS + (uint8_t)cx, mask));
 }
 
 /*
@@ -55,13 +54,13 @@ void link_carve(uint8_t px_, uint8_t py_)
        境目そのものが無い右端・下端だけ除く。 */
     if (n == 0) {
         if (m >= 3 && m <= 13 && c + 1 < COLS) {
-            cell_link[k] |= LINK_RIGHT;
+            cf_set(k, LINK_RIGHT);
         }
         return;
     }
     if (m == 0) {
         if (n >= 3 && n <= 13 && r + 1 < ROWS) {
-            cell_link[k] |= LINK_DOWN;
+            cf_set(k, LINK_DOWN);
         }
     }
 }
@@ -108,12 +107,12 @@ uint8_t coal_refill_at(int8_t cx, int8_t cy)
     }
     coal[i] = REFILL_HP;
     cf_clr(i, CF_DUG);                         /* 通れなくなる。dug_n は据え置き */
-    cell_link[i] = 0;                   /* 土の膜も閉じる */
+    cf_clr(i, LINK_RIGHT | LINK_DOWN);  /* 土の膜も閉じる */
     if (cx > 0) {
-        cell_link[i - 1] &= (uint8_t)~LINK_RIGHT;
+        cf_clr(i - 1, LINK_RIGHT);
     }
     if (cy > 0) {
-        cell_link[i - COLS] &= (uint8_t)~LINK_DOWN;
+        cf_clr(i - COLS, LINK_DOWN);
     }
     refill_cell = (uint8_t)i;
     refill_t = REFILL_COOLDOWN;
@@ -133,16 +132,16 @@ void link_open(uint8_t cx, uint8_t cy)
 {
     uint16_t k = (uint16_t)cy * COLS + cx;
     if (cx + 1 < COLS && cell_dug((int8_t)(cx + 1), (int8_t)cy)) {
-        cell_link[k] |= LINK_RIGHT;
+        cf_set(k, LINK_RIGHT);
     }
     if (cx > 0 && cell_dug((int8_t)(cx - 1), (int8_t)cy)) {
-        cell_link[k - 1] |= LINK_RIGHT;
+        cf_set(k - 1, LINK_RIGHT);
     }
     if (cy + 1 < ROWS && cell_dug((int8_t)cx, (int8_t)(cy + 1))) {
-        cell_link[k] |= LINK_DOWN;
+        cf_set(k, LINK_DOWN);
     }
     if (cy > 0 && cell_dug((int8_t)cx, (int8_t)(cy - 1))) {
-        cell_link[k - COLS] |= LINK_DOWN;
+        cf_set(k - COLS, LINK_DOWN);
     }
 }
 
@@ -349,7 +348,7 @@ void link_smash(uint8_t cx, uint8_t cy)
     if (cx >= COLS || cy == 0 || cy >= ROWS) {
         return;
     }
-    cell_link[(uint16_t)(cy - 1) * COLS + cx] |= LINK_DOWN;
+    cf_set((uint16_t)(cy - 1) * COLS + cx, LINK_DOWN);
 }
 
 void coal_shake_tick(void)
@@ -2510,7 +2509,7 @@ void build_stage(void)
         cf_clr(i, CF_PILLAR);
         chute[i] = 0;
         coal[i] = 0;
-        cell_link[i] = 0;
+        cf_clr(i, LINK_RIGHT | LINK_DOWN);
     }
     rock_clear();
 
@@ -2545,8 +2544,8 @@ void build_stage(void)
             if (!cf_on(k, CF_DUG)) {
                 continue;
             }
-            if (c + 1 < COLS && cf_on(k + 1, CF_DUG))    { cell_link[k] |= LINK_RIGHT; }
-            if (r + 1 < ROWS && cf_on(k + COLS, CF_DUG)) { cell_link[k] |= LINK_DOWN; }
+            if (c + 1 < COLS && cf_on(k + 1, CF_DUG))    { cf_set(k, LINK_RIGHT); }
+            if (r + 1 < ROWS && cf_on(k + COLS, CF_DUG)) { cf_set(k, LINK_DOWN); }
         }
     }
 

@@ -368,6 +368,7 @@ extern uint8_t  cflag[NCELL];
 #define CF_UME      0x08     /* 梅干し。岩で潰した敵が落とす。拾うと体温が下がる */
 #define CF_PILLAR   0x10     /* 炭柱 */
 #define CF_PROP     0x20     /* 支柱 (つっかい棒)。立っている間、真上の岩は落ちない */
+/* bit6 / bit7 は土の膜 (LINK_RIGHT / LINK_DOWN)。下の「升と升の境目」を参照 */
 #define cf_on(i, b)   (cflag[i] & (uint8_t)(b))
 #define cf_set(i, b)  (cflag[i] = (uint8_t)(cflag[i] | (uint8_t)(b)))
 #define cf_clr(i, b)  (cflag[i] = (uint8_t)(cflag[i] & (uint8_t)~(uint8_t)(b)))
@@ -384,7 +385,8 @@ extern uint8_t  gapv_c[2], gapv_r[2], gapv_n;
    掘り跡は内側2pxだけを抜くので、**隣り合う升が両方 dug でも間に土の膜が残る**
    ことがある。dug だけで判定すると、敵がその膜を実体のまますり抜けてしまう。
    bit0 = 右隣との境目が抜けている / bit1 = 真下との境目が抜けている */
-extern uint8_t  cell_link[NCELL];
+/* **膜も cflag[] に同居させてある** (2026-10-22)。bit6/bit7 が LINK_RIGHT/LINK_DOWN。
+   升ごとの配列をもう1本持つ余裕が RAM に無い (game.h の cflag の説明)。 */
 extern uint16_t dug_n;           /* 掘ったセル数 */
 extern uint16_t dug_n0;          /* 面の開始時点の掘済み数 (切羽圧の基準) */
 extern uint8_t  dug_pct;         /* 採掘率 % */
@@ -395,8 +397,8 @@ extern uint8_t  bath_c, bath_r;   /* 風呂 = 自機の出現位置の近く (�
 extern uint8_t  bath_on;          /* 風呂が健在か */
 
 uint8_t cell_dug(int8_t cx, int8_t cy);
-#define LINK_RIGHT 1
-#define LINK_DOWN  2
+#define LINK_RIGHT 0x40   /* cflag[] の bit6 (右隣との境目が抜けている) */
+#define LINK_DOWN  0x80   /* cflag[] の bit7 (真下との境目が抜けている) */
 uint8_t cell_linked(int8_t cx, int8_t cy, uint8_t dir);   /* その向きへ膜なしで通れるか */
 void    link_carve(uint8_t px_, uint8_t py_);
 void    link_open(uint8_t cx, uint8_t cy);   /* 割れた黒ダイヤの升を通路として繋ぐ */             /* 自機が膜を抜いた分を記録する */

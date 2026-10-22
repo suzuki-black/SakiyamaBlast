@@ -10,6 +10,10 @@
 	.globl	_msxver
 	.globl	_chgcpu
 	.globl	_getcpu
+	.globl	_rdslt_go
+	.globl	_rd_slot
+	.globl	_rd_addr
+	.globl	_expbyte
 
 GTSTCK		= 0x00D5		; A=装置番号 -> A=方向 0..8
 GTTRIG		= 0x00D8		; A=装置番号 -> A=0 or 0xFF
@@ -18,6 +22,8 @@ SNSMAT		= 0x0141		; A=行番号 -> A=その行の8キー (ビット0=押され�
 CHGCPU		= 0x0180		; A=モード (bit0-1) | 0x80 でLEDも変える
 GETCPU		= 0x0183		; -> A=いまのモード
 MSXVER		= 0x002D		; 0=MSX1 1=MSX2 2=MSX2+ 3=turbo R
+RDSLT		= 0x000C		; A=スロット番号 HL=番地 -> A=その1バイト
+EXPTBL		= 0xFCC1		; 基本スロット4つ。bit7 = 拡張されている
 
 	.area _CODE
 
@@ -85,4 +91,31 @@ _getcpu::
 	pop	iy
 	pop	ix
 	ld	l, a
+	ret
+
+
+; uint8_t rdslt_go(void);
+;   **引数は変数で渡す** (_rd_slot / _rd_addr)。SDCC は --sdcccall 1 で最初の引数を
+;   レジスタに載せるので、スタックから取るつもりで書くと黙って別の値を読む
+;   (実際に、内蔵 MSX-MUSIC を見つけられない形で引っかかった。2026-10-23)。
+;   他のスロットを覗く唯一の安全な手段。自分のページを差し替えないので、
+;   読んでいる間もこのコードは生きている。
+_rdslt_go::
+	push	ix
+	push	iy
+	ld	a, (#_rd_slot)
+	ld	hl, (#_rd_addr)
+	call	RDSLT
+	pop	iy
+	pop	ix
+	ld	l, a
+	ret
+
+; uint8_t expbyte(uint8_t i) __z88dk_fastcall;
+;   EXPTBL[i]。bit7 が立っていれば、その基本スロットは拡張されている。
+_expbyte::
+	ld	h, #0
+	ld	bc, #EXPTBL
+	add	hl, bc
+	ld	l, (hl)
 	ret

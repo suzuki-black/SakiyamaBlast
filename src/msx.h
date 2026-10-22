@@ -19,6 +19,13 @@ typedef signed int     int16_t;
 #define RG9SAV  (*(volatile uint8_t *)0xFFE8)   /* VDP R#9 のミラー (PAL/NTSC ビット保存用) */
 
 /* 入力 (BIOS) : 0=カーソルキー, 1/2=ジョイスティック */
+/* 他スロットを1バイト覗く (BIOS の RDSLT)。**引数は変数で渡す** —
+   SDCC は --sdcccall 1 で最初の引数をレジスタに載せるので、asm 側で
+   スタックから取る書き方にすると黙って別の値を読む。 */
+extern uint8_t  rd_slot;
+extern uint16_t rd_addr;
+uint8_t rdslt_go(void);
+uint8_t expbyte(uint8_t i) __z88dk_fastcall; /* EXPTBL[i]。bit7 = 拡張スロット */
 uint8_t gtstck(uint8_t dev) __z88dk_fastcall;
 uint8_t gttrig(uint8_t dev) __z88dk_fastcall;
 uint8_t snsmat(uint8_t row) __z88dk_fastcall;   /* キーマトリクス1行 (0=押下) */
@@ -56,12 +63,12 @@ void bank_select(uint8_t seg) __z88dk_fastcall;
 #define ART_SPR_SEG  11        /* スプライト: 形 (1枚32バイト) のあとに色 (1枚16バイト) */
 
 #define RAMCODE_SEG 8
-#define RAMCODE_ADDR 0xCD00
+#define RAMCODE_ADDR 0xC980
 /* 写す量。**リンカの l_RAMCODE は C から参照できない**ので、領域の大きさを
    決め打ちで写す。0xCD00-0xF1FF の 9472 バイト = tools/ihx2rom.py の
    RAMCODE_BASE..RAMCODE_END と一致させること。余りは 0xFF で埋まっている。
    **8KB を超えるので ROM のセグメントは2枚 (RAMCODE_SEG と その次)。**
    写す手順も2回に分かれる (main() の冒頭)。 */
-#define RAMCODE_LEN 0x2500
+#define RAMCODE_LEN 0x2880
 
 #endif

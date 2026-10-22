@@ -113,6 +113,7 @@ static void snd_catch_up(void)
     uint8_t i;
     for (i = 0; i < frames_passed; i++) {
         snd_tick();
+        opll_tick();   /* 叩いた FM のリズムを少し後で落とす */
     }
 }
 
@@ -381,6 +382,7 @@ void main(void)
     haze_init();
     set_game_palette();
     text_init();
+    opll_detect();      /* **FM は検出してから。** 内蔵 MSX-MUSIC を先に探す (src/opll.c) */
     snd_init();
     config_init();
 

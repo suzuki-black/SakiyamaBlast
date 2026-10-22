@@ -5,6 +5,7 @@
  * 方向キーはキーマトリクスの行8、A/B は行2 から直接読む（ジョイスティックと混ざらない）。
  */
 #include "config.h"
+#include "sound.h"
 #include "vdp.h"
 #include "game.h"
 #include "text.h"
@@ -15,6 +16,7 @@ uint8_t cfg_invincible;
 uint8_t cfg_start_stage;
 uint8_t cfg_reset;
 uint8_t cfg_haze;
+uint8_t cfg_fm;        /* FM 音源 (MSX-MUSIC) を添えるか。検出できた機械でだけ効く */
 
 /* 入力の種類 */
 #define TK_NONE  0
@@ -36,7 +38,7 @@ static uint8_t prev_r;           /* R キーの前フレームの状態 (押し�
 static uint8_t cur;              /* 設定画面のカーソル位置 */
 static uint8_t dirty;
 
-#define N_ITEMS 7
+#define N_ITEMS 8
 #define ITEM_Y  72
 #define ITEM_DY 16
 #define VAL_X   168
@@ -49,6 +51,7 @@ void config_init(void)
     cfg_start_stage = 1;
     cfg_reset = 0;
     cfg_haze = 1;
+    cfg_fm = 1;
     k_idx = 0;
     prev_tok = TK_NONE;
     prev_r = 0;
@@ -121,6 +124,7 @@ static void draw_value(uint8_t i)
     case 3: put_num(y, cfg_start_stage); break;
     case 4: put_onoff(y, cfg_reset); break;
     case 5: put_onoff(y, cfg_haze); break;
+    case 6: put_onoff(y, cfg_fm); break;
     default: break;
     }
 }
@@ -152,7 +156,10 @@ void config_enter(void)
     /* **キーを名前に入れておく。** 「面リセット ON」だけでは何を押すのか分からない。 */
     text_draw(48, ITEM_Y + ITEM_DY * 4,    "RETRY BY R",  COL_WHITE, COL_TUNNEL, 1);
     text_draw(48, ITEM_Y + ITEM_DY * 5,    "HEAT HAZE",   COL_WHITE, COL_TUNNEL, 1);
-    text_draw(48, ITEM_Y + ITEM_DY * 6,    "SEE ENDING",  COL_WHITE, COL_TUNNEL, 1);
+    /* **FM は載っている機械でだけ効く。** 無い機械でも項目は出すが、
+       切り替えても何も変わらない (opll_hw が 0 なら opll_use は立たない)。 */
+    text_draw(48, ITEM_Y + ITEM_DY * 6,    "FM SOUND",    COL_WHITE, COL_TUNNEL, 1);
+    text_draw(48, ITEM_Y + ITEM_DY * 7,    "SEE ENDING",  COL_WHITE, COL_TUNNEL, 1);
 
     text_draw(24, 180, "UP/DOWN    SELECT",  COL_DIA, COL_TUNNEL, 1);
     text_draw(24, 192, "LEFT/RIGHT CHANGE",  COL_DIA, COL_TUNNEL, 1);
@@ -188,6 +195,7 @@ uint8_t config_update(void)
         else if (cur == 3 && cfg_start_stage > 1) { cfg_start_stage--; }
         else if (cur == 4) { cfg_reset = (uint8_t)!cfg_reset; }
         else if (cur == 5) { cfg_haze = (uint8_t)!cfg_haze; }
+        else if (cur == 6) { cfg_fm = (uint8_t)!cfg_fm; opll_apply(); }
         dirty = 1;
         break;
     case TK_RIGHT:
@@ -197,6 +205,7 @@ uint8_t config_update(void)
         else if (cur == 3 && cfg_start_stage < MAX_STAGE) { cfg_start_stage++; }
         else if (cur == 4) { cfg_reset = (uint8_t)!cfg_reset; }
         else if (cur == 5) { cfg_haze = (uint8_t)!cfg_haze; }
+        else if (cur == 6) { cfg_fm = (uint8_t)!cfg_fm; opll_apply(); }
         dirty = 1;
         break;
     case TK_SPACE:

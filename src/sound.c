@@ -110,6 +110,7 @@ void snd_init(void)
     PSG_W(7, mixer_base | 0x38);      /* トーン3本を有効、ノイズは無効 */
     drum_on = 0;
     sfx_on = 0;
+    opll_reset();
     for (i = 0; i < 3; i++) {
         PSG_W(8 + i, 0);
     }
@@ -245,7 +246,8 @@ static void play_jingle(const uint8_t *a, const uint8_t *b, const uint8_t *c,
     ch_vol0[2] = v2;
     ch_dec[0] = ch_dec[1] = ch_dec[2] = 3;
     drum_on = 0;
-    sfx_on = 0;                        /* 鳴っている間は効果音を止める */
+    sfx_on = 0;
+    opll_all_off();                    /* ファンファーレの頭で FM も切る */
     set_mixer(0);                      /* トーン3声 */
     snd_start(a, b, c, SND_SFX);
 }
@@ -278,6 +280,7 @@ void snd_stop(void)
     for (i = 0; i < 3; i++) {
         PSG_W(8 + i, 0);
     }
+    opll_all_off();                    /* FM も一緒に止める */
 }
 
 uint8_t snd_busy(void)
@@ -315,11 +318,15 @@ static uint8_t music_step(void)
                     if (!sfx_on) {
                         PSG_W(6, drum_period[note]);
                     }
+                    opll_drum(note);              /* **FM のリズムも同じ拍で叩く** */
                 }
             } else if (note && !(i == 2 && sfx_on)) {
                 uint16_t per = note_period[note];
                 PSG_W(i << 1, (uint8_t)(per & 0xFF));
                 PSG_W((i << 1) + 1, (uint8_t)(per >> 8));
+                opll_note(i, note);               /* **同じ音を FM でも鳴らす** */
+            } else if (!note && !(i == 2 && sfx_on)) {
+                opll_note(i, 0);                  /* 休符は FM も切る */
             }
         }
         if (!(i == 2 && sfx_on)) {         /* 効果音が ch C を使っている間は触らない */

@@ -58,3 +58,17 @@ extern const uint8_t hurry_a[], hurry_b[], hurry_c[];
 extern const uint8_t sfx_dig[], sfx_pick[], sfx_set[], sfx_boom[], sfx_miss[], sfx_mine[], sfx_nope[], sfx_break[], sfx_coal[], sfx_cavein[], sfx_click[], sfx_wood[], sfx_gush[], sfx_drip[], sfx_seal[], sfx_tally[], sfx_cart[];
 
 #endif
+
+/* --- MSX-MUSIC (FM) を添える (src/opll.c) --------------------------
+   曲データは増やさず、PSG の3声と同じ音をそのまま FM でも鳴らす。
+   turbo R は内蔵必須、MSX2+ は機種による。**必ず検出してから鳴らす。** */
+extern uint8_t opll_hw;    /* 0 = 無し / 1 = 内蔵 / 2 = 外付け FM-PAC */
+extern uint8_t opll_use;   /* 検出済み && 設定が ON */
+void opll_detect(void);
+void opll_apply(void);      /* 設定 (cfg_fm) を反映する */
+void opll_reset(void);
+void opll_w(uint8_t reg, uint8_t val);
+void opll_note(uint8_t ch, uint8_t note);   /* ch 0=旋律 1=ベース 2=和音 */
+void opll_drum(uint8_t kind);               /* 1=バスドラ 2=スネア 3=ハイハット */
+void opll_tick(void);
+void opll_all_off(void);

@@ -24,7 +24,7 @@ BUILDDIR  := build
 CC        := sdcc
 AS        := sdasz80
 CFLAGS    := -mz80 --std-c99 --sdcccall 1 --opt-code-speed -I$(SRCDIR) -I$(BUILDDIR)
-LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKDATA=0xA000 -Wl-b_RAMCODE=0xCD00
+LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKDATA=0xA000 -Wl-b_RAMCODE=0xC980
 
 # 固定領域 (0x4000-0x9FFF) は 24KB しかない。絵と曲は**ただのデータ**なので、
 # 0xA000 の窓へリンクして ROM のセグメント3へ置き、固定領域を空ける。
@@ -43,13 +43,15 @@ BANKED_SRC := $(SRCDIR)/music.c \
 # **RAM へ写して実行するモジュール。**
 # 0x4000-0xBFFF の 32KB はもう埋まっていて、並べ替えでは空きが作れない。
 # RAM (ページ3) は変数が 0xC000 から約3.2KB、スタックが 0xF380 から 0xF30F までしか
-# 伸びない (openMSX で実測) ので、0xCD00-0xF1FF が空いている。
+# 伸びない (openMSX で実測) ので、0xCA80-0xF1FF が空いている
+# (2026-10-22 に 0xCD00 から下げた。升ごとの真偽値を cflag[] へ詰めて
+#  変数が 0xC9E5 までに縮んだぶん、RAM 実行の枠を 640バイト広げた)。
 # **8KB を超えたので ROM のセグメントは2枚**。写す手順も2回に分かれる (main.c)。
 # **title / vdp も置ける。** RAM はバンク窓の切り替えの影響を受けないので、
 # タイトル画像を読んでいる最中 (title_draw) に呼ばれても見えている。
 # 起動時に main() が ROM のセグメント8 から写す。
 # **写す前に呼ばれるものは置けない** (crt0 / lowlevel / main の冒頭)。
-RAM_SRC   := $(SRCDIR)/enemy.c $(SRCDIR)/bomb.c $(SRCDIR)/sound.c \
+RAM_SRC   := $(SRCDIR)/enemy.c $(SRCDIR)/bomb.c $(SRCDIR)/sound.c $(SRCDIR)/opll.c \
              $(SRCDIR)/title.c $(SRCDIR)/vdp.c $(SRCDIR)/text.c $(SRCDIR)/tlimit.c
 
 CSRC      := $(wildcard $(SRCDIR)/*.c)

@@ -19,7 +19,7 @@ extern uint32_t sim_score;
 extern uint8_t sfx_fired[16];
 
 /* ------------------------------------------------------------------ *
- * 通行グラフ。cell_link[] をそのまま辿る。
+ * 通行グラフ。膜 (cflag[] の LINK_*) をそのまま辿る。
  * 「1升隣でも土の膜で隔てられていれば敵は来られない」ので、危険度は
  * ユークリッド距離ではなく必ずこのグラフ上の距離で測る。
  * ------------------------------------------------------------------ */
@@ -37,15 +37,15 @@ static int passable(int c, int r)
     return 1;
 }
 
-/* a から b へ動けるか。膜 (cell_link) が張っていれば通れない。 */
+/* a から b へ動けるか。膜が張っていれば通れない。 */
 static int linked(int c, int r, int nc, int nr)
 {
     uint16_t i = (uint16_t)r * COLS + c;
     uint16_t j = (uint16_t)nr * COLS + nc;
-    if (nc == c + 1) { return cell_link[i] & LINK_RIGHT; }
-    if (nc == c - 1) { return cell_link[j] & LINK_RIGHT; }
-    if (nr == r + 1) { return cell_link[i] & LINK_DOWN; }
-    if (nr == r - 1) { return cell_link[j] & LINK_DOWN; }
+    if (nc == c + 1) { return cflag[i] & LINK_RIGHT; }
+    if (nc == c - 1) { return cflag[j] & LINK_RIGHT; }
+    if (nr == r + 1) { return cflag[i] & LINK_DOWN; }
+    if (nr == r - 1) { return cflag[j] & LINK_DOWN; }
     return 0;
 }
 
@@ -443,7 +443,7 @@ static int drop_from(int c, int r)
  * 二度目の風呂は入っていない。逆に、連鎖で岩がまとめて採ってくれるぶんも
  * 引いていない。「この面を何にも邪魔されずに片付けたら何秒か」の床として読む。
  *
- * 膜 (cell_link) は見ない。自機は歩くだけで膜を破るので速度に関係しない
+ * 膜 (LINK_*) は見ない。自機は歩くだけで膜を破るので速度に関係しない
  * (src/player.c の chewing は cell_dug だけを見る)。岩は押せる想定で素通りさせる。
  *
  *   par   : 合計フレーム数
@@ -727,8 +727,8 @@ static void analyse(int st, unsigned sd)
         for (k = 0; k < NCELL; k++) {
             int kc = k % COLS, kr = k / COLS;
             if (!cf_on(k, CF_DUG)) { continue; }
-            if (kc + 1 < COLS && cf_on(k + 1, CF_DUG))    { cell_link[k] |= LINK_RIGHT; }
-            if (kr + 1 < ROWS && cf_on(k + COLS, CF_DUG)) { cell_link[k] |= LINK_DOWN; }
+            if (kc + 1 < COLS && cf_on(k + 1, CF_DUG))    { cf_set(k, LINK_RIGHT); }
+            if (kr + 1 < ROWS && cf_on(k + COLS, CF_DUG)) { cf_set(k, LINK_DOWN); }
         }
         /* **真下が黒ダイヤなら1枚だけ割っておく。** 黒ダイヤは静止した岩の支えなので、
            割らないと岩は一歩も動かない。これがゲーム側で言う「1枚ぶんの手間」。 */
@@ -1003,7 +1003,7 @@ static void analyse(int st, unsigned sd)
             for (f = 0; f < 400; f++) { rock_update(); coal_shake_tick(); }
             got_a = before - coal_left;
             /* (B) 隙間を掘ってから落とす。**掘るのは cf_on(, CF_DUG) を直に立てる** —
-               岩の支えは cell_dug しか見ないので、膜 (cell_link) は要らない。 */
+               岩の支えは cell_dug しか見ないので、膜は要らない。 */
             build_stage();
             before = coal_left;
             for (rr = rtop; rr <= rlow; rr++) {
