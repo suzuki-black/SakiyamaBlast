@@ -86,8 +86,15 @@ static const uint8_t sfx_prio[SFX_N]    = {       0,        1,       1,        2
 #define DRUM_SN 2
 #define DRUM_HH 3
 static const uint8_t drum_period[4] = { 0, 28, 12,  2 };   /* R6 (大きいほど低い) */
-static const uint8_t drum_vol[4]    = { 0, 14, 13,  9 };
 static const uint8_t drum_dec[4]    = { 0,  2,  2,  1 };
+
+/* ドラムの音量。**上の4つが PSG だけの機械、下の4つが turbo R** (和太鼓と FM の
+   リズムが同じ拍を叩くので、PSG のノイズを6段引いてある。重ねたままだと低い太鼓が
+   ノイズに埋もれる)。**ハイハットは引かない** — 縁打ちの PCM は 16ms しか無く、
+   刻みは PSG が要る。表を2段にしてあるのは、拍ごとに引き算をすると RAM 実行領域が
+   足りなくなったから (添字を4ずらすだけで済む)。 */
+static const uint8_t drum_vol[8]    = { 0, 14, 13,  9,
+                                        0,  8,  7,  9 };
 
 /* ch C をノイズ(ドラム/爆発)にするかトーンにするかを切り替える */
 /*
@@ -219,8 +226,17 @@ static void snd_start(const uint8_t *a, const uint8_t *b, const uint8_t *c, uint
 /* 旋律 + ベース + ノイズドラムの3声で曲を鳴らす。坑内の曲もタイトルの曲も同じ形。 */
 static void play_song(const uint8_t *a, const uint8_t *b, const uint8_t *c)
 {
-    ch_vol0[0] = 13;      /* 主旋律 */
-    ch_vol0[1] = 11;      /* ベース */
+    /* **太鼓を前に出すために PSG を引いてある** (2026-10-24)。
+       タイトルの出力を音源ごとに録って比べたら、和太鼓 (PCM) は全体より -10dB で、
+       それを覆っていたのは**ノイズドラムではなく主旋律**だった (ドラムを完全に
+       止めても PSG 全体の実効値は 1703 -> 1694 しか変わらない)。
+       **FM と太鼓が両方あるときだけ引く。** 片方でも欠けていると、引いたぶんを
+       埋めるものが無い (コンフィグで FM だけ切った turbo R もここに来る)。
+       **引き算で書く。** 三項演算子で書くと分岐が2本増え、RAM 実行領域の空きが
+       9バイトになった (どちらの旗も 0 か 1 しか入らないので `&` と算術で足りる)。 */
+    uint8_t rich = (uint8_t)(pcm_use & opll_use);
+    ch_vol0[0] = (uint8_t)(13 - (rich << 1));   /* 主旋律 */
+    ch_vol0[1] = (uint8_t)(11 - rich);          /* ベース */
     ch_vol0[2] = 13;      /* ドラム (音ごとに上書きする) */
     ch_dec[0] = 3;
     ch_dec[1] = 3;
@@ -319,7 +335,7 @@ static uint8_t music_step(void)
             ch_note[i] = note;
             if (drum_on && i == 2) {
                 if (note) {                       /* ドラムは音程でなく打種 */
-                    ch_vol0[2] = drum_vol[note];
+                    ch_vol0[2] = drum_vol[note + ((pcm_use & opll_use) << 2)];
                     ch_dec[2] = drum_dec[note];
                     if (!sfx_on) {
                         PSG_W(6, drum_period[note]);

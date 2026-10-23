@@ -135,11 +135,14 @@ static const uint16_t fnum[12] = {
 #define INST_HARM  2
 #define INST_BASS 14
 
-/* 音量は 0 が最大で 15 が最小。**PSG より控えめにする** (添えるのが目的で、
-   前に出すと PSG の旋律が負ける)。 */
-#define VOL_MEL    4
-#define VOL_HARM   8
-#define VOL_BASS   5
+/* 音量は 0 が最大で 15 が最小 (1段 = 3dB)。**PSG より控えめにする** (添えるのが目的で、
+   前に出すと PSG の旋律が負ける)。
+   **ただし控えすぎていた。** タイトルの出力を音源ごとに録って比べたら、FM は全体より
+   -9.9dB で、別の声ではなく PSG の厚みとしてしか聞こえていなかった (2026-10-24 の実測)。
+   2段 = 6dB 上げてある。全体のピークは 17982/32767 だったので歪まない。 */
+#define VOL_MEL    2
+#define VOL_HARM   6
+#define VOL_BASS   3
 
 static uint8_t rhy_t;        /* 叩いたリズムを落とすまでの残りフレーム */
 
