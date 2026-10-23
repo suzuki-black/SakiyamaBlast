@@ -24,7 +24,7 @@ BUILDDIR  := build
 CC        := sdcc
 AS        := sdasz80
 CFLAGS    := -mz80 --std-c99 --sdcccall 1 --opt-code-speed -I$(SRCDIR) -I$(BUILDDIR)
-LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKDATA=0xA000 -Wl-b_RAMCODE=0xC980
+LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKDATA=0xA000 -Wl-b_MUSICDATA=0x2000 -Wl-b_RAMCODE=0xC980
 
 # 固定領域 (0x4000-0x9FFF) は 24KB しかない。絵と曲は**ただのデータ**なので、
 # 0xA000 の窓へリンクして ROM のセグメント3へ置き、固定領域を空ける。
@@ -35,7 +35,7 @@ LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKD
 # それ以外は常に DATA_SEG が選ばれているので、コードを置いても同じ速度で動く。
 # **art と sprite は窓に置けない。** 絵のセグメントへ窓を向けている間に
 # 自分が見えなくなるため (art.c は番地を返すだけ、sprite.c は窓を切り替える側)。
-BANKED_SRC := $(SRCDIR)/music.c \
+BANKED_SRC := \
               $(SRCDIR)/config.c $(SRCDIR)/bonus.c $(SRCDIR)/debris.c $(SRCDIR)/kanji.c \
               $(SRCDIR)/haze.c $(SRCDIR)/water.c $(SRCDIR)/hud.c $(SRCDIR)/cart.c \
               $(SRCDIR)/levels.c
@@ -89,6 +89,13 @@ PAL_H        := $(BUILDDIR)/palette.h
 TAIKO_BIN := $(BUILDDIR)/taiko.bin
 TAIKO_H   := $(BUILDDIR)/taiko.h
 TAIKO_SEG := 12
+# **漢字の字形**。窓から追い出して専用セグメントへ (blob_read で読む)。
+KANJI_BIN := $(BUILDDIR)/kanji.bin
+KANJI_H   := $(BUILDDIR)/kanji.h
+KANJI_SEG := 13
+# **曲データ**。窓から追い出して専用セグメントへ (sound.c が読む前に窓を向ける)。
+MUSIC_SRC := $(SRCDIR)/music.c
+MUSIC_SEG := 14
 
 ART_SPR_NAMES  := miner,bomb,rock,rat,bat,split,stun1,stun2,stun3,brace,wd1,wd2,wu1,wu2,wl1,wl2,wr1,wr2,bru,brl,brr,std,stu,stl,str,chip,cart,cartrock,rockprop
 ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,spring,springoff,toir,toil,toibr,toibl,rail,raill,railr
@@ -128,8 +135,12 @@ $(ART_TILE) $(ART_TILE_BIN): $(ART_TILE_SRC) tools/png2art.py tools/palette.py |
 $(TAIKO_BIN) $(TAIKO_H): tools/gen_taiko.py | $(BUILDDIR)
 	python3 tools/gen_taiko.py $(TAIKO_BIN) $(TAIKO_H)
 
-$(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(HEADERS) $(MAKEFILE) $(TITLE_PAL) $(ART_SPR) $(ART_TILE) $(PAL_H) $(TAIKO_H) | $(BUILDDIR)
+$(KANJI_BIN) $(KANJI_H): tools/mkkanji.py | $(BUILDDIR)
+	python3 tools/mkkanji.py --bin $(KANJI_BIN) $(KANJI_H)
+
+$(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(HEADERS) $(MAKEFILE) $(TITLE_PAL) $(ART_SPR) $(ART_TILE) $(PAL_H) $(TAIKO_H) $(KANJI_H) | $(BUILDDIR)
 	$(CC) $(CFLAGS) \
+	  $(if $(filter $<,$(MUSIC_SRC)),--codeseg MUSICDATA --constseg MUSICDATA) \
 	  $(if $(filter $<,$(BANKED_SRC)),--codeseg BANKDATA --constseg BANKDATA) \
 	  $(if $(filter $<,$(RAM_SRC)),--codeseg RAMCODE --constseg RAMCODE) -c -o $@ $<
 
@@ -137,10 +148,10 @@ $(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(HEADERS) $(MAKEFILE) $(TITLE_PAL) $(ART_SPR) 
 $(IHX): $(BUILDDIR)/crt0.rel $(AOBJ) $(COBJ)
 	$(CC) $(LDFLAGS) -o $@ $(BUILDDIR)/crt0.rel $(filter-out $(BUILDDIR)/crt0.rel,$(AOBJ)) $(COBJ)
 
-$(ROM): $(IHX) $(TITLE_BIN) $(ART_TILE_BIN) $(ART_SPR_BIN) $(TAIKO_BIN) tools/ihx2rom.py
+$(ROM): $(IHX) $(TITLE_BIN) $(ART_TILE_BIN) $(ART_SPR_BIN) $(TAIKO_BIN) $(KANJI_BIN) tools/ihx2rom.py
 	python3 tools/ihx2rom.py $(IHX) $(ROM) 128 $(TITLE_SEG):$(TITLE_BIN) \
 	    $(ART_TILE_SEG):$(ART_TILE_BIN) $(ART_SPR_SEG):$(ART_SPR_BIN) \
-	    $(TAIKO_SEG):$(TAIKO_BIN)
+	    $(TAIKO_SEG):$(TAIKO_BIN) $(KANJI_SEG):$(KANJI_BIN)
 
 run: $(ROM)
 	openmsx -machine $(MACHINE) -carta $(ROM) -romtype ASCII8

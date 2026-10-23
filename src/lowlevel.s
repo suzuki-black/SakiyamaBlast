@@ -18,6 +18,11 @@
 	.globl	_bank_select
 	.globl	_bank_cur
 	.globl	_pcm_ctrl
+	.globl	_blob_read
+	.globl	_blob_off
+	.globl	_blob_dst
+	.globl	_blob_len
+	.globl	_blob_seg
 	.globl	_pcm_play
 	.globl	_pcm_src
 	.globl	_pcm_left
@@ -259,6 +264,39 @@ _bank_select::
 _pcm_ctrl::
 	ld	a, l
 	out	(#PCM_CTRL), a
+	ret
+
+;-------------------------------------------------------------------
+; void blob_read(void);
+;   **窓の中の表を RAM へ写す。** 引数は変数で渡す (_blob_seg / _blob_off /
+;   _blob_dst / _blob_len)。SDCC の呼び出し規約に左右されないため。
+;
+;   窓側のコードから呼んでよい。窓を切り替えている間に実行されるのは
+;   **固定領域にあるこのルーチンだけ**で、戻る前に元のセグメントへ戻す。
+;
+;   **控え (_bank_cur) も一緒に書き替える。** 写している途中で和太鼓の割り込みが
+;   入ると、ISR は控えを見て窓を戻すので、控えが古いままだと**続きを別の
+;   セグメントから読む**ことになる。
+;-------------------------------------------------------------------
+_blob_read::
+	ld	a, (#_bank_cur)
+	ld	c, a			; 戻す先
+	ld	a, (#_blob_seg)
+	ld	(#_bank_cur), a
+	ld	(#ASC8_A000), a
+	ld	hl, (#_blob_off)
+	ld	de, (#_blob_dst)
+	ld	a, (#_blob_len)
+	ld	b, a
+blob_lp:
+	ld	a, (hl)
+	ld	(de), a
+	inc	hl
+	inc	de
+	djnz	blob_lp
+	ld	a, c
+	ld	(#_bank_cur), a
+	ld	(#ASC8_A000), a
 	ret
 
 ;-------------------------------------------------------------------

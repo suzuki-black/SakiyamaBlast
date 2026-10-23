@@ -6,6 +6,12 @@
  * BGM は 0xFF でループ、効果音 (ファンファーレ) は 0xFE で終わる。
  */
 #include "sound.h"
+#include "msx.h"
+
+/* **曲データは自前のセグメント (MUSIC_SEG) にある。** リンクは 0x2000 番地で、
+   実行時は窓の中 (0xA000) に見える。曲を指すポインタはこれで読み替える。 */
+#define MUS_LINK 0x2000
+#define MUS(p)   ((const uint8_t *)((uint16_t)(p) - MUS_LINK + 0xA000))
 #include "vdp.h"
 
 void psg_write(uint16_t rv) __z88dk_fastcall;
@@ -133,7 +139,7 @@ void snd_sfx(uint8_t id)
     if (sfx_on && sfx_prio[id] < sfx_pri) {
         return;                        /* 鳴っている音より優先度が低ければ捨てる */
     }
-    sfx_p = sfx_data[id];
+    sfx_p = MUS(sfx_data[id]);
     sfx_left = 0;
     sfx_t = 0;
     sfx_vol0 = sfx_volume[id];
@@ -200,9 +206,9 @@ static void snd_start(const uint8_t *a, const uint8_t *b, const uint8_t *c, uint
 {
     snd_tempo = TEMPO_UNIT;      /* タイトルやファンファーレは常に等倍 */
     tempo_acc = 0;
-    ch_base[0] = ch_p[0] = a;
-    ch_base[1] = ch_p[1] = b;
-    ch_base[2] = ch_p[2] = c;
+    ch_base[0] = ch_p[0] = MUS(a);
+    ch_base[1] = ch_p[1] = MUS(b);
+    ch_base[2] = ch_p[2] = MUS(c);
     ch_left[0] = ch_left[1] = ch_left[2] = 0;
     ch_t[0] = ch_t[1] = ch_t[2] = 0;
     ch_note[0] = ch_note[1] = ch_note[2] = 0;
@@ -363,19 +369,31 @@ void snd_set_tempo(uint8_t n)
     snd_tempo = n;
 }
 
+/*
+ * **曲データを読む前に窓を曲のセグメントへ向ける。**
+ *
+ * 曲は `MUSIC_SEG` に置いてある (窓 0xA000-0xBFFF が満杯になったので追い出した。
+ * 2026-10-23)。リンクは 0x2000 番地だが、実行時は窓の中 = 0xA000 に見えるので、
+ * 曲を指すポインタは `MUS()` で読み替える。
+ *
+ * ここで切り替えてよいのは、**この関数が呼ぶ先に窓側のコードが1つも無い**から
+ * (PSG は lowlevel.s = 固定領域、FM と太鼓と VDP は RAM 実行)。
+ * 呼び出し元の向き先は控え (`bank_cur`) から戻す。
+ */
 void snd_tick(void)
 {
-    if (mode == SND_OFF) {
-        sfx_tick();
-        return;
-    }
-    tempo_acc = (uint8_t)(tempo_acc + snd_tempo);
-    while (tempo_acc >= TEMPO_UNIT) {
-        tempo_acc = (uint8_t)(tempo_acc - TEMPO_UNIT);
-        if (music_step()) {
-            mode = SND_OFF;
-            break;
+    uint8_t prev = bank_cur;
+    bank_select(MUSIC_SEG);
+    if (mode != SND_OFF) {
+        tempo_acc = (uint8_t)(tempo_acc + snd_tempo);
+        while (tempo_acc >= TEMPO_UNIT) {
+            tempo_acc = (uint8_t)(tempo_acc - TEMPO_UNIT);
+            if (music_step()) {
+                mode = SND_OFF;
+                break;
+            }
         }
     }
     sfx_tick();
+    bank_select(prev);
 }

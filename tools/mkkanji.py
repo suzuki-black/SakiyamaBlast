@@ -358,6 +358,26 @@ for k in order:
 print("};")
 
 import sys
+
+if '--bin' in sys.argv:
+    # **絵と同じ扱いにする。** 字の形は ROM の専用セグメントへ置き、読むときだけ
+    # 窓を向ける (src/kanji.c)。窓 (0xA000-0xBFFF) は満杯なので、
+    # 576バイトの表をそこから追い出すのが目的 (2026-10-23)。
+    i = sys.argv.index('--bin')
+    blob = bytearray()
+    for k in order:
+        for r in G[k]:
+            v = 0
+            for j, c in enumerate(r):
+                if c == '#':
+                    v |= 1 << (15 - j)
+            blob += bytes((v >> 8, v & 0xFF))
+    open(sys.argv[i + 1], 'wb').write(bytes(blob))
+    with open(sys.argv[i + 2], 'w') as f:
+        f.write('/* 自動生成: tools/mkkanji.py --bin。手で編集しない。 */\n')
+        f.write('#define KANJI_N %d\n' % len(order))
+    sys.stderr.write('%s: %d バイト (%d 字)\n' % (sys.argv[i + 1], len(blob), len(order)))
+    sys.exit(0)
 body = '\n'.join(out) + '\n'
 
 if '--preview' in sys.argv:      # 字を拡大画像に起こして目で見る

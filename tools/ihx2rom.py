@@ -33,6 +33,12 @@ RAMCODE_END = 0xF280      # ここより上はスタックのために空ける 
                           #  タイトル・面の組み立て・3分半の実プレイを通して測った。
                           #  0xF200 との余裕は 271 バイト)
 RAMCODE_SEG = 8           # その中身を置く ROM セグメント
+# **曲データは自前のセグメントへ。** 窓 (0xA000-0xBFFF) が満杯になったので、
+# music.c だけ 0x2000 番地へリンクし、その中身をここへ置く。実行時は窓に見える
+# (src/sound.c が読む前に bank_select(MUSIC_SEG) する)。2026-10-23
+MUSIC_BASE = 0x2000
+MUSIC_END = 0x4000
+MUSIC_SEG = 14
 
 
 def parse_ihx(path):
@@ -94,6 +100,11 @@ def main(argv):
                   "に食い込んでいます", file=sys.stderr)
             return 1
 
+    # **曲データ (0x2000-0x3FFF) は別扱い。** 窓が満杯なので music.c だけ
+    # そこへリンクし、ROM の MUSIC_SEG へ置く (実行時は窓に見える)。
+    music = {a: v for a, v in mem.items() if MUSIC_BASE <= a < MUSIC_END}
+    for a in music:
+        del mem[a]
     lo, hi = min(mem), max(mem)
     if lo < ROM_BASE:
         print(f"error: 0x{lo:04X} は ROM 領域 (0x4000-) の外です", file=sys.stderr)
@@ -128,6 +139,9 @@ def main(argv):
             # **8KB を超えるぶんは次のセグメントへ続ける** (写す側も2回に分かれる)。
             rom[RAMCODE_SEG * SEG_SIZE + (addr - RAMCODE_BASE)] = val
 
+    for addr, val in music.items():
+        rom[MUSIC_SEG * SEG_SIZE + (addr - MUSIC_BASE)] = val
+
     # 可変バンク側へ載せるデータ (タイトル画像など)。seg:file の形で指定する。
     for spec in blobs:
         seg, path = spec.split(":", 1)
@@ -155,6 +169,8 @@ def main(argv):
           f"free {FIXED_END - fixed_hi - 1} bytes")
     if ramcode:
         rhi = max(ramcode)
+        if music:
+            print(f"  seg{MUSIC_SEG}: 曲データ {len(music)} バイト")
         print(f"  seg{RAMCODE_SEG}..{RAMCODE_SEG + (RAMCODE_END - RAMCODE_BASE - 1) // SEG_SIZE}"
               f": RAM実行コード 0x{RAMCODE_BASE:04X}-0x{rhi:04X} = "
               f"{rhi - RAMCODE_BASE + 1} バイト "

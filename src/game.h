@@ -476,7 +476,7 @@ void    popup_clear(void);
 #define KJ_BAN  16      /* 番 */
 #define KJ_HOU  17      /* 方 */
 #define KJ_N    18      /* 字数。**tools/mkkanji.py の order と一致させること** */
-extern const uint8_t kanji_bits[KJ_N][32];
+/* 字形は ROM の KANJI_SEG にある (src/kanji.c)。配列としては持たない */
 void    kanji_draw(uint16_t x, uint16_t y, uint8_t idx, uint8_t fg, uint8_t bg);
 /* 溜め中の汗。**スプライトではなく背景に描く。** 自機のスプライトは16x16が
    ほぼ埋まっていて1行1色なので汗を足す余地が無く、面を増やすと横一列8枚の

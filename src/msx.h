@@ -63,7 +63,16 @@ void bank_select(uint8_t seg) __z88dk_fastcall;
 #define ART_SPR_SEG  11        /* スプライト: 形 (1枚32バイト) のあとに色 (1枚16バイト) */
 
 extern uint8_t bank_cur;   /* いま窓が向いているセグメント (bank_select が控える) */
-#define TAIKO_SEG 12   /* 和太鼓の波形 (src/lowlevel.s の TAIKO_SEG と合わせる) */
+#define TAIKO_SEG 12
+#define KANJI_SEG 13
+#define MUSIC_SEG 14   /* 曲データ (src/sound.c が読む前に窓を向ける) */   /* 漢字の字形 (src/kanji.c が blob_read で読む) */
+/* **窓の中の表を RAM へ写す** (実体は src/lowlevel.s)。引数は変数で渡す。
+   窓側のコードから呼んでよい (切り替えている間に走るのは固定領域のルーチンだけ)。 */
+extern uint8_t  blob_seg;
+extern uint16_t blob_off;    /* 窓の中の番地 (0xA000-0xBFFF) */
+extern uint8_t *blob_dst;
+extern uint8_t  blob_len;
+void blob_read(void);   /* 和太鼓の波形 (src/lowlevel.s の TAIKO_SEG と合わせる) */
 #define RAMCODE_SEG 8
 #define RAMCODE_ADDR 0xC980
 /* 写す量。**リンカの l_RAMCODE は C から参照できない**ので、領域の大きさを

@@ -4,6 +4,10 @@
 /* **いま 0xA000 の窓が向いているセグメント。** bank_select が控える。
    和太鼓の割り込み (src/lowlevel.s) が窓を借りたあと、ここへ戻す。 */
 uint8_t bank_cur;
+uint8_t  blob_seg;        /* blob_read の引数 (src/lowlevel.s) */
+uint16_t blob_off;
+uint8_t *blob_dst;
+uint8_t  blob_len;
 
 /* R#1 は書き込み専用なので、いま入れている値を憶えておく */
 static uint8_t reg1 = 0x62;
