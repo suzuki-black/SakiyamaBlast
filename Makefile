@@ -51,7 +51,7 @@ BANKED_SRC := $(SRCDIR)/music.c \
 # タイトル画像を読んでいる最中 (title_draw) に呼ばれても見えている。
 # 起動時に main() が ROM のセグメント8 から写す。
 # **写す前に呼ばれるものは置けない** (crt0 / lowlevel / main の冒頭)。
-RAM_SRC   := $(SRCDIR)/enemy.c $(SRCDIR)/bomb.c $(SRCDIR)/sound.c $(SRCDIR)/opll.c \
+RAM_SRC   := $(SRCDIR)/enemy.c $(SRCDIR)/bomb.c $(SRCDIR)/sound.c $(SRCDIR)/opll.c $(SRCDIR)/pcm.c \
              $(SRCDIR)/title.c $(SRCDIR)/vdp.c $(SRCDIR)/text.c $(SRCDIR)/tlimit.c
 
 CSRC      := $(wildcard $(SRCDIR)/*.c)
@@ -85,6 +85,11 @@ ART_TILE_SEG := 10
 ART_SPR_SEG  := 11
 PAL_H        := $(BUILDDIR)/palette.h
 # 名前はカンマ区切りで**1行**に書く。行継続で折ると空白が入って別の引数になる。
+# **和太鼓の波形** (turbo R の PCM 用)。合成なので素材の権利を持ち込まない。
+TAIKO_BIN := $(BUILDDIR)/taiko.bin
+TAIKO_H   := $(BUILDDIR)/taiko.h
+TAIKO_SEG := 12
+
 ART_SPR_NAMES  := miner,bomb,rock,rat,bat,split,stun1,stun2,stun3,brace,wd1,wd2,wu1,wu2,wl1,wl2,wr1,wr2,bru,brl,brr,std,stu,stl,str,chip,cart,cartrock,rockprop
 ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,spring,springoff,toir,toil,toibr,toibl,rail,raill,railr
 
@@ -120,7 +125,10 @@ $(ART_TILE) $(ART_TILE_BIN): $(ART_TILE_SRC) tools/png2art.py tools/palette.py |
 
 # ヘッダにも依存させる。これが無いと game.h の定数を変えても再ビルドされず、
 # 古い ROM のまま「直したつもり」になる。
-$(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(HEADERS) $(MAKEFILE) $(TITLE_PAL) $(ART_SPR) $(ART_TILE) $(PAL_H) | $(BUILDDIR)
+$(TAIKO_BIN) $(TAIKO_H): tools/gen_taiko.py | $(BUILDDIR)
+	python3 tools/gen_taiko.py $(TAIKO_BIN) $(TAIKO_H)
+
+$(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(HEADERS) $(MAKEFILE) $(TITLE_PAL) $(ART_SPR) $(ART_TILE) $(PAL_H) $(TAIKO_H) | $(BUILDDIR)
 	$(CC) $(CFLAGS) \
 	  $(if $(filter $<,$(BANKED_SRC)),--codeseg BANKDATA --constseg BANKDATA) \
 	  $(if $(filter $<,$(RAM_SRC)),--codeseg RAMCODE --constseg RAMCODE) -c -o $@ $<
@@ -129,9 +137,10 @@ $(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(HEADERS) $(MAKEFILE) $(TITLE_PAL) $(ART_SPR) 
 $(IHX): $(BUILDDIR)/crt0.rel $(AOBJ) $(COBJ)
 	$(CC) $(LDFLAGS) -o $@ $(BUILDDIR)/crt0.rel $(filter-out $(BUILDDIR)/crt0.rel,$(AOBJ)) $(COBJ)
 
-$(ROM): $(IHX) $(TITLE_BIN) $(ART_TILE_BIN) $(ART_SPR_BIN) tools/ihx2rom.py
+$(ROM): $(IHX) $(TITLE_BIN) $(ART_TILE_BIN) $(ART_SPR_BIN) $(TAIKO_BIN) tools/ihx2rom.py
 	python3 tools/ihx2rom.py $(IHX) $(ROM) 128 $(TITLE_SEG):$(TITLE_BIN) \
-	    $(ART_TILE_SEG):$(ART_TILE_BIN) $(ART_SPR_SEG):$(ART_SPR_BIN)
+	    $(ART_TILE_SEG):$(ART_TILE_BIN) $(ART_SPR_SEG):$(ART_SPR_BIN) \
+	    $(TAIKO_SEG):$(TAIKO_BIN)
 
 run: $(ROM)
 	openmsx -machine $(MACHINE) -carta $(ROM) -romtype ASCII8

@@ -21,7 +21,7 @@
 **データだけでなくコードも逃がせる。** 窓が選ばれている限り同じ速度で動くので、
 `Makefile` の `BANKED_SRC` にモジュールを足すだけでよい（`--codeseg` と
 `--constseg` の両方が付く）。いまは `music` `config` `bonus` `debris` `kanji`
-`haze` `water` `hud` `cart` `levels` を置いてある。
+`haze` `water` `hud` `cart` `levels` を置いてある。**窓はほぼ満杯**（空き数十バイト）。
 
 **面ごとの表は窓側へ置く。** `levels.c` は敵の難易度の表（15バイト×5）だけを持つ。
 読むのは RAM 実行側の `enemy.c` だが、窓は常に `DATA_SEG` を向いているのでそのまま読める。
@@ -59,9 +59,9 @@ ROM を大きくしても、窓に何を入れても、この 32KB は変わら�
 |---|---|---|
 | 固定領域 0x4000-0x9FFF | 24KB | 何でも。**`title_draw()` から呼ばれるものはここ以外に置けない** |
 | バンク窓 0xA000-0xBFFF (seg3) | 8KB | `title_draw()` から呼ばれないもの。`--codeseg BANKDATA` |
-| **RAM 0xCD00-0xF1FF** | **9.25KB** | 起動時に写して RAM で実行する。`--codeseg RAMCODE` |
+| **RAM 0xC980-0xF27F** | **10.25KB** | 起動時に写して RAM で実行する。`--codeseg RAMCODE` |
 
-**RAM 実行**は `Makefile` の `RAM_SRC` に足すだけ（いま `enemy` `bomb` `sound` `title` `vdp` `text` `tlimit`）。
+**RAM 実行**は `Makefile` の `RAM_SRC` に足すだけ（いま `enemy` `bomb` `sound` `opll` `pcm` `title` `vdp` `text` `tlimit`）。
 **RAM はバンク窓の切り替えの影響を受けないので、`title_draw()` から呼ばれるものも置ける。**
 `tools/ihx2rom.py` が 0xCD00-0xF1FF の中身を ROM のセグメント8と9へ入れ（**8KB を超えるので2枚**）、
 `main()` の冒頭が窓経由で RAM へ写す。**写す前に呼ばれるものは置けない**
@@ -70,6 +70,16 @@ ROM を大きくしても、窓に何を入れても、この 32KB は変わら�
 **溢れたら ROM を作らない。** 固定領域のコードが 0xA000 を越えると、そこへリンクした
 絵と曲に重なる。`tools/ihx2rom.py` は同じ番地への二重書き込みをエラーにしてある
 （以前は「free 0 bytes」と出るだけで壊れた ROM ができていた）。
+
+**3つとも満杯に近い（2026-10-23）。** 固定領域 112 / 窓 43 / RAM 実行 111 バイト。
+次に何かを足すときは、先に置き場を作ること。打ち手は3つある。
+
+1. **升ごとの配列をもう1本詰める**（`water[]` と `chute[]` は2ビットずつしか使っていない）。
+   変数が減ったぶん `RAMCODE` の開始を下げられる（やり方は下の実測の手順）。
+2. **曲データを自前のセグメントへ逃がす**（絵と同じ手口）。窓が 1.1KB 空く。
+   読む側（`sound.c`）が読む前に `bank_select(MUSIC_SEG)`、読み終わったら戻す。
+3. 固定領域のモジュール（`field` 9KB / `player` 3KB / `rock` 2.9KB）を窓側へ移す。
+   窓を2枚に増やす設計が要るので、いちばん重い。
 
 RAM がなぜ空いているかは openMSX で実測した。ページ3 (0xC000-0xF37F) のうち、
 変数が 0xC000 から約2.5KB（**2026-10-20 に升ごとの真偽値5本を `cflag[]` 1本へ詰めて

@@ -62,6 +62,8 @@ void bank_select(uint8_t seg) __z88dk_fastcall;
 #define ART_TILE_SEG 10        /* 背景タイル。1枚128バイト、先頭から順に */
 #define ART_SPR_SEG  11        /* スプライト: 形 (1枚32バイト) のあとに色 (1枚16バイト) */
 
+extern uint8_t bank_cur;   /* いま窓が向いているセグメント (bank_select が控える) */
+#define TAIKO_SEG 12   /* 和太鼓の波形 (src/lowlevel.s の TAIKO_SEG と合わせる) */
 #define RAMCODE_SEG 8
 #define RAMCODE_ADDR 0xC980
 /* 写す量。**リンカの l_RAMCODE は C から参照できない**ので、領域の大きさを
@@ -69,6 +71,6 @@ void bank_select(uint8_t seg) __z88dk_fastcall;
    RAMCODE_BASE..RAMCODE_END と一致させること。余りは 0xFF で埋まっている。
    **8KB を超えるので ROM のセグメントは2枚 (RAMCODE_SEG と その次)。**
    写す手順も2回に分かれる (main() の冒頭)。 */
-#define RAMCODE_LEN 0x2880
+#define RAMCODE_LEN 0x2900
 
 #endif

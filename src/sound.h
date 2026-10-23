@@ -72,3 +72,13 @@ void opll_note(uint8_t ch, uint8_t note);   /* ch 0=旋律 1=ベース 2=和音 
 void opll_drum(uint8_t kind);               /* 1=バスドラ 2=スネア 3=ハイハット */
 void opll_tick(void);
 void opll_all_off(void);
+
+/* --- turbo R 内蔵 PCM の和太鼓 (src/pcm.c) -------------------------
+   ドラムの拍に太鼓を重ねる。鳴らすのは走査線割り込み (src/lowlevel.s)。 */
+extern uint8_t pcm_hw;     /* turbo R か */
+extern uint8_t pcm_use;    /* 検出済み && 設定が ON */
+extern uint8_t pcm_play;   /* 再生中 (割り込みが見る) */
+void pcm_detect(void);
+void pcm_apply(void);
+void pcm_hit(uint8_t kind);   /* 1=ドン(宮太鼓) 2=タン(締太鼓) 3=カッ(縁打ち) */
+void pcm_ctrl(uint8_t v) __z88dk_fastcall;

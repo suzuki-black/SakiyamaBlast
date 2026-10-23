@@ -382,9 +382,13 @@ void main(void)
     haze_init();
     set_game_palette();
     text_init();
-    opll_detect();      /* **FM は検出してから。** 内蔵 MSX-MUSIC を先に探す (src/opll.c) */
     snd_init();
+    /* **設定を先に初期化してから音源を検出する。** 検出のしまいに
+       「検出できたか && 設定が ON か」を見るので、逆にすると設定がまだ 0 で、
+       **載っている機械でも FM と太鼓が鳴らない** (実際にそうなっていた。2026-10-23)。 */
     config_init();
+    pcm_detect();       /* 和太鼓 (turbo R の PCM)。機種を見るだけ */
+    opll_detect();      /* **FM は検出してから。** 内蔵 MSX-MUSIC を先に探す (src/opll.c) */
 
     spr_init();
     {

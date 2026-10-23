@@ -17,7 +17,8 @@ extern uint8_t cfg_reset;        /* 面リセット 0/1。ON なら遊んでい�
 /* 陽炎 0/1。体温が危険域のとき盤面をラスタごとに揺らす。
    **掘っているときの fps が 55 -> 44 に落ちる**ので切れるようにしてある。 */
 extern uint8_t cfg_haze;
-extern uint8_t cfg_fm;           /* FM 音源 (MSX-MUSIC) を添えるか 0/1 */
+extern uint8_t cfg_fm;
+extern uint8_t cfg_pcm;          /* 和太鼓 (PCM) を鳴らすか 0/1 */           /* FM 音源 (MSX-MUSIC) を添えるか 0/1 */
 
 void    config_init(void);
 uint8_t konami_check(void);      /* タイトルで毎フレーム呼ぶ。揃ったら1 */

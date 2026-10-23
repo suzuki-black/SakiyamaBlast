@@ -1,6 +1,10 @@
 /* SakiyamaBlast - SCREEN 5 初期化と描画プリミティブ */
 #include "vdp.h"
 
+/* **いま 0xA000 の窓が向いているセグメント。** bank_select が控える。
+   和太鼓の割り込み (src/lowlevel.s) が窓を借りたあと、ここへ戻す。 */
+uint8_t bank_cur;
+
 /* R#1 は書き込み専用なので、いま入れている値を憶えておく */
 static uint8_t reg1 = 0x62;
 

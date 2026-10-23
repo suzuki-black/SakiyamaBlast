@@ -319,6 +319,7 @@ static uint8_t music_step(void)
                         PSG_W(6, drum_period[note]);
                     }
                     opll_drum(note);              /* **FM のリズムも同じ拍で叩く** */
+                    pcm_hit(note);                /* **和太鼓も同じ拍で** (turbo R) */
                 }
             } else if (note && !(i == 2 && sfx_on)) {
                 uint16_t per = note_period[note];

@@ -98,6 +98,15 @@ and drop rocks through them so the seam comes down in one chain.
 - **Music on the PSG**: *Jōban Tankō-bushi* (a Jōban coal-mining folk song) in the pit and
   *Down in a Coal Mine* (J. B. Geoghegan, 1872, public domain) on the title — both transcribed
   and arranged for three channels for this game.
+- **FM (MSX-MUSIC) on top, without a single extra byte of song data.** Whenever a PSG voice
+  changes note the same note is played on the OPLL as well — flute for the melody (close to a
+  *shinobue*), guitar for the chords (close to a *shamisen*), acoustic bass underneath — and the
+  OPLL rhythm section is struck on the same beats as the PSG drum. Detected at boot (internal
+  MSX-MUSIC first, then an FM-PAC); can be switched off.
+- **Taiko drums through the turbo R's PCM.** Three synthesized hits — *don* (the big
+  **miya-daiko**, 78 ms), *tan* (**shime-daiko**), *ka* (a rim shot) — are layered on the drum
+  beats. They are fed one sample at a time from a raster interrupt, four lines apart (3,925 Hz),
+  read straight out of a ROM segment. Still 60fps on a real turbo R.
 - **The level design is measured, not guessed.** The real game logic is compiled with gcc and run
   headless (`tools/hostsim`), and each stage's board is chosen by sweeping 60,000 seeds against
   measured conditions — "one swing without preparation pays this much", "digging the gaps pays
@@ -322,6 +331,14 @@ the layout of the pit, the creatures in it and everything else are made for the 
 - **隠しの設定メニュー** — タイトルでコナミコマンド（残機・継続・無敵・開始面・面の組み直し・陽炎）。
 - **音楽は PSG 3声**。坑内は**常磐炭坑節**、タイトルは **Down in a Coal Mine**
   （J. B. Geoghegan 作曲、1872年。著作権切れ）。どちらも旋律を採ってこのゲーム用に編曲したもの。
+- **FM 音源（MSX-MUSIC）を、曲データを1バイトも増やさずに添える。** PSG の3声が音を
+  変えるたびに同じ音を OPLL でも鳴らす（旋律＝フルートで篠笛に、和音＝ギターで三味線に
+  寄せ、下にアコースティックベース）。PSG のノイズドラムと同じ拍で OPLL のリズム音源も叩く。
+  起動時に検出（内蔵 MSX-MUSIC を先に、次に外付け FM-PAC）し、設定で切れる。
+- **turbo R の内蔵 PCM で和太鼓を鳴らす。** 合成した3つ——**ドン**（宮太鼓・78ms）／
+  **タン**（締太鼓）／**カッ**（縁打ち）——をドラムの拍に重ねる。走査線割り込みで
+  **4行ごとに1サンプル（3,925Hz）**、ROM のセグメントから直に読んで出している。
+  実機の turbo R で **60fps のまま**。
 - **面の出来は勘ではなく実測で決めている。** 実機と同じゲームロジックを gcc でビルドして
   ヘッドレスで回し（`tools/hostsim`）、「段取り無しの一手で何個採れるか」「隙間を掘ると
   何個増えるか」「1行に岩が2個ないか」などを測って、6万通りの種から面ごとの盤面を選んでいる。

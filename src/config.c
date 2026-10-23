@@ -16,7 +16,8 @@ uint8_t cfg_invincible;
 uint8_t cfg_start_stage;
 uint8_t cfg_reset;
 uint8_t cfg_haze;
-uint8_t cfg_fm;        /* FM 音源 (MSX-MUSIC) を添えるか。検出できた機械でだけ効く */
+uint8_t cfg_fm;
+uint8_t cfg_pcm;       /* 和太鼓 (turbo R の PCM)。載っていない機械では効かない */        /* FM 音源 (MSX-MUSIC) を添えるか。検出できた機械でだけ効く */
 
 /* 入力の種類 */
 #define TK_NONE  0
@@ -38,7 +39,7 @@ static uint8_t prev_r;           /* R キーの前フレームの状態 (押し�
 static uint8_t cur;              /* 設定画面のカーソル位置 */
 static uint8_t dirty;
 
-#define N_ITEMS 8
+#define N_ITEMS 9
 #define ITEM_Y  72
 #define ITEM_DY 16
 #define VAL_X   168
@@ -52,6 +53,7 @@ void config_init(void)
     cfg_reset = 0;
     cfg_haze = 1;
     cfg_fm = 1;
+    cfg_pcm = 1;
     k_idx = 0;
     prev_tok = TK_NONE;
     prev_r = 0;
@@ -125,6 +127,7 @@ static void draw_value(uint8_t i)
     case 4: put_onoff(y, cfg_reset); break;
     case 5: put_onoff(y, cfg_haze); break;
     case 6: put_onoff(y, cfg_fm); break;
+    case 7: put_onoff(y, cfg_pcm); break;
     default: break;
     }
 }
@@ -159,7 +162,8 @@ void config_enter(void)
     /* **FM は載っている機械でだけ効く。** 無い機械でも項目は出すが、
        切り替えても何も変わらない (opll_hw が 0 なら opll_use は立たない)。 */
     text_draw(48, ITEM_Y + ITEM_DY * 6,    "FM SOUND",    COL_WHITE, COL_TUNNEL, 1);
-    text_draw(48, ITEM_Y + ITEM_DY * 7,    "SEE ENDING",  COL_WHITE, COL_TUNNEL, 1);
+    text_draw(48, ITEM_Y + ITEM_DY * 7,    "TAIKO (PCM)", COL_WHITE, COL_TUNNEL, 1);
+    text_draw(48, ITEM_Y + ITEM_DY * 8,    "SEE ENDING",  COL_WHITE, COL_TUNNEL, 1);
 
     text_draw(24, 180, "UP/DOWN    SELECT",  COL_DIA, COL_TUNNEL, 1);
     text_draw(24, 192, "LEFT/RIGHT CHANGE",  COL_DIA, COL_TUNNEL, 1);
@@ -196,6 +200,7 @@ uint8_t config_update(void)
         else if (cur == 4) { cfg_reset = (uint8_t)!cfg_reset; }
         else if (cur == 5) { cfg_haze = (uint8_t)!cfg_haze; }
         else if (cur == 6) { cfg_fm = (uint8_t)!cfg_fm; opll_apply(); }
+        else if (cur == 7) { cfg_pcm = (uint8_t)!cfg_pcm; pcm_apply(); }
         dirty = 1;
         break;
     case TK_RIGHT:
@@ -206,6 +211,7 @@ uint8_t config_update(void)
         else if (cur == 4) { cfg_reset = (uint8_t)!cfg_reset; }
         else if (cur == 5) { cfg_haze = (uint8_t)!cfg_haze; }
         else if (cur == 6) { cfg_fm = (uint8_t)!cfg_fm; opll_apply(); }
+        else if (cur == 7) { cfg_pcm = (uint8_t)!cfg_pcm; pcm_apply(); }
         dirty = 1;
         break;
     case TK_SPACE:

@@ -16,6 +16,12 @@
 	.globl	_vdp_wait_cmd
 	.globl	_oam_flush
 	.globl	_bank_select
+	.globl	_bank_cur
+	.globl	_pcm_ctrl
+	.globl	_pcm_play
+	.globl	_pcm_src
+	.globl	_pcm_left
+	.globl	_pcm_line
 	.globl	_vdp_wblock
 	.globl	_vdp_blklen		; 実体は vdp.c 側 (C の変数として置く)
 	.globl	_oam
@@ -27,6 +33,9 @@ VDP_PALT	= 0x9A			; パレット
 VDP_INDR	= 0x9B			; R#17 間接書き込み (コマンドレジスタ用)
 
 ASC8_A000	= 0x7800		; 0xA000-0xBFFF のバンクレジスタ
+PCM_DATA	= 0xA4			; turbo R の PCM データ
+PCM_CTRL	= 0xA5			; 同 制御 (bit0 BUFF / bit1 MUTE)
+TAIKO_SEG	= 12			; 和太鼓の波形を置いた ROM セグメント
 
 	.area _CODE
 
@@ -236,7 +245,20 @@ _psg_read::
 ;-------------------------------------------------------------------
 _bank_select::
 	ld	a, l
+	; **控えを先に書く。** 割り込みが間に入っても、ISR が戻す先は「これから
+	; 向ける先」になる。順番を逆にすると、ISR が古い向き先へ戻してしまい、
+	; 戻ってきたコードが別のセグメントを読む。
+	ld	(#_bank_cur), a
 	ld	(#ASC8_A000), a
+	ret
+
+;-------------------------------------------------------------------
+; void pcm_ctrl(uint8_t v) __z88dk_fastcall;   turbo R の PCM 制御ポート
+;   bit0 BUFF / **bit1 MUTE (0 にすると PSG も FM も消える)** / bit3 SEL
+;-------------------------------------------------------------------
+_pcm_ctrl::
+	ld	a, l
+	out	(#PCM_CTRL), a
 	ret
 
 ;-------------------------------------------------------------------
@@ -292,7 +314,66 @@ _haze_isr:
 	ld	a, #0x8F		; R#15 = 0 へ戻す
 	out	(VDP_ADDR), a
 	bit	0, c			; FH = ライン割り込みか
-	jr	Z, haze_out
+	jp	Z, haze_out
+	; ------------------------------------------------------------------
+	; **和太鼓 (PCM) が鳴っている間は、こちらが割り込みを使う。**
+	; 4行ごとに1サンプル = 3,925Hz。波形は ROM のセグメントにあるので、
+	; 窓をそこへ向けて1バイト読み、**すぐ元へ戻す** (描画の途中で割り込んでも
+	; 壊れないように。戻す先は bank_select が控えてある)。
+	; ------------------------------------------------------------------
+	ld	a, (#_pcm_play)
+	or	a, a
+	jr	Z, haze_bands
+	ld	a, (#_bank_cur)
+	ld	c, a			; 戻す先を控える
+	ld	a, #TAIKO_SEG
+	ld	(#ASC8_A000), a
+	ld	hl, (#_pcm_src)
+	ld	a, (hl)
+	out	(#PCM_DATA), a
+	inc	hl
+	ld	(#_pcm_src), hl
+	ld	a, c
+	ld	(#ASC8_A000), a		; 窓を戻す
+	ld	hl, (#_pcm_left)
+	dec	hl
+	ld	(#_pcm_left), hl
+	ld	a, h
+	or	a, l
+	jr	Z, pcm_done
+	ld	a, (#_pcm_line)		; 次は4行先 (= 3,925Hz。2行では割り込みが間に合わない)
+	add	a, #4
+	cp	a, #244			; 上端の手前は割り込めない。次のフレームの頭から
+	jr	C, pcm_line_ok
+	xor	a, a
+pcm_line_ok:
+	ld	(#_pcm_line), a
+	out	(VDP_ADDR), a
+	ld	a, #0x93		; R#19
+	out	(VDP_ADDR), a
+	jp	haze_out
+pcm_done:
+	xor	a, a
+	ld	(#_pcm_play), a
+	ld	a, #0x80		; D/A を中心へ戻す (鳴り止めでパチッと言わせない)
+	out	(#PCM_DATA), a
+	ld	a, (#_haze_n)		; 陽炎が使っていたなら返す
+	or	a, a
+	jr	Z, pcm_ie_off
+	xor	a, a
+	ld	(#_haze_i), a
+	ld	a, (#_haze_row)
+	out	(VDP_ADDR), a
+	ld	a, #0x93
+	out	(VDP_ADDR), a
+	jp	haze_out
+pcm_ie_off:
+	ld	a, #0x06		; IE1 を切る (GRAPHIC4 のまま)
+	out	(VDP_ADDR), a
+	ld	a, #0x80		; R#0
+	out	(VDP_ADDR), a
+	jp	haze_out
+haze_bands:
 	ld	a, (#_haze_n)
 	or	a, a
 	jr	Z, haze_out
