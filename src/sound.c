@@ -254,6 +254,13 @@ void snd_play_bgm(void)
     play_song(bgm_a, bgm_b, bgm_c);
 }
 
+/* **エンディングは曲として鳴らす** (ファンファーレではない)。ドラムの拍が要るので
+   `play_song` を通す — そうでないと太鼓 (PCM) も FM のリズムも鳴らない。 */
+void snd_play_ending(void)
+{
+    play_song(end_a, end_b, end_c);
+}
+
 void snd_play_title(void)
 {
     play_song(title_a, title_b, title_c);
@@ -327,6 +334,11 @@ static uint8_t music_step(void)
                 ch_p[i]--;
                 ch_note[i] = 0;
                 PSG_W(8 + i, 0);
+                /* **FM も切る。** PSG だけ消していたので、曲が終わったあとも
+                   OPLL が最後の音を押さえたままだった。ゲーム中はファンファーレの
+                   あとに曲が鳴り直すので隠れていたが、**エンディングは何も鳴り直さない
+                   ので鳴りっぱなしになる** (作者が気付いた、2026-10-24)。 */
+                opll_note(i, 0);
                 ended++;
                 continue;
             }

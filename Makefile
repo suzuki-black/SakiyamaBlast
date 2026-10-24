@@ -38,7 +38,7 @@ LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKD
 BANKED_SRC := \
               $(SRCDIR)/config.c $(SRCDIR)/bonus.c $(SRCDIR)/debris.c $(SRCDIR)/kanji.c \
               $(SRCDIR)/haze.c $(SRCDIR)/water.c $(SRCDIR)/hud.c $(SRCDIR)/cart.c \
-              $(SRCDIR)/levels.c
+              $(SRCDIR)/levels.c $(SRCDIR)/ending.c
 
 # **RAM へ写して実行するモジュール。**
 # 0x4000-0xBFFF の 32KB はもう埋まっていて、並べ替えでは空きが作れない。
@@ -96,7 +96,7 @@ KANJI_BIN := $(BUILDDIR)/kanji.bin
 KANJI_H   := $(BUILDDIR)/kanji.h
 KANJI_SEG := 13
 # **曲データ**。窓から追い出して専用セグメントへ (sound.c が読む前に窓を向ける)。
-MUSIC_SRC := $(SRCDIR)/music.c
+MUSIC_SRC := $(SRCDIR)/music.c $(SRCDIR)/endtext.c
 MUSIC_SEG := 14
 
 ART_SPR_NAMES  := miner,bomb,rock,rat,bat,split,stun1,stun2,stun3,brace,wd1,wd2,wu1,wu2,wl1,wl2,wr1,wr2,bru,brl,brr,std,stu,stl,str,chip,cart,cartrock,rockprop

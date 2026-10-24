@@ -15,6 +15,7 @@ void    snd_set_tempo(uint8_t n);
 void    snd_play_bgm(void);
 void    snd_play_title(void);    /* タイトル画面の曲 */
 void    snd_play_fanfare(void);
+void    snd_play_ending(void);   /* エンディングの曲 (書き下ろし。繰り返す) */
 void    snd_play_miss(void);
 void    snd_play_hurry(void);    /* 残り30秒の合図。鳴り終わったら曲へ戻す */
 uint8_t snd_idle(void);          /* 曲も合図も鳴っていない (次を鳴らしてよい) */
@@ -52,6 +53,7 @@ void snd_sfx_up(uint8_t id, uint8_t n);
    音程 0=休符 / 0xFE=終わり / 0xFF=先頭へ戻る。長さはフレーム数。 */
 extern const uint8_t bgm_a[], bgm_b[], bgm_c[];
 extern const uint8_t title_a[], title_b[], title_c[];
+extern const uint8_t end_a[], end_b[], end_c[];
 extern const uint8_t fan_a[], fan_b[], fan_c[];
 extern const uint8_t miss_a[], miss_b[], miss_c[];
 extern const uint8_t hurry_a[], hurry_b[], hurry_c[];

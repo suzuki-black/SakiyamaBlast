@@ -33,7 +33,9 @@
 #define Fs2   7
 #define B2   12
 #define D3   15
+#define E3   17
 #define Fs3  19
+#define A3   22
 #define B3   24
 #define D4   27
 #define E4   29
@@ -43,6 +45,7 @@
 #define D5   39
 #define E5   41
 #define Fs5  43
+#define A5   46
 
 #define U   18      /* 八分音符 (0.30秒。録音の 0.32秒より少し速い。16分が整数で割れる) */
 
@@ -174,6 +177,93 @@ const uint8_t title_c[] = {
     DR, DR, DR, DF,
     DR, DR, DR, DF,
     DR, DR, DR, DFE,
+    0xFF
+};
+
+/*
+ * エンディング (約1分42秒で頭へ戻る)。**本作のための書き下ろし。**
+ *
+ * **ゲーム BGM と同じ5音のまま、主音だけ B から D へ移してある。**
+ * 常磐炭坑節は B の民謡音階 (B D E F# A)。その5音をそのままに、落ち着く先を D に
+ * すると同じ材料が長調の響きになる。**同じ坑の世界が、仕事を終えて暖かくなった**
+ * ことを、新しい音を1つも足さずに言える。半音が無いので、どの音を重ねても濁らない。
+ *
+ * 速さは八分音符 0.4秒 (四分 = 75拍/分)。エンドロールを見ながら聴く前提で、
+ * **1周 102秒**と長く取ってある。4つの8小節 = A / 中間部 / A' / 余韻。
+ *
+ * **太鼓 (PCM) は間引いて使う。** 刻むと行進になってしまうので、基本は
+ * **1小節に1発**。中間部だけ裏の刻みを足して起伏を作り、余韻では1発を長く伸ばす。
+ * 遠くの祭りの太鼓のつもり。
+ */
+#define EV   24           /* 八分音符 (0.4秒) */
+#define QT   48           /* 四分 */
+#define HF   96           /* 二分 */
+#define DH  144           /* 付点二分 */
+#define WH  192           /* 全音符 = 1小節 */
+
+const uint8_t end_a[] = {
+    /* A: 坑を出る (8小節) */
+    A4,QT,  B4,QT,  D5,HF,
+    B4,QT,  A4,QT,  Fs4,HF,
+    Fs4,QT, A4,QT,  B4,EV,  A4,EV,  Fs4,QT,
+    E4,HF,  D4,HF,
+    Fs4,QT, A4,QT,  B4,HF,
+    D5,QT,  B4,QT,  A4,HF,
+    B4,QT,  A4,QT,  Fs4,EV, E4,EV,  D4,QT,
+    D4,WH,
+    /* 中間部: 空が開ける (8小節) */
+    D5,QT,  E5,QT,  Fs5,HF,
+    E5,QT,  D5,QT,  B4,HF,
+    A4,QT,  B4,QT,  D5,EV,  E5,EV,  D5,QT,
+    B4,HF,  A4,HF,
+    D5,QT,  E5,QT,  Fs5,HF,
+    E5,QT,  Fs5,QT, A5,HF,
+    Fs5,QT, E5,QT,  D5,EV,  B4,EV,  A4,QT,
+    B4,DH,  A4,QT,
+    /* A': 同じ道を戻る (8小節) */
+    A4,EV,  B4,EV,  D5,QT,  E5,HF,
+    D5,QT,  B4,QT,  A4,HF,
+    Fs4,QT, A4,QT,  B4,EV,  D5,EV,  B4,QT,
+    A4,HF,  Fs4,HF,
+    Fs4,QT, A4,QT,  B4,HF,
+    D5,QT,  E5,QT,  D5,HF,
+    B4,QT,  A4,QT,  Fs4,EV, E4,EV,  D4,QT,
+    D4,WH,
+    /* 余韻: 家へ帰る (8小節) */
+    D5,HF,  B4,HF,
+    A4,HF,  Fs4,HF,
+    E4,QT,  Fs4,QT, A4,HF,
+    B4,WH,
+    D5,HF,  A4,HF,
+    Fs4,HF, E4,HF,
+    D4,HF,  Fs4,QT, A4,QT,
+    D4,WH,
+    0xFF
+};
+
+/* ベース。1小節に2つ、根音と5度を置くだけ。旋律の下で動きすぎない。 */
+const uint8_t end_b[] = {
+    D3,HF, A3,HF,   B3,HF, Fs3,HF,  D3,HF, A3,HF,   A3,HF, E3,HF,
+    D3,HF, A3,HF,   B3,HF, Fs3,HF,  A3,HF, E3,HF,   D3,WH,
+    D3,HF, A3,HF,   B3,HF, Fs3,HF,  D3,HF, A3,HF,   A3,HF, E3,HF,
+    D3,HF, A3,HF,   D3,HF, Fs3,HF,  B3,HF, Fs3,HF,  A3,WH,
+    D3,HF, A3,HF,   B3,HF, Fs3,HF,  D3,HF, A3,HF,   A3,HF, E3,HF,
+    D3,HF, A3,HF,   B3,HF, Fs3,HF,  A3,HF, E3,HF,   D3,WH,
+    D3,HF, A3,HF,   B3,HF, Fs3,HF,  A3,HF, E3,HF,   B3,WH,
+    D3,HF, A3,HF,   B3,HF, Fs3,HF,  A3,HF, E3,HF,   D3,WH,
+    0xFF
+};
+
+/* 太鼓。1=宮太鼓 2=締太鼓 3=縁打ち。1小節ぶんずつ。 */
+#define EB   1,QT, 0,DH                 /* 1発だけ (基本) */
+#define EB2  1,QT, 0,QT, 2,QT, 0,QT     /* 締太鼓を1つ添える (切れ目) */
+#define EB3  1,QT, 3,QT, 2,QT, 3,QT     /* 中間部。縁打ちで裏を刻む */
+#define EBW  1,WH                       /* 1発を長く伸ばす (余韻) */
+const uint8_t end_c[] = {
+    EB,  EB,  EB,  EB2,  EB,  EB,  EB2, EBW,
+    EB3, EB3, EB3, EB2,  EB3, EB3, EB3, EB2,
+    EB,  EB,  EB,  EB2,  EB,  EB,  EB2, EBW,
+    EB,  EB,  EB,  EBW,  EB,  EB,  EB2, EBW,
     0xFF
 };
 

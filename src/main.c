@@ -30,7 +30,6 @@ static uint8_t state;
 static uint8_t player_pat = 0xFF;   /* いま出している自機の絵 (変化時だけ色表を書く) */
 static uint8_t prev_trig;
 uint16_t frame_n;                 /* 実フレーム数。速度計測用 (1フレーム1増) */
-static uint8_t ending_to_ura;
 static uint8_t loop_n;            /* 0=表 1以降=裏 (裏面の内容は TODO) */
 static uint8_t timer;
 static uint8_t msg_c0, msg_c1;    /* 開始表示が占めたセル列 (消すとき使う) */
@@ -284,7 +283,7 @@ static void goto_gameover(void)
     state = ST_OVER;
 }
 
-static void goto_ending(uint8_t to_ura)
+static void goto_ending(void)
 {
     snd_stop();
     spr_park_all();
@@ -295,22 +294,19 @@ static void goto_ending(uint8_t to_ura)
     /* **「掘り尽くす」ではなく「帰る」で書く。** docs/HISTORY.md §8 の通り、
        この人物は炭鉱町がにぎわう中をまっすぐ家へ帰る側の人だった。勝利や達成では
        なく、番方を終えて帰るのが結びとして合う。
-       名前も実名 (TANNO SANJI) ではなくキャラクター名にしてある。実名を公開物へ
-       載せるかは作者が検討中のため、決まるまでは出さない。 */
-    text_draw(48, 40, "CONGRATULATIONS", COL_FUSE, COL_TUNNEL, 1);
-    text_draw(24, 72, "TANNO 3JI FINISHED HIS SHIFT", COL_WHITE, COL_TUNNEL, 1);
-    text_draw(72, 88, "AND WENT HOME.", COL_WHITE, COL_TUNNEL, 1);
-    text_draw(96, 128, "THE END", COL_WHITE, COL_TUNNEL, 2);
-    text_draw(56, 176, "PUSH SPACE KEY", COL_DIA, COL_TUNNEL, 1);
+       **名前は架空の「丹野3時」のまま。** 実在の先山の名前は ROM にも README にも
+       入れない (資料にだけ載せる。`DESIGN.md` の公開前 TODO)。
+       文面は `src/endtext.c`、流す仕組みは `src/ending.c`。 */
+    ending_start();
     vdp_display(1);
-    snd_play_fanfare();
-    ending_to_ura = to_ura;
+    snd_play_ending();
     state = ST_ENDING;
 }
 
 static void goto_title(void)
 {
     snd_stop();
+    ending_stop();          /* エンドロールのページ1 表示を戻す (何度呼んでもよい) */
     spr_park_all();         /* 1枚絵の上にスプライトが残らないように */
     oam_flush();
     vdp_display(0);              /* 1枚絵のパレットに切り替わるところを見せない */
@@ -476,20 +472,23 @@ void main(void)
                 loop_n = 0;
                 new_game();
             } else if (r == CFG_ENDING) {
-                goto_ending(0);
+                goto_ending();
             }
             continue;
         }
 
         if (state == ST_ENDING) {
+            ending_tick();
             if (fire_pressed()) {
-                if (ending_to_ura) {
-                    loop_n++;                  /* 裏面へ。内容の作り込みは TODO */
-                    stage = 1;
-                    start_stage();
-                } else {
-                    goto_title();
-                }
+                /* **どちらへ行くにせよ、先に表示を戻す。** 裏面へ進む経路で
+                   これが抜けていて、ページ1 (エンドロール) のまま次の面が
+                   始まっていた (作者の報告、2026-10-25)。 */
+                ending_stop();
+                /* **裏面はまだ作っていないので、エンディングからはタイトルへ戻す**
+                   (作者の判断、2026-10-25)。難度を上げた2周目を作るときに
+                   ここで `loop_n` を増やして面1 から始め直す。
+                   仕様は `DESIGN.md` の post-SDCC TODO。 */
+                goto_title();
             }
             continue;
         }
@@ -552,7 +551,7 @@ void main(void)
                     continue;
                 }
                 if (stage >= MAX_STAGE) {
-                    goto_ending(1);            /* 15面クリア -> エンディング -> 裏1面 */
+                    goto_ending();             /* 15面クリア -> エンディング (裏面は TODO) */
                 } else {
                     next_stage();
                 }
