@@ -145,62 +145,6 @@ void link_open(uint8_t cx, uint8_t cy)
     }
 }
 
-/* 落盤の閃光。土の色を白へ飛ばし、FLASH_CAVEIN フレームで元へ戻す。
-   炭柱を割ると離れた場所の岩まで動くが、プレイヤーは1箇所しか見ていないので
-   何が起きたか分からない。画面全体の色を変えれば、見ていなくても伝わる。 */
-static uint8_t flash_t;
-
-/* 土の色を lvl の明るさへ飛ばし、frames かけて元へ戻す。
-   **明るさを段階にできるようにしてある。** 連鎖は同じ強さで光らせると
-   1回目も5回目も同じに見えて、せっかくの階段が読めない。 */
-void field_flash(uint8_t frames, uint8_t lvl)
-{
-    flash_t = frames;
-    vdp_set_palette(COL_DIRT, lvl, lvl, lvl);
-}
-
-void cavein_flash(void)
-{
-    field_flash(FLASH_CAVEIN, 7);      /* 落盤は常に全開 */
-}
-
-void cavein_flash_tick(void)
-{
-    if (!flash_t) {
-        return;
-    }
-    flash_t--;
-    if (!flash_t) {
-        set_dirt_palette();          /* 面ごとの土の色へ戻す */
-    }
-}
-
-/*
- * 面ごとの色。閃光から戻すときにも使う。
- *
- * **土の色は幕 (坑の深さ) で5段階。** 以前は3面ごとに茶・灰・青を繰り返していたので、
- * 面11 と面2 が同じ色だった。深くなるほど暗く、青から紫へ寄せて「降りている」ことを
- * 色で出す。常磐の炭層は海側へ傾斜し、深いほど条件が悪かった (docs/HISTORY.md §5.3)。
- *
- * **HUD の帯の色は番方 (一番方・二番方・三番方) で変える。** 坑外の時間帯 (朝・昼・夜)
- * のつもりで、どれも暗いままにして白と黄の文字が読めるようにしてある。
- * パレットを書くだけなので、どちらも fps には影響しない。
- */
-void set_dirt_palette(void)
-{
-    switch (STAGE_ACT(stage)) {
-    case 1:  vdp_set_palette(COL_DIRT, 4, 2, 1); break;   /* 第一坑 炭層まじりの茶 */
-    case 2:  vdp_set_palette(COL_DIRT, 3, 3, 2); break;   /* 第二坑 硬い岩盤の灰 */
-    case 3:  vdp_set_palette(COL_DIRT, 2, 2, 4); break;   /* 第三坑 湧水を含む青 */
-    case 4:  vdp_set_palette(COL_DIRT, 2, 1, 3); break;   /* 第四坑 深い藍 */
-    default: vdp_set_palette(COL_DIRT, 1, 1, 2); break;   /* 第五坑 ほとんど闇 */
-    }
-    switch (STAGE_SHIFT(stage)) {
-    case 1:  vdp_set_palette(COL_HUD, 1, 2, 2); break;    /* 一番方 朝 */
-    case 2:  vdp_set_palette(COL_HUD, 2, 2, 1); break;    /* 二番方 昼 */
-    default: vdp_set_palette(COL_HUD, 1, 1, 3); break;    /* 三番方 夜 */
-    }
-}
 
 /* 黒ダイヤが割れた瞬間、画面を縦へ揺らす。表示位置ずらし (R#18) を書くだけなので、
    盤面を描き直すより桁違いに安い。振幅は 2 -> 1 と減衰させる。 */
@@ -317,7 +261,7 @@ void draw_swing_fx(uint8_t cx, uint8_t cy, uint8_t dir, uint8_t phase)
 void field_fx_reset(void)
 {
     shake_t = 0;
-    flash_t = 0;
+    flash_reset();
     get_t = 0;
     get_n = 0;
     csnd_n = 0;
@@ -792,6 +736,7 @@ void draw_cell_dirt(int8_t cx, int8_t cy)
         return;
     }
     vdp_fill((uint16_t)((uint8_t)cx << 4), (uint16_t)((uint8_t)cy << 4), 16, 16, COL_DIRT);
+    draw_grain((uint8_t)cx, (uint8_t)cy);
 }
 
 /* 掘り済みセルを描く。隣が土の辺だけ内側2px にして、隣接する平行トンネルの間に
@@ -2549,10 +2494,15 @@ void build_stage(void)
         }
     }
 
-    /* 全面を土で塗ってから既掘セルを彫り、最後に火薬を置く */
+    /* 全面を土で塗ってから既掘セルを彫り、最後に火薬を置く。
+       **地色は全面1回で塗り、粒は土が残る升だけに置く** (掘り済みの升は坑道で
+       塗り潰すので、そこへ粒を置くのは無駄)。 */
     vdp_fill(0, 0, 256, FIELD_H, COL_DIRT);
     for (r = 0; r < ROWS; r++) {
         for (c = 0; c < COLS; c++) {
+            if (!cf_on((uint16_t)r * COLS + c, CF_DUG)) {
+                draw_grain(c, r);
+            }
             if (coal[(uint16_t)r * COLS + c]) {
                 draw_coal(c, r);
                 continue;

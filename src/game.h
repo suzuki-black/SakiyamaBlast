@@ -274,7 +274,12 @@ extern uint8_t combo_t;       /* HUD に出しておく残り時間 */
 #define COL_DIRT   6
 #define COL_HUD    4
 #define COL_BODY   7
-#define COL_BLAST  11
+/* 爆風は導火線と同じ黄。**別の番号を持っていたが (7,6,1) と (7,6,2) で見分けが
+   つかなかった**ので共用にして、空いた11番を土の2色目へ回した (2026-10-24)。 */
+#define COL_BLAST  COL_FUSE
+/* 土の粒の色 (`draw_grain()`)。一色のべた塗りにしないための2色目で、**地色との差は
+   明度で付ける** — 色相だけの差は、見る人の色覚や画面によっては出ない。 */
+#define COL_DIRT2  11
 #define COL_WHITE  15
 #define COL_RED    8
 #define COL_FUSE   10
@@ -457,6 +462,8 @@ uint8_t flow_ok(int8_t cx, int8_t cy);  /* そこへ熱水が広がれるか (�
 uint16_t layout_seed(void);
 void    set_dirt_palette(void);
 void    cavein_flash(void);        /* 落盤の閃光を始める */
+void    flash_reset(void);         /* 閃光の残りを捨てる */
+void    draw_grain(uint8_t cx, uint8_t cy);  /* 土の升に粒を散らす (地色の上へ) */
 void    cavein_flash_tick(void);   /* 毎フレーム呼ぶ。終わったら色を戻す */   /* 面ごとの土の色 */
 void    coal_shake_tick(void);
 void    field_shake(uint8_t frames);   /* 画面を揺らす (岩の着地など) */

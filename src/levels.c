@@ -29,6 +29,7 @@
  * 窓は常に `DATA_SEG` を向いているので、RAM 側のコードからそのまま読める。
  */
 #include "game.h"
+#include "vdp.h"
 
 /* 10フレーム単位で持つ。1面1バイトに収めるため (600 は uint8_t に入らない)。 */
 #define F10(sec) (uint8_t)((sec) * 6)      /* 秒 -> 10フレーム単位 (60fps) */
@@ -90,3 +91,120 @@ uint8_t lv_press(void)
 {
     return lv_at(press_tbl);
 }
+
+
+/*
+ * --- 色 (土の市松と HUD の帯、落盤の閃光) ---
+ *
+ * **固定領域から逃がしてここへ置いた** (2026-10-24)。土を市松の2色にしたら
+ * `vdp_set_palette()` の呼び出しが5組に増え、固定領域 (残り74バイト) が溢れた。
+ * 面ごとの表と同じ性質のものなので、置き場もここが素直。
+ * **窓は常に `DATA_SEG` を向いている**ので、固定領域からも RAM 側からも呼べる。
+ */
+/* 落盤の閃光。土の色を白へ飛ばし、FLASH_CAVEIN フレームで元へ戻す。
+   炭柱を割ると離れた場所の岩まで動くが、プレイヤーは1箇所しか見ていないので
+   何が起きたか分からない。画面全体の色を変えれば、見ていなくても伝わる。 */
+static uint8_t flash_t;
+
+/* 土の色を lvl の明るさへ飛ばし、frames かけて元へ戻す。
+   **明るさを段階にできるようにしてある。** 連鎖は同じ強さで光らせると
+   1回目も5回目も同じに見えて、せっかくの階段が読めない。 */
+void field_flash(uint8_t frames, uint8_t lvl)
+{
+    flash_t = frames;
+    vdp_set_palette(COL_DIRT, lvl, lvl, lvl);
+    vdp_set_palette(COL_DIRT2, lvl, lvl, lvl);   /* 粒も一緒に飛ばす */
+}
+
+/* 閃光を取り消す。面の切り替えとミスで呼ぶ (`field_fx_reset`)。
+   **土の色を戻すのは呼び手の仕事** (面が変われば `set_dirt_palette()` が走る)。 */
+void flash_reset(void)
+{
+    flash_t = 0;
+}
+
+void cavein_flash(void)
+{
+    field_flash(FLASH_CAVEIN, 7);      /* 落盤は常に全開 */
+}
+
+void cavein_flash_tick(void)
+{
+    if (!flash_t) {
+        return;
+    }
+    flash_t--;
+    if (!flash_t) {
+        set_dirt_palette();          /* 面ごとの土の色へ戻す */
+    }
+}
+
+/*
+ * 面ごとの色。閃光から戻すときにも使う。
+ *
+ * **土の色は幕 (坑の深さ) で5段階。** 以前は3面ごとに茶・灰・青を繰り返していたので、
+ * 面11 と面2 が同じ色だった。深くなるほど暗く、青から紫へ寄せて「降りている」ことを
+ * 色で出す。常磐の炭層は海側へ傾斜し、深いほど条件が悪かった (docs/HISTORY.md §5.3)。
+ *
+ * **HUD の帯の色は番方 (一番方・二番方・三番方) で変える。** 坑外の時間帯 (朝・昼・夜)
+ * のつもりで、どれも暗いままにして白と黄の文字が読めるようにしてある。
+ * パレットを書くだけなので、どちらも fps には影響しない。
+ */
+void set_dirt_palette(void)
+{
+    /* **土は2色。** 地色の上に粒 (`draw_grain()`) を散らして、一色のべた塗りに
+       しないためのもの。
+       **差は明度で付ける。** はじめ第一坑を (4,2,1) と (3,2,1) にしたが、違うのは
+       赤の1段だけで**明るさがほぼ同じ**だった。色相だけの差は、見る人の色覚や画面に
+       よっては出ない (作者には見えなかった)。2色目は RGB をまとめて落として
+       **明度で 0.9〜1.0 の差**を付けてある (明度 = 0.3R + 0.59G + 0.11B)。
+       **第五坑だけ逆に明るいほう**を使う。あそこの土はもう闇に近く、暗いほうへ
+       振ると掘った坑道 (黒) と見分けがつかなくなる。 */
+    switch (STAGE_ACT(stage)) {
+    case 1:  vdp_set_palette(COL_DIRT, 4, 2, 1);          /* 第一坑 炭層まじりの茶 */
+             vdp_set_palette(COL_DIRT2, 3, 1, 1); break;
+    case 2:  vdp_set_palette(COL_DIRT, 3, 3, 2);          /* 第二坑 硬い岩盤の灰 */
+             vdp_set_palette(COL_DIRT2, 2, 2, 1); break;
+    case 3:  vdp_set_palette(COL_DIRT, 2, 2, 4);          /* 第三坑 湧水を含む青 */
+             vdp_set_palette(COL_DIRT2, 1, 1, 3); break;
+    case 4:  vdp_set_palette(COL_DIRT, 2, 1, 3);          /* 第四坑 深い藍 */
+             vdp_set_palette(COL_DIRT2, 1, 0, 2); break;
+    default: vdp_set_palette(COL_DIRT, 1, 1, 2);          /* 第五坑 ほとんど闇 */
+             vdp_set_palette(COL_DIRT2, 2, 2, 3); break;
+    }
+    switch (STAGE_SHIFT(stage)) {
+    case 1:  vdp_set_palette(COL_HUD, 1, 2, 2); break;    /* 一番方 朝 */
+    case 2:  vdp_set_palette(COL_HUD, 2, 2, 1); break;    /* 二番方 昼 */
+    default: vdp_set_palette(COL_HUD, 1, 1, 3); break;    /* 三番方 夜 */
+    }
+}
+
+/*
+ * 土の肌。**一色のべた塗りだと面がのっぺりする**ので、升の中に濃い粒を散らす
+ * (炭層まじりの土のつもり)。粒は x, y, 幅, 高さ の4つ組で、**並びを2通り持って
+ * 升ごとに替える** — 176升に同じ粒が並ぶと、模様そのものが目に付いてしまう。
+ *
+ * **塗りは VDP に任せる** (`vdp_fill` = LMMV)。1升あたり 地色1回 + 粒3回で、
+ * 面の組み立てでは全面を1回塗ってから粒だけを置く。
+ */
+#define GRAIN_N 3
+static const uint8_t grain[2][GRAIN_N * 4] = {
+    {  2,  3, 4, 2,    9,  8, 3, 3,    5, 12, 2, 2 },
+    { 11,  2, 3, 2,    3,  7, 2, 3,    8, 11, 4, 2 }
+};
+
+/* 升の中に粒だけを置く (地色は塗ってある前提)。
+   **固定領域から逃がしてここへ置いた** (2026-10-24)。表も塗りも面の見た目の話で、
+   窓は塗っている間ずっと `DATA_SEG` を向いているので固定領域から呼べる。 */
+void draw_grain(uint8_t cx, uint8_t cy)
+{
+    uint8_t i;
+    const uint8_t *g = grain[(uint8_t)((cx ^ cy) & 1)];
+    uint16_t x = (uint16_t)(cx << 4);
+    uint16_t y = (uint16_t)(cy << 4);
+    for (i = 0; i < GRAIN_N * 4; i += 4) {
+        vdp_fill((uint16_t)(x + g[i]), (uint16_t)(y + g[i + 1]),
+                 g[i + 2], g[i + 3], COL_DIRT2);
+    }
+}
+

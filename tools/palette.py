@@ -14,8 +14,8 @@ PALETTE = {
     7:  (2, 3, 6),   # COL_BODY    作業着
     8:  (6, 1, 1),   # COL_RED     ダイナマイト
     9:  (7, 3, 2),   # COL_RAT     ネズミ
-    10: (7, 6, 2),   # COL_FUSE    導火線・たが
-    11: (7, 6, 1),   # COL_BLAST   爆風
+    10: (7, 6, 2),   # COL_FUSE    導火線・たが (爆風もこれを使う)
+    11: (4, 2, 1),   # COL_DIRT2   土の粒 (面ごとに変わる)
     12: (3, 6, 7),   # COL_DIA     ダイヤモンド
     13: (7, 2, 7),   # COL_BAT     コウモリ
     14: (5, 5, 5),   # COL_ROCK    岩
@@ -35,10 +35,18 @@ def rgb255(idx):
     return (round(r * 255 / 7), round(g * 255 / 7), round(b * 255 / 7))
 
 
+# **絵の変換で選ばせない番号。** 中身を実行時に書き替える枠なので、ここに PNG の色を
+# 写すと「面ごとに色が変わる絵」になってしまう (土の2色は幕ごとに変えている)。
+# いまの絵はどちらの番号も使っていないので、外しても変換結果は変わらない。
+RUNTIME = (6, 11)
+
+
 def nearest(rgb):
     """255段階の RGB を一番近いパレット番号へ"""
     best, bi = 1 << 30, 1
     for i in PALETTE:
+        if i in RUNTIME:
+            continue
         pr, pg, pb = rgb255(i)
         d = (pr - rgb[0]) ** 2 + (pg - rgb[1]) ** 2 + (pb - rgb[2]) ** 2
         if d < best:
