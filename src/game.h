@@ -482,9 +482,20 @@ void    popup_clear(void);
 #define KJ_KOU  15      /* 坑 */
 #define KJ_BAN  16      /* 番 */
 #define KJ_HOU  17      /* 方 */
-#define KJ_N    18      /* 字数。**tools/mkkanji.py の order と一致させること** */
+/* タイトルの副題「〜先山丹野3時〜」に使う。**絵の中の字は崩れている**ので
+   (「先」が「光」、「野」が「墅」に見える)、絵のほうは黒で消し、ここの字で描き直す。
+   字は東雲フォント (Public Domain) のボールドから取った。`tools/mkkanji.py` 参照。 */
+#define KJ_SEN  18      /* 先 */
+#define KJ_YAMA 19      /* 山 */
+#define KJ_TAN  20      /* 丹 */
+#define KJ_NO   21      /* 野 */
+#define KJ_JI   22      /* 時 */
+#define KJ_WAVE 23      /* 〜 */
+#define KJ_3    24      /* 3 */
+#define KJ_N    25      /* 字数。**tools/mkkanji.py の order と一致させること** */
 /* 字形は ROM の KANJI_SEG にある (src/kanji.c)。配列としては持たない */
 void    kanji_draw(uint16_t x, uint16_t y, uint8_t idx, uint8_t fg, uint8_t bg);
+void    kanji_subtitle(uint8_t fg, uint8_t bg);   /* タイトルの副題 (窓側) */
 /* 溜め中の汗。**スプライトではなく背景に描く。** 自機のスプライトは16x16が
    ほぼ埋まっていて1行1色なので汗を足す余地が無く、面を増やすと横一列8枚の
    制限に触れる。溜め中は必ず静止しているので、背景に描いて離したら消せる。 */

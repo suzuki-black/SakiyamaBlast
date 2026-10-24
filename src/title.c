@@ -33,4 +33,8 @@ void title_draw(void)
         left = (uint16_t)(left - vdp_blklen);
     }
     bank_select(DATA_SEG);      /* 窓を絵と曲へ戻す。戻し忘れると音も絵も壊れる */
+    /* **副題はゲーム側の字で描く。** 絵の中の「〜先山丹野3時〜」は崩れているので
+       黒で消してある (`Makefile` の `TITLE_OPTS`)。**窓を戻した後に呼ぶこと** —
+       `kanji_subtitle()` は窓側にあるので、絵へ向けている間は見えない。 */
+    kanji_subtitle(TITLE_COL_SUB, TITLE_COL_BG);
 }

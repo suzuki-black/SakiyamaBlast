@@ -117,6 +117,17 @@ def main(argv):
                     % (palbytes[i], palbytes[i + 1], i // 2,
                        entries[i // 2][0], entries[i // 2][1], entries[i // 2][2]))
         f.write("};\n")
+        # **副題を描く色を、この絵のパレットから選んでおく。**
+        # 1枚絵のパレットは絵ごとに変わるので、番号を手で書くと絵を差し替えた
+        # ときに副題の色が化ける (タイトルの「〜先山丹野3時〜」は、絵の中の
+        # 崩れた字を黒で消して、ゲーム側の字で描き直している)。
+        def nearest(target):
+            return min(range(len(entries)),
+                       key=lambda i: sum((entries[i][k] - target[k]) ** 2
+                                         for k in range(3)))
+        f.write("\n/* 副題を描く色 (この絵のパレットから自動で選んだ番号)。 */\n")
+        f.write("#define %s_COL_SUB %d   /* 金色 */\n" % (name.upper(), nearest((7, 6, 2))))
+        f.write("#define %s_COL_BG  %d   /* 背景 (いちばん暗い色) */\n" % (name.upper(), nearest((0, 0, 0))))
     prev.save(args.out + ".png")
 
     print("%s.bin: ピクセル %d バイト (8KB バンク %d 本ぶん)"

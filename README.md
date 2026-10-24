@@ -260,6 +260,10 @@ in GitHub Issues; pull requests with a clear scope are welcome too.
 - **Music:**
   - *Jōban Tankō-bushi* — a folk song of the Jōban coal mine (traditional). The melody was
     transcribed by ear and arranged for the PSG for this game.
+  - **Kanji glyphs** (the title subtitle and the stage banners) — a handful of characters
+    taken from the **Shinonome 16-dot bold** bitmap font (The Electronic Font Open
+    Laboratory, **public domain**) with `tools/bdfpick.py`; the rest are drawn in-house
+    (`tools/mkkanji.py`).
   - *Down in a Coal Mine* — J. B. Geoghegan, 1872. Public domain (the composer died in 1889);
     read from sheet music and arranged for three PSG channels.
 - **Everything else** — sprites, tiles, the title picture, the sound effects — was made for this game.
@@ -499,6 +503,10 @@ proto/        メカニクスを検証した FunctionBASIC のプロトタイプ
 - **原案・ディレクション:** suzuki-black
 - **プログラム／グラフィック／サウンド:** Claude Code（Anthropic Claude）
 - **音楽:**
+  - **漢字の字形**（タイトルの副題「〜先山丹野3時〜」と面の表示）— **東雲フォント
+    16ドット・ボールド**（The Electronic Font Open Laboratory、**Public Domain**）から
+    必要な字だけを取り出して組み込んでいる（`tools/bdfpick.py`）。
+    他の字は自前（`tools/mkkanji.py`）。
   - **常磐炭坑節** — 常磐炭鉱の民謡（伝承曲）。旋律を耳で採り、本作用に PSG 3声へ編曲。
   - **Down in a Coal Mine** — J. B. Geoghegan 作曲、1872年。著作権切れ（作曲者1889年没）。
     譜面から旋律を読み、PSG 3声（旋律＋ベース＋ノイズドラム）へ編曲。

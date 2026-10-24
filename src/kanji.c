@@ -49,3 +49,28 @@ void kanji_draw(uint16_t x, uint16_t y, uint8_t idx, uint8_t fg, uint8_t bg)
         vdp_wblock(rowbuf);
     }
 }
+
+/*
+ * タイトルの副題「〜先山丹野3時〜」を描く。
+ *
+ * **1枚絵の中の字は崩れている** (生成画像の漢字で、「先」が「光」、「野」が「墅」に
+ * 見える)。絵のほうはその帯を黒で塗り潰してあり (`Makefile` の `TITLE_OPTS`)、
+ * ここで 16x16 の字を置き直す。**色は絵のパレットから選んだ番号を渡してもらう**
+ * (1枚絵のパレットは絵ごとに変わるため。`tools/png2sc5.py` が番号を出す)。
+ *
+ * **窓側に置いてある。** 呼ぶのは `title_draw()` の末尾で、そこでは窓が
+ * `DATA_SEG` へ戻っているので見える。RAM 実行の領域には余裕が無い。
+ */
+#define SUB_X 64        /* 8字 x 16px = 128px を画面の中央へ */
+#define SUB_Y 50        /* ロゴの下、坑夫の上 (元絵の副題と同じ帯) */
+
+void kanji_subtitle(uint8_t fg, uint8_t bg)
+{
+    static const uint8_t sub[8] = {
+        KJ_WAVE, KJ_SEN, KJ_YAMA, KJ_TAN, KJ_NO, KJ_3, KJ_JI, KJ_WAVE
+    };
+    uint8_t i;
+    for (i = 0; i < 8; i++) {
+        kanji_draw((uint16_t)(SUB_X + ((uint16_t)i << 4)), SUB_Y, sub[i], fg, bg);
+    }
+}

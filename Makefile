@@ -72,7 +72,9 @@ TITLE_BIN := $(BUILDDIR)/title.bin
 TITLE_PAL := $(BUILDDIR)/title_pal.h
 TITLE_SEG := 4
 # 元絵の透かしを黒で消し、4:3 になるよう左右を落としてから 256x212 へ縮める
-TITLE_OPTS := --black 1275,0,1536,82 --crop 88,0,1498,1024
+# **副題は絵から消して、ゲーム側の字で描き直す** (2026-10-25)。生成画像の漢字が
+# 崩れていて「先」が「光」、「野」が「墅」に見えるため。2つめの --black がその範囲。
+TITLE_OPTS := --black 1275,0,1536,82 --black 330,222,1062,338 --crop 88,0,1498,1024
 
 # スプライトと背景タイルの絵。PNG が正で、描き替えて make し直せば差し替わる。
 ART_SPR_SRC  := assets/sprites.png
