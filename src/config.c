@@ -40,7 +40,11 @@ static uint8_t cur;              /* 設定画面のカーソル位置 */
 static uint8_t dirty;
 
 #define N_ITEMS 9
-#define ITEM_Y  72
+/* **項目と操作説明がぶつかっていた** (2026-10-24)。72 + 16*9 で最下段が y=200、
+   操作説明が y=180/192/204 で、下3行が重なって読めなかった。
+   項目の塊を上へ寄せ、題と説明の間に収めてある (題 12..28 / 項目 40..176 /
+   説明 182..210 で、画面の 212 行に収まる)。 */
+#define ITEM_Y  40
 #define ITEM_DY 16
 #define VAL_X   168
 
@@ -150,7 +154,7 @@ static void draw_items(void)
 void config_enter(void)
 {
     vdp_fill(0, 0, 256, SCR_H, COL_TUNNEL);
-    text_draw(80, 24, "CONFIG", COL_FUSE, COL_TUNNEL, 2);
+    text_draw(80, 12, "CONFIG", COL_FUSE, COL_TUNNEL, 2);
 
     text_draw(48, ITEM_Y,                  "LIVES",       COL_WHITE, COL_TUNNEL, 1);
     text_draw(48, ITEM_Y + ITEM_DY,        "CONTINUE",    COL_WHITE, COL_TUNNEL, 1);
@@ -165,9 +169,9 @@ void config_enter(void)
     text_draw(48, ITEM_Y + ITEM_DY * 7,    "TAIKO (PCM)", COL_WHITE, COL_TUNNEL, 1);
     text_draw(48, ITEM_Y + ITEM_DY * 8,    "SEE ENDING",  COL_WHITE, COL_TUNNEL, 1);
 
-    text_draw(24, 180, "UP/DOWN    SELECT",  COL_DIA, COL_TUNNEL, 1);
+    text_draw(24, 182, "UP/DOWN    SELECT",  COL_DIA, COL_TUNNEL, 1);
     text_draw(24, 192, "LEFT/RIGHT CHANGE",  COL_DIA, COL_TUNNEL, 1);
-    text_draw(24, 204, "SPACE      DECIDE",  COL_DIA, COL_TUNNEL, 1);
+    text_draw(24, 202, "SPACE      DECIDE",  COL_DIA, COL_TUNNEL, 1);
 
     cur = 0;
     prev_tok = TK_NONE;
