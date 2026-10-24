@@ -125,7 +125,21 @@ and drop rocks through them so the seam comes down in one chain.
 ### Requirements
 
 - **MSX2 or later** — SCREEN 5 is required. The code is built for the Z80, so it runs on MSX2 /
-  MSX2+ as well; on **MSX turbo R** it simply runs faster (60fps, which is what it is tuned for).
+  MSX2+ as well; on **MSX turbo R** it simply runs faster. Measured in play: **60.0fps on a
+  turbo R, 56.6fps on a Z80 MSX2**. The heat shimmer costs about 17fps on a Z80, which is why
+  it is drawn in 11 bands there and 16 on a turbo R.
+- **The sound scales with the machine, and nothing is forced on hardware that lacks it.**
+  Every layer is detected at boot; a missing one is simply never touched.
+
+  | Machine | FM (MSX-MUSIC) | Taiko (PCM) | What you hear |
+  |---------|----------------|-------------|---------------|
+  | **MSX turbo R** | yes (built in) | **yes** | PSG + FM + taiko. The PSG is pulled back so the taiko can be heard |
+  | **MSX2+** | usually built in | no | PSG + FM, with the PSG at its original level |
+  | **MSX2** | only with an FM-PAC | no | PSG, three voices |
+
+  The PCM is turbo R only, so on an MSX2 / MSX2+ ports A4h/A5h are never written and the line
+  interrupt stays with the heat shimmer. FM is found by scanning the slots (built-in first,
+  then an external FM-PAC). Both can also be switched off in the hidden settings menu.
 - **openMSX** for development. The default machine is **C-BIOS** (a free BIOS), so you can build
   and test without owning a BIOS ROM. With a real turbo R BIOS dump you can run the shipping
   machine as well — both are checked on every change.
@@ -356,7 +370,20 @@ the layout of the pit, the creatures in it and everything else are made for the 
 ### 動作環境
 
 - **MSX2 以降**（SCREEN 5 を使うため）。コードは Z80 で吐いているので MSX2／2+ の実機でも動く。
-  **turbo R ではそのまま速く走る**（60fps。本作はそこに合わせて調整してある）。
+  **turbo R ではそのまま速く走る。** プレイ中の実測で **turbo R 60.0fps / Z80 の MSX2 56.6fps**。
+  陽炎は Z80 で約17fps 食うので、帯の数を機種で変えている（Z80 機 11本 / turbo R 16本）。
+- **音は機種なりに増え、載っていないものは触らない。** どの層も起動時に検出して、
+  無ければ一度も叩かない。
+
+  | 機種 | FM (MSX-MUSIC) | 和太鼓 (PCM) | 鳴るもの |
+  |---|---|---|---|
+  | **MSX turbo R** | 内蔵 | **あり** | PSG ＋ FM ＋ 和太鼓。太鼓が聞こえるように PSG を引いてある |
+  | **MSX2+** | 多くの機種で内蔵 | なし | PSG ＋ FM。PSG は元の音量のまま |
+  | **MSX2** | FM-PAC を挿せば | なし | PSG 3声 |
+
+  PCM は turbo R にしか無いので、MSX2／2+ では**ポート A4h/A5h を一度も書かない**（走査線
+  割り込みも陽炎がそのまま使う）。FM はスロットを走査して内蔵→外付け FM-PAC の順に探す。
+  どちらも隠しの設定メニューで切れる。
 - 開発と検証は **openMSX**。既定の機種は **C-BIOS**（フリーBIOS）なので、BIOS ROM を持っていなくても
   ビルドして動かせる。実機の turbo R BIOS を吸い出してあれば出荷時の機種でも検証できる
   （本作は**両方で毎回検査している**）。
