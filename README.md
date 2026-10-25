@@ -218,7 +218,11 @@ proto/        the FunctionBASIC prototype the mechanics were proven in
   how the seeds are chosen.
 - **[docs/STAGE_ACTS_ROADMAP.md](docs/STAGE_ACTS_ROADMAP.md)** — the five acts and what each one adds.
 - **[docs/ART_PATTERNS.md](docs/ART_PATTERNS.md)** — every sprite and tile, and when each is shown.
-- **[docs/HISTORY.md](docs/HISTORY.md)** — the Jōban coal mine: the history the game is built on.
+- **[docs/HISTORY_en.md](docs/HISTORY_en.md)** — **the Jōban coal mine, in English**: what a
+  *sakiyama* was, the heat and the water, the cold bath the body-heat meter is built on, and
+  the man this game is for. A digest of the Japanese research below.
+- **[docs/HISTORY.md](docs/HISTORY.md)** — the same history in Japanese, at full length, with
+  every citation and its confidence grade.
 - **[docs/MRDO_RESEARCH.md](docs/MRDO_RESEARCH.md)** — what *Mr. Do!* and *Dig Dug* actually do,
   from primary sources, and where this game deliberately differs.
 - **[docs/PITFALLS.md](docs/PITFALLS.md)** — what went wrong and why: the VDP command engine,
@@ -237,7 +241,8 @@ proto/        the FunctionBASIC prototype the mechanics were proven in
 ### Scope & honest positioning
 
 This is an **experimental study piece**, and a tribute: the protagonist is modelled on the
-author's grandfather, who was a sakiyama in the Jōban coal mine.
+author's grandfather, who was a sakiyama in the Jōban coal mine
+([what that means, and who he was](docs/HISTORY_en.md)).
 
 - **It is still a prototype.** Stages 1–3 have been played properly; the later acts are verified
   by measurement (headless simulation plus openMSX on both C-BIOS and a real turbo R BIOS)
@@ -471,6 +476,8 @@ proto/        メカニクスを検証した FunctionBASIC のプロトタイプ
 - **[docs/STAGE_ACTS_ROADMAP.md](docs/STAGE_ACTS_ROADMAP.md)** — 5幕構成と、幕ごとに増えるもの。
 - **[docs/ART_PATTERNS.md](docs/ART_PATTERNS.md)** — スプライトとタイルの一覧、どの状態で何が出るか。
 - **[docs/HISTORY.md](docs/HISTORY.md)** — 常磐炭鉱の史実。本作の土台。
+- **[docs/HISTORY_en.md](docs/HISTORY_en.md)** — 上の英語版（要約）。英語で来た人が
+  先山と祖父のことまで辿り着けるように。
 - **[docs/MRDO_RESEARCH.md](docs/MRDO_RESEARCH.md)** — 『Mr. Do!』『Dig Dug』が実際に何をしているかの
   一次情報調査と、本作が意図的に違えている点。
 - **[docs/PITFALLS.md](docs/PITFALLS.md)** — つまずいた点。VDP コマンドエンジン、スプライトの癖、
