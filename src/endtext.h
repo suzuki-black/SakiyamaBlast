@@ -19,7 +19,7 @@ typedef struct {
 } roll_row;
 
 #define EROW_SIZE  34     /* sizeof(roll_row)。blob_read の長さ */
-#define END_ROLL_N 78     /* 行数。endtext.c と必ず一致させる (コンパイル時に検査) */
+#define END_ROLL_N 79     /* 行数。endtext.c と必ず一致させる (コンパイル時に検査) */
 
 extern const roll_row end_roll[];
 

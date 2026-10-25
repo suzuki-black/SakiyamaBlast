@@ -88,6 +88,10 @@ const roll_row end_roll[] = {
     { H, "SOUND" },
     { N, "CLAUDE CODE" },
     { N, "" },
+    { H, "TITLE ARTWORK" },
+    { N, "MICROSOFT COPILOT" },
+    { N, "CLAUDE CODE" },
+    { N, "" },
     { N, "(ANTHROPIC CLAUDE)" },
     { N, "" },
     { N, "" },
@@ -99,9 +103,10 @@ const roll_row end_roll[] = {
     { N, "J. B. GEOGHEGAN, 1872" },
     { N, "" },
     { N, "" },
-    { H, "BUILT WITH" },
-    { N, "SDCC / OPENMSX" },
-    { N, "" },
+    /* **開発ツール (SDCC / openMSX) は載せない。** 市販のゲームのエンドロールに
+       コンパイラやエミュレータは出てこない。載せるのは**製品に同梱している素材**
+       (下の字形) と、ライセンスがクレジットを求めるものだけ (作者の判断、2026-10-25)。
+       道具立ては README の「ビルド」に書いてある。 */
     { H, "FONT" },
     { N, "SHINONOME 16 (BOLD)" },
     { N, "PUBLIC DOMAIN" },
