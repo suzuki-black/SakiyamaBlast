@@ -43,6 +43,26 @@ static uint8_t  roll_t;            /* 1画素ぶんの待ち */
 #define ROLL_END  ((uint16_t)(END_ROLL_N - ROLL_TAIL) * ROW_H + LEAD - ROLL_TOP)
 #define ROLL_OVER 0xFFFF        /* 置き直しまで済んだ印 (変数を増やさないため) */
 
+/*
+ * ページ1 の行番号から y を作る (256 を足すだけ)。
+ *
+ * **わざわざ関数にしてある。** 呼び出し元で `(uint16_t)(PAGE1 + band)` と書くと、
+ * SDCC が **D レジスタに 0 が入っているという誤った前提**で `inc d` だけを吐き、
+ * 直前の比較で D に残っていた値がそのまま上位バイトになる。書き込み先が
+ * 0x8808 ではなく 0x0808 になって、**エンドロールが1文字も描かれなかった**
+ * (2026-10-25。openMSX の `debug set_bp` で `vdp_setwrite` の引数を見て判明)。
+ * 関数の頭ではレジスタの思い込みが無いので、素直に16ビットの値が組み立てられる。
+ *
+ * **ページ1 の y は必ずこれを通す。** 定数どうしの足し算 (`PAGE1` 単体) は畳まれるので
+ * 安全だが、**8ビットの値と足すところは一つ残らずここへ**。規則を一つにしておけば、
+ * 後から足した1行で踏み直すことがない。
+ * **ここを触ったら `build/ending.asm` を目で確かめること。**
+ */
+static uint16_t page1_y(uint8_t line)
+{
+    return (uint16_t)(PAGE1 + (uint16_t)line);
+}
+
 /* 窓を曲のセグメントへ向けて1行ぶん写す。**窓はこの中で元へ戻る。** */
 static void fetch(uint8_t i, uint8_t *dst)
 {
@@ -88,7 +108,7 @@ void ending_start(void)
     VDP_REG(8, 0x0A);                           /* SPD=1 / 64K DRAM */
     VDP_REG(23, 0);
     VDP_REG(2, 0x3F);                           /* 表示をページ1 へ */
-    draw_row(0, PAGE1 + LEAD);
+    draw_row(0, page1_y(LEAD));
     roll_i = 1;
 }
 
@@ -115,7 +135,7 @@ void ending_tick(void)
         vdp_fill(0, PAGE1, 256, SCR_H, COL_TUNNEL);
         for (i = 0; i < ROLL_TAIL; i++) {
             draw_row((uint8_t)(END_ROLL_N - ROLL_TAIL + i),
-                     (uint16_t)(PAGE1 + ROLL_TOP + (uint16_t)i * ROW_H));
+                     page1_y((uint8_t)(ROLL_TOP + i * ROW_H)));
         }
         roll_px = ROLL_OVER;
         return;
@@ -127,10 +147,11 @@ void ending_tick(void)
     roll_px++;
     VDP_REG(23, (uint8_t)roll_px);
     if ((uint8_t)(roll_px & (ROW_H - 1)) == 0) {
-        band = (uint16_t)((uint8_t)(roll_px + LEAD));   /* 0-255 に収まる */
-        vdp_fill(0, (uint16_t)(PAGE1 + band), 256, ROW_H, COL_TUNNEL);
+        /* y の作り方は `page1_y()` の説明を見ること (SDCC の都合で関数にしてある)。 */
+        band = page1_y((uint8_t)(roll_px + LEAD));
+        vdp_fill(0, band, 256, ROW_H, COL_TUNNEL);
         if (roll_i < END_ROLL_N) {
-            draw_row(roll_i, (uint16_t)(PAGE1 + band));
+            draw_row(roll_i, band);
             roll_i++;
         }
     }
