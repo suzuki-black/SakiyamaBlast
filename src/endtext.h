@@ -19,7 +19,13 @@ typedef struct {
 } roll_row;
 
 #define EROW_SIZE  34     /* sizeof(roll_row)。blob_read の長さ */
-#define END_ROLL_N 79     /* 行数。endtext.c と必ず一致させる (コンパイル時に検査) */
+#define END_ROLL_N 99     /* 行数。endtext.c と必ず一致させる (コンパイル時に検査) */
+
+/* **物語は2本ある。** 0..ROLL_URA-1 が表、ROLL_URA..ROLL_CREDITS-1 が裏、
+   ROLL_CREDITS 以降 (題・クレジット・献辞) は共通。
+   表は ROLL_URA に達したら ROLL_CREDITS へ飛ばす (`src/ending.c`)。 */
+#define ROLL_URA     25
+#define ROLL_CREDITS 45
 
 extern const roll_row end_roll[];
 

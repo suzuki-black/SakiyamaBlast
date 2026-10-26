@@ -1066,6 +1066,11 @@ void field_redraw_cell(int8_t cx, int8_t cy)
     if (cf_on((uint16_t)(uint8_t)cy * COLS + (uint8_t)cx, CF_BOMB)) {
         draw_bombdrop((uint8_t)cx, (uint8_t)cy);
     }
+    /* **ガス (裏面)。** 生きている間だけ出す。目抜きを掘って風が通ると消える
+       (`gas_live` が隣の掘り具合で決めるので、ここも自動で消える)。 */
+    if (gas_n && gas_at(cx, cy)) {
+        draw_tile((uint8_t)cx, (uint8_t)cy, art_tile_of(TILE_GAS), 2);
+    }
     /* **熱水は一番上に重ねる。** 湧き出し口も水に沈んだら水で描く。 */
     if (water[(uint16_t)(uint8_t)cy * COLS + (uint8_t)cx]) {
         draw_water((uint8_t)cx, (uint8_t)cy);   /* 湧き出し口の升なら湧き出し口を描く */
@@ -1343,6 +1348,23 @@ static const uint8_t coal_hp_tbl[MAX_STAGE] = {
 /* TODO: 絵が異なり耐久度がさらに高い「特殊な黒ダイヤ」。coal[] の値域はまだ余っている
    (1..COAL_HP_MAX と COAL_CRACKED しか使っていない) ので、種別は別配列か上位ビットで持つ。 */
 
+/*
+ * **裏面 (2周目) は黒ダイヤが固く、数が多く、岩も増える。**
+ * 表の表をそのまま使い、裏のときだけ下駄を履かせる (表をもう1組持つ余裕が無い)。
+ * 耐久は `COAL_HP_MAX` で頭打ち。数は置ける升の都合で `place_coal` 側が吸収する。
+ */
+static uint8_t coal_hp_at(void)
+{
+    uint8_t hp = (uint8_t)(coal_hp_tbl[stage - 1] + (loop_n ? 2 : 0));
+    return (uint8_t)((hp > COAL_HP_MAX) ? COAL_HP_MAX : hp);
+}
+
+static uint8_t coal_n_at(void)
+{
+    return (uint8_t)(coal_n_tbl[stage - 1] + (loop_n ? 1 : 0));
+}
+
+
 /* (c,r) の隣で黒ダイヤを置ける升を1つ返す。無ければ 0xFFFF。 */
 static uint16_t vein_next(uint16_t from)
 {
@@ -1447,7 +1469,7 @@ static uint8_t gap_vein_at(uint8_t c, uint8_t r, uint8_t g, uint8_t hp, uint8_t 
 /* 仕込む鉱脈を左右へ1本ずつ。端から内側へ探すので、2本は自然に離れる。 */
 static void place_gap_veins(void)
 {
-    uint8_t hp = coal_hp_tbl[stage - 1];
+    uint8_t hp = coal_hp_at();
     uint8_t side = (uint8_t)(rnd8() & 1);
     uint8_t g[2], k;
 
@@ -1488,8 +1510,8 @@ static void place_gap_veins(void)
  */
 static void place_coal(void)
 {
-    uint8_t want = coal_n_tbl[stage - 1];
-    uint8_t hp   = coal_hp_tbl[stage - 1];
+    uint8_t want = coal_n_at();
+    uint8_t hp   = coal_hp_at();
     uint16_t i;
     uint8_t len;
 
@@ -1527,7 +1549,7 @@ static void place_coal(void)
    「黄枠 = 天井全部が落ちる」という合図として正確に伝わる。 */
 static void place_pillars(void)
 {
-    uint8_t made, hp = coal_hp_tbl[stage - 1];
+    uint8_t made, hp = coal_hp_at();
     uint8_t side = (uint8_t)(rnd8() & 1);
     uint16_t i;
     hp = (uint8_t)(hp + PILLAR_HP_ADD);
@@ -1835,13 +1857,19 @@ static const uint8_t rock_off_tbl[MAX_STAGE] = {
     0, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4
 };
 
+/* 裏面は岩を1つ増やす (表の下駄。`coal_hp_at` の説明を参照)。 */
+static uint8_t rock_off_at(void)
+{
+    return (uint8_t)(rock_off_tbl[stage - 1] + (loop_n ? 1 : 0));
+}
+
 static uint8_t cand_keep[NCELL];
 static uint8_t keep_n;
 
 static void place_rocks(void)
 {
     uint8_t n = (uint8_t)(4 + (stage - 1) / 3);      /* 4〜8個 */
-    uint8_t off = rock_off_tbl[stage - 1];
+    uint8_t off = rock_off_at();
     uint8_t far = (uint8_t)((stage >= ROCK_OFF_FAR_ST) ? 2 : 1);
     uint8_t side = (uint8_t)(rnd8() & 1);   /* 岩も左右を交互に置く */
     uint16_t i;
@@ -1923,7 +1951,7 @@ static void place_rocks(void)
             off--;
         }
     }
-    if (rock_off_tbl[stage - 1]) {      /* ずらす岩が無い面では一覧は作ったまま */
+    if (rock_off_at()) {                /* ずらす岩が無い面では一覧は作ったまま */
         /* 控えた一覧を戻し、置いた岩の行と予約した升を落とす。
            予約は押し手・通り道 (岩と同じ行なので行ごと落ちる) と、通り道の真下。 */
         uint8_t k, m = 0;
@@ -2125,8 +2153,11 @@ static void place_spring(void)
     uint8_t try_n, best_n = 0;
     uint16_t i, k, best = 0xFFFF;
 
-    if (stage < WATER_ST || stage > WATER_ST_END) {
-        return;                         /* 出水があるのは第三坑 (面7〜9) だけ */
+    /* **表は第三坑 (面7〜9) だけ。裏は全面で湧く。**
+       常磐の炭層は海側へ傾斜していて、深いほど湧水が増えた (docs/HISTORY.md §5.3)。
+       裏面＝さらに深部へ降りる、という筋にそのまま乗せてある。 */
+    if (!loop_n && (stage < WATER_ST || stage > WATER_ST_END)) {
+        return;
     }
     build_candidates(0);                /* 掘り抜きの上 (dug かつ未使用) */
     for (try_n = 0; try_n < 12; try_n++) {
@@ -2412,6 +2443,7 @@ static void set_stage_layout(void)
        この機構を入れる前とまったく同じままになる。 */
     phase_seed(PH_POOL);
     place_pool();
+    place_gas();   /* 裏面のガス (src/water.c) */
 }
 
 /* **面ごとの盤面の種。** ここを変えるとその面の並びが丸ごと変わる。
@@ -2438,7 +2470,13 @@ uint16_t layout_seed(void)
         return layout_seed_force;
     }
     s = (stage >= 1 && stage <= 15) ? stage_seed[stage - 1] : 0;
-    return s ? s : (uint16_t)(0x9E37u * (uint16_t)stage + 0x1234u);
+    if (!s) {
+        s = (uint16_t)(0x9E37u * (uint16_t)stage + 0x1234u);
+    }
+    /* **裏面は同じ面番号でも配置を変える。** 同じ15面をなぞるだけだと
+       「覚えた盤面を速くやるだけ」になり、難度ではなく作業になる。
+       種をずらすので、下ごしらえの鉱脈も岩も別の位置に出る。 */
+    return (uint16_t)(s + (uint16_t)loop_n * 0x5BF3u);
 }
 
 void build_stage(void)
@@ -2532,6 +2570,13 @@ void build_stage(void)
     }
     if (spring_on) {
         draw_spring(spring_c, spring_r);   /* 熱水の湧き出し口。開始から見えている */
+    }
+    /* **ガス (裏面) も開始から見せる。** 見えない即死は理不尽なので、
+       溜まっている升は最初から分かるようにする (消し方は目抜きを掘ること)。 */
+    for (i = 0; i < gas_n; i++) {
+        if (gas_live((uint8_t)i)) {
+            draw_tile(gas_c[i], gas_r[i], art_tile_of(TILE_GAS), 2);
+        }
     }
     /* **溜まり湯。** 坑道を描いた後から上に塗る (draw_water が縁の印まで描く)。 */
     for (i = 0; i < NCELL; i++) {

@@ -302,7 +302,23 @@ static void update_temp(void)
     }
     if (bathing) {
         bathing = 0;
-        draw_bath(bath_c, bath_r);       /* 泡を消して元の湯へ戻す */
+        /* **裏面は1回で枯れる。** 浸かった実績 (泡の段数) があるときだけ消す。
+           通りすがりに踏んだだけでは失わない。 */
+        if (loop_n && bath_phase >= BATH_DRY) {
+            bath_on = 0;
+            draw_dug_cell((int8_t)bath_c, (int8_t)bath_r);
+        } else {
+            draw_bath(bath_c, bath_r);   /* 泡を消して元の湯へ戻す */
+        }
+    }
+    /* **ガス (裏面)。** 溜まった升へ入ると、カンテラの灯で引火する。
+       事故の記録で原因欄に並ぶのが「カンテラの灯」「喫煙」で、**火とガスが同じ
+       場所にあることが事故の条件**だった (docs/HISTORY.md §4)。
+       **逃げ道はある。** 袋小路の反対側から掘って風を通せば (目抜き) ガスは消え、
+       そのあとは普通に入れる。升は最初から見えている。 */
+    if (gas_n && !invuln
+        && gas_at((int8_t)player_cell_c(), (int8_t)player_cell_r())) {
+        dead = 1;
     }
     /* **熱水 (出水)。** 浸かっている間は毎フレーム上がる。水風呂のちょうど裏返しで、
        死因は増えない (既存のオーバーヒート)。升の中心で見る。 */

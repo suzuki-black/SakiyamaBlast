@@ -100,6 +100,9 @@ static void explode_on_enemy(void)
     if (!invuln && player_cell_c() == bomb_c && player_cell_r() == bomb_r) {
         dead = 1;                   /* 自分の升で爆発したら巻き添え */
     }
+    /* **裏面のガスへ引火する** (袋小路に溜まったメタン。docs/HISTORY.md §4)。
+       火とガスが同じ場所にあることが事故の条件だった、という記録どおり。 */
+    gas_ignite(bomb_c, bomb_r);
     bomb_state = 2;
     flash = FLASH_FRAMES;
     spr_park(SPR_BOMB);

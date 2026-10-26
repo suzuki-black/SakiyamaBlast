@@ -63,6 +63,35 @@ const roll_row end_roll[] = {
     { N, "" },
     { N, "" },
     { N, "" },
+    /* --- 裏面の結び (2周目をクリアしたときだけ流れる) ---
+       **表の結びの続き。** 表は「仕事を終えて家へ帰る」で終わる。裏はその何年か後、
+       **坑内で人を苦しめた40度の湯が、人を楽しませる湯になった**という常磐の実話
+       (docs/HISTORY.md §5.6)。常磐ハワイアンセンターの開業は1966年1月で、表の結び
+       (テレビが普及した1950年代末〜60年代初頭) の数年後にあたる。
+       **当時の名前で書く。** 現在の「スパリゾートハワイアンズ」は1990年の改称で、
+       この時代には無い。実在して営業中の施設なので、宣伝に見えない書き方にもなる。
+       **祖父が実際に行ったかは未確認** (作者が母へ確認する。docs/HISTORY.md §9)。
+       ここは丹野3時という架空の人物の後日談として書いてあるので、事実の主張ではない。 */
+    { N, "YEARS LATER, THE PIT CLOSED." },
+    { N, "" },
+    { N, "THE HOT WATER THAT HAD BURNED" },
+    { N, "THE MEN UNDERGROUND" },
+    { N, "CAME UP INTO THE SUNLIGHT" },
+    { N, "AND BECAME A RESORT." },
+    { N, "" },
+    { N, "TANNO 3JI TOOK HIS WIFE" },
+    { N, "AND HIS DAUGHTER" },
+    { N, "TO JOBAN HAWAIIAN CENTER." },
+    { N, "" },
+    { N, "HE SAT IN THE WARM WATER" },
+    { N, "HE HAD ONCE CURSED." },
+    { N, "IT WAS THE SAME WATER." },
+    { N, "HE SAID NOTHING AT ALL." },
+    { N, "" },
+    { N, "THE THREE OF THEM" },
+    { N, "STAYED UNTIL THE EVENING." },
+    { N, "" },
+    { N, "" },
     /* --- 題 --- */
     { T, "KURODAIYA" },
     { N, "- SAKIYAMA TANNO 3JI -" },

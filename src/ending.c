@@ -108,8 +108,11 @@ void ending_start(void)
     VDP_REG(8, 0x0A);                           /* SPD=1 / 64K DRAM */
     VDP_REG(23, 0);
     VDP_REG(2, 0x3F);                           /* 表示をページ1 へ */
-    draw_row(0, page1_y(LEAD));
-    roll_i = 1;
+    /* **裏面をクリアしたときは裏の物語から流す。** 表は 0 から。
+       共通部分 (題・クレジット・献辞) は両方とも同じ行を使う。 */
+    roll_i = (uint8_t)(loop_n ? ROLL_URA : 0);
+    draw_row(roll_i, page1_y(LEAD));
+    roll_i++;
 }
 
 /* 表示をページ0 へ戻す。**エンドロールから抜けるときに必ず呼ぶ。** */
@@ -150,6 +153,9 @@ void ending_tick(void)
         /* y の作り方は `page1_y()` の説明を見ること (SDCC の都合で関数にしてある)。 */
         band = page1_y((uint8_t)(roll_px + LEAD));
         vdp_fill(0, band, 256, ROW_H, COL_TUNNEL);
+        if (roll_i == ROLL_URA && !loop_n) {
+            roll_i = ROLL_CREDITS;      /* 表は裏の物語を飛ばす */
+        }
         if (roll_i < END_ROLL_N) {
             draw_row(roll_i, band);
             roll_i++;

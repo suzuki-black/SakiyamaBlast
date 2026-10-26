@@ -39,13 +39,13 @@ static uint8_t prev_r;           /* R キーの前フレームの状態 (押し�
 static uint8_t cur;              /* 設定画面のカーソル位置 */
 static uint8_t dirty;
 
-#define N_ITEMS 9
+#define N_ITEMS 10
 /* **項目と操作説明がぶつかっていた** (2026-10-24)。72 + 16*9 で最下段が y=200、
    操作説明が y=180/192/204 で、下3行が重なって読めなかった。
    項目の塊を上へ寄せ、題と説明の間に収めてある (題 12..28 / 項目 40..176 /
    説明 182..210 で、画面の 212 行に収まる)。 */
-#define ITEM_Y  40
-#define ITEM_DY 16
+#define ITEM_Y  36
+#define ITEM_DY 15     /* 10項目 (36..171) + 説明 (182..210) で 212行に収まる刻み */
 #define VAL_X   168
 
 void config_init(void)
@@ -58,6 +58,11 @@ void config_init(void)
     cfg_haze = 1;
     cfg_fm = 1;
     cfg_pcm = 1;
+    /* **裏面の旗も起動時にここで落とす。** `crt0` は変数領域を 0 にしない
+       (初期値つきの変数を写すだけ) ので、電源投入時の RAM の中身がそのまま残る。
+       実際、C-BIOS の機械では `loop_n` が 1 のまま起動し、**最初から裏面**に
+       なっていた (2026-10-26 にスモークテストで発覚)。 */
+    loop_n = 0;
     k_idx = 0;
     prev_tok = TK_NONE;
     prev_r = 0;
@@ -132,6 +137,7 @@ static void draw_value(uint8_t i)
     case 5: put_onoff(y, cfg_haze); break;
     case 6: put_onoff(y, cfg_fm); break;
     case 7: put_onoff(y, cfg_pcm); break;
+    case 8: put_onoff(y, loop_n); break;
     default: break;
     }
 }
@@ -167,7 +173,10 @@ void config_enter(void)
        切り替えても何も変わらない (opll_hw が 0 なら opll_use は立たない)。 */
     text_draw(48, ITEM_Y + ITEM_DY * 6,    "FM SOUND",    COL_WHITE, COL_TUNNEL, 1);
     text_draw(48, ITEM_Y + ITEM_DY * 7,    "TAIKO (PCM)", COL_WHITE, COL_TUNNEL, 1);
-    text_draw(48, ITEM_Y + ITEM_DY * 8,    "SEE ENDING",  COL_WHITE, COL_TUNNEL, 1);
+    /* **裏面 (2周目)。** 15面をクリアすると自動で開くが、ここからも入れる。
+       開けたまま表を遊びたいときに戻せるよう、切り替えにしてある。 */
+    text_draw(48, ITEM_Y + ITEM_DY * 8,    "URAMEN",      COL_WHITE, COL_TUNNEL, 1);
+    text_draw(48, ITEM_Y + ITEM_DY * 9,    "SEE ENDING",  COL_WHITE, COL_TUNNEL, 1);
 
     text_draw(24, 182, "UP/DOWN    SELECT",  COL_DIA, COL_TUNNEL, 1);
     text_draw(24, 192, "LEFT/RIGHT CHANGE",  COL_DIA, COL_TUNNEL, 1);
@@ -205,6 +214,7 @@ uint8_t config_update(void)
         else if (cur == 5) { cfg_haze = (uint8_t)!cfg_haze; }
         else if (cur == 6) { cfg_fm = (uint8_t)!cfg_fm; opll_apply(); }
         else if (cur == 7) { cfg_pcm = (uint8_t)!cfg_pcm; pcm_apply(); }
+        else if (cur == 8) { loop_n = (uint8_t)(loop_n ? 0 : 1); }
         dirty = 1;
         break;
     case TK_RIGHT:
@@ -216,6 +226,7 @@ uint8_t config_update(void)
         else if (cur == 5) { cfg_haze = (uint8_t)!cfg_haze; }
         else if (cur == 6) { cfg_fm = (uint8_t)!cfg_fm; opll_apply(); }
         else if (cur == 7) { cfg_pcm = (uint8_t)!cfg_pcm; pcm_apply(); }
+        else if (cur == 8) { loop_n = (uint8_t)(loop_n ? 0 : 1); }
         dirty = 1;
         break;
     case TK_SPACE:

@@ -44,6 +44,9 @@ const uint8_t  *art_colours(uint8_t i);   /* mode-2 の行ごとの色 (16バイ
 #define TILE_RAIL   16     /* 鉱車のレール */
 #define TILE_RAILL  17     /* レールの左端 (車止め) */
 #define TILE_RAILR  18     /* レールの右端 (車止め) */
+/* ガス (裏面だけ)。袋小路に溜まるメタン。**目抜きを掘って風を通せば消える。**
+   そこで発破をかけると引火して1ミス (docs/HISTORY.md §4 の事故の形)。 */
+#define TILE_GAS    19
 const uint8_t *art_tile_of(uint8_t i);
 
 #endif

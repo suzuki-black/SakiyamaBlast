@@ -74,7 +74,7 @@ extern uint8_t *blob_dst;
 extern uint8_t  blob_len;
 void blob_read(void);   /* 和太鼓の波形 (src/lowlevel.s の TAIKO_SEG と合わせる) */
 #define RAMCODE_SEG 8
-#define RAMCODE_ADDR 0xC980
+#define RAMCODE_ADDR 0xC9A0
 /* 写す量。**リンカの l_RAMCODE は C から参照できない**ので、領域の大きさを
    決め打ちで写す。0xCD00-0xF1FF の 9472 バイト = tools/ihx2rom.py の
    RAMCODE_BASE..RAMCODE_END と一致させること。余りは 0xFF で埋まっている。

@@ -9,6 +9,7 @@
  * ドット絵を描き替えて make し直せばよい。
  */
 #include "game.h"
+#include "text.h"
 #include "vdp.h"
 #include "msx.h"
 
@@ -63,6 +64,8 @@ void kanji_draw(uint16_t x, uint16_t y, uint8_t idx, uint8_t fg, uint8_t bg)
  */
 #define SUB_X 64        /* 8字 x 16px = 128px を画面の中央へ */
 #define SUB_Y 50        /* ロゴの下、坑夫の上 (元絵の副題と同じ帯) */
+#define URA_X 80        /* 倍角6字 = 96px を画面の中央へ */
+#define URA_Y 176       /* `PRESS SPACE KEY` の真上 */
 
 void kanji_subtitle(uint8_t fg, uint8_t bg)
 {
@@ -72,5 +75,11 @@ void kanji_subtitle(uint8_t fg, uint8_t bg)
     uint8_t i;
     for (i = 0; i < 8; i++) {
         kanji_draw((uint16_t)(SUB_X + ((uint16_t)i << 4)), SUB_Y, sub[i], fg, bg);
+    }
+    /* **裏面が開いていることをタイトルで知らせる。** 15面をクリアすると出る。
+       ここに出すのは、次にスペースを押すと裏面が始まるから (作者の指定、2026-10-25)。
+       倍角6字 = 96px を中央へ。`PRESS SPACE KEY` の真上。 */
+    if (loop_n) {
+        text_draw(URA_X, URA_Y, "URAMEN", fg, bg, 2);
     }
 }

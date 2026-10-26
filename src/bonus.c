@@ -64,8 +64,13 @@ void bonus_take(void)
         temp = 0;
         break;
     case BONUS_LIFE:
-        if (lives < 9) {
+        /* **裏面 (2周目) は残機が増えない。** 増えるぶんは点にする。
+           表は「誰でもエンディングまで行ける」ための救済なので残す
+           (作者の方針)。裏は拾い直しが効かない緊張を保つ。 */
+        if (!loop_n && lives < 9) {
             lives++;
+        } else {
+            score_add(PTS_BONUS);
         }
         break;
     default:

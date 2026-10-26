@@ -66,30 +66,49 @@ static uint8_t lv_at(const uint8_t *tbl)
     return tbl[s - 1];
 }
 
+/*
+ * **裏面 (2周目) は同じ表を1段きつく読む。**
+ *
+ * 表は「誰でもエンディングまで行ける」難度にしてある (作者の方針)。裏は
+ * ゲームとして締めるほうで、**新しい表を持たずに同じ表の読み方を変える**
+ * (面ごとの表をもう1組持つと窓が足りない)。効き方は4つ:
+ *
+ *   敵の数   +1   / 静養   3/4 (早く戻ってくる)
+ *   透明化   3/4 (早く透ける) / 切羽圧 +1 (掘るほど早く透ける)
+ *
+ * 持ち時間 (`src/tlimit.c`)・配置の種・湧水の有無も裏で変わる。
+ */
 uint8_t lv_pool(void)
 {
-    uint8_t n = lv_at(pool_tbl);
+    uint8_t n = (uint8_t)(lv_at(pool_tbl) + (loop_n ? 1 : 0));
     return (uint8_t)((n > ENEMY_MAX) ? ENEMY_MAX : n);
+}
+
+/* 裏では 3/4 にする (短いほど早く戻ってくる / 早く透ける)。 */
+static uint16_t lv_short(const uint8_t *tbl)
+{
+    uint16_t v = (uint16_t)((uint16_t)lv_at(tbl) * 10);
+    return (uint16_t)(loop_n ? (v * 3 / 4) : v);
 }
 
 uint16_t lv_rest(void)
 {
-    return (uint16_t)((uint16_t)lv_at(rest_tbl) * 10);
+    return lv_short(rest_tbl);
 }
 
 uint16_t lv_ghost(void)
 {
-    return (uint16_t)((uint16_t)lv_at(ghost_tbl) * 10);
+    return lv_short(ghost_tbl);
 }
 
 uint16_t lv_ghost_min(void)
 {
-    return (uint16_t)((uint16_t)lv_at(gmin_tbl) * 10);
+    return lv_short(gmin_tbl);
 }
 
 uint8_t lv_press(void)
 {
-    return lv_at(press_tbl);
+    return (uint8_t)(lv_at(press_tbl) + (loop_n ? 1 : 0));
 }
 
 

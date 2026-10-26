@@ -23,8 +23,16 @@ BUILDDIR  := build
 #     vdp_wblock の OTIR など全ての VDP アクセスを見直す必要がある
 CC        := sdcc
 AS        := sdasz80
-CFLAGS    := -mz80 --std-c99 --sdcccall 1 --opt-code-speed -I$(SRCDIR) -I$(BUILDDIR)
-LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKDATA=0xA000 -Wl-b_MUSICDATA=0x2000 -Wl-b_RAMCODE=0xC980
+# **最適化は置き場ごとに変える。** 固定領域と RAM 実行は速度優先、**窓側は大きさ優先**。
+# 窓 (8KB) が一番きつく、毎フレーム走るものが少ない (config/levels/ending は冷たい)。
+# 速度を測って問題が出たら、そのモジュールだけ speed へ戻すこと。
+CFLAGS    := -mz80 --std-c99 --sdcccall 1 -I$(SRCDIR) -I$(BUILDDIR)
+OPT_SPEED := --opt-code-speed
+OPT_SIZE  := --opt-code-size
+# **field.c も大きさ優先。** 9KB あるが、その大半は面の組み立て (1面に1回) で、
+# 毎フレーム走るのは描画の数本だけ。速度への影響は実測して確かめること。
+SIZE_SRC   = $(BANKED_SRC) $(SRCDIR)/field.c    # **遅延展開。** BANKED_SRC はこの後で定義される
+LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKDATA=0xA000 -Wl-b_MUSICDATA=0x2000 -Wl-b_RAMCODE=0xC9A0
 
 # 固定領域 (0x4000-0x9FFF) は 24KB しかない。絵と曲は**ただのデータ**なので、
 # 0xA000 の窓へリンクして ROM のセグメント3へ置き、固定領域を空ける。
@@ -33,10 +41,13 @@ LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKD
 # **title_draw() の中から呼ばれるものは置けない。** あそこは窓をタイトル画像へ
 # 切り替えている最中なので、バンク側のコードは見えなくなる (vdp / lowlevel / msx は固定)。
 # それ以外は常に DATA_SEG が選ばれているので、コードを置いても同じ速度で動く。
+# **bonus.c は固定領域へ戻した** (2026-10-26)。裏面のガスを水 (窓側) へ足したら
+# 窓が 70バイト溢れたため。固定領域・窓・RAM実行の3つは、どれも数百バイトしか
+# 空いていないので、**足すときはどこから削るかを同時に決める**こと。
 # **art と sprite は窓に置けない。** 絵のセグメントへ窓を向けている間に
 # 自分が見えなくなるため (art.c は番地を返すだけ、sprite.c は窓を切り替える側)。
 BANKED_SRC := \
-              $(SRCDIR)/config.c $(SRCDIR)/bonus.c $(SRCDIR)/debris.c $(SRCDIR)/kanji.c \
+              $(SRCDIR)/config.c $(SRCDIR)/debris.c $(SRCDIR)/kanji.c \
               $(SRCDIR)/haze.c $(SRCDIR)/water.c $(SRCDIR)/hud.c $(SRCDIR)/cart.c \
               $(SRCDIR)/levels.c $(SRCDIR)/ending.c
 
@@ -47,12 +58,14 @@ BANKED_SRC := \
 # (2026-10-22 に 0xCD00 から下げた。升ごとの真偽値を cflag[] へ詰めて
 #  変数が 0xC9E5 までに縮んだぶん、RAM 実行の枠を 640バイト広げた)。
 # **8KB を超えたので ROM のセグメントは2枚**。写す手順も2回に分かれる (main.c)。
-# **title / vdp も置ける。** RAM はバンク窓の切り替えの影響を受けないので、
+# **vdp はここに置く。** RAM はバンク窓の切り替えの影響を受けないので、
 # タイトル画像を読んでいる最中 (title_draw) に呼ばれても見えている。
+# **title.c は固定領域へ戻した** (2026-10-25)。固定領域も窓の切り替えでは消えないので
+# 条件を満たす。RAM 実行の空きが6バイトになり、裏面のガス判定が入らなくなったため。
 # 起動時に main() が ROM のセグメント8 から写す。
 # **写す前に呼ばれるものは置けない** (crt0 / lowlevel / main の冒頭)。
 RAM_SRC   := $(SRCDIR)/enemy.c $(SRCDIR)/bomb.c $(SRCDIR)/sound.c $(SRCDIR)/opll.c $(SRCDIR)/pcm.c \
-             $(SRCDIR)/title.c $(SRCDIR)/vdp.c $(SRCDIR)/text.c $(SRCDIR)/tlimit.c
+             $(SRCDIR)/vdp.c $(SRCDIR)/text.c $(SRCDIR)/tlimit.c
 
 CSRC      := $(wildcard $(SRCDIR)/*.c)
 HEADERS   := $(wildcard $(SRCDIR)/*.h)
@@ -100,7 +113,7 @@ MUSIC_SRC := $(SRCDIR)/music.c $(SRCDIR)/endtext.c
 MUSIC_SEG := 14
 
 ART_SPR_NAMES  := miner,bomb,rock,rat,bat,split,stun1,stun2,stun3,brace,wd1,wd2,wu1,wu2,wl1,wl2,wr1,wr2,bru,brl,brr,std,stu,stl,str,chip,cart,cartrock,rockprop
-ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,spring,springoff,toir,toil,toibr,toibl,rail,raill,railr
+ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,spring,springoff,toir,toil,toibr,toibl,rail,raill,railr,gas
 
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT
 MACHINE   ?= C-BIOS_MSX2+_JP
@@ -142,6 +155,7 @@ $(KANJI_BIN) $(KANJI_H): tools/mkkanji.py | $(BUILDDIR)
 
 $(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(HEADERS) $(MAKEFILE) $(TITLE_PAL) $(ART_SPR) $(ART_TILE) $(PAL_H) $(TAIKO_H) $(KANJI_H) | $(BUILDDIR)
 	$(CC) $(CFLAGS) \
+	  $(if $(filter $<,$(SIZE_SRC)),$(OPT_SIZE),$(OPT_SPEED)) \
 	  $(if $(filter $<,$(MUSIC_SRC)),--codeseg MUSICDATA --constseg MUSICDATA) \
 	  $(if $(filter $<,$(BANKED_SRC)),--codeseg BANKDATA --constseg BANKDATA) \
 	  $(if $(filter $<,$(RAM_SRC)),--codeseg RAMCODE --constseg RAMCODE) -c -o $@ $<

@@ -25,6 +25,7 @@
  *   - **`WATER_MAX` 升で止まる。** 際限なく広がると、掘るほど詰む盤面になる
  */
 #include "game.h"
+#include "vdp.h"
 #include "sound.h"
 
 uint8_t water[NCELL];          /* WATER_FLOW = 広がる熱水 / WATER_POOL = 溜まり湯 (field.c が置く) */
@@ -32,6 +33,129 @@ uint8_t water_on;              /* 湧き出しているか */
 uint8_t water_done;            /* 止まったか。止まったら二度と増えない */
 uint8_t spring_c, spring_r;    /* 湧き出し口 (面の開始から見えている) */
 uint8_t spring_on;
+
+/*
+ * --- ガス (裏面だけ) ---
+ *
+ * **坑内で一番多かった事故はガス爆発で、原因欄には「カンテラの灯」「喫煙」が並ぶ**
+ * (docs/HISTORY.md §4)。火とガスが同じ場所にあることが事故の条件だった。
+ *
+ * 仕掛けはその形をそのまま写す。**袋小路 (鉄砲坑道) にガスが溜まり、そこで発破を
+ * かけると引火して1ミス。目抜き (もう一方の口) を掘って風が通れば消える。**
+ *
+ * **升ごとの旗は持たない。** `cflag` に空きビットが無く、`water[]`/`chute[]` は
+ * 真偽で見ている箇所が多くて相乗りできない。**溜まり場を数個だけ覚える表**にして、
+ * 「生きているか」はそのつど隣の掘り具合から求める (状態を持たないので壊れない)。
+ */
+uint8_t gas_c[GAS_MAX], gas_r[GAS_MAX];
+uint8_t gas_n;
+
+/* その升のガスがまだ生きているか。**掘り抜きが1方向だけなら袋小路＝風が通らない。** */
+uint8_t gas_live(uint8_t i)
+{
+    uint8_t c = gas_c[i], r = gas_r[i], n = 0;
+    if (cell_dug((int8_t)(c - 1), (int8_t)r)) { n++; }
+    if (cell_dug((int8_t)(c + 1), (int8_t)r)) { n++; }
+    if (cell_dug((int8_t)c, (int8_t)(r - 1))) { n++; }
+    if (cell_dug((int8_t)c, (int8_t)(r + 1))) { n++; }
+    return (uint8_t)(n < 2);
+}
+
+/* (cx,cy) に生きたガスがあるか。無ければ 0。 */
+uint8_t gas_at(int8_t cx, int8_t cy)
+{
+    uint8_t i;
+    for (i = 0; i < gas_n; i++) {
+        if (gas_c[i] == (uint8_t)cx && gas_r[i] == (uint8_t)cy && gas_live(i)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/*
+ * ガスの溜まり場を置く (裏面だけ)。**袋小路の先だけを選ぶ。**
+ *
+ * 置いた時点で掘り抜きが1方向しかない升＝鉄砲坑道の先なので、風が通らない。
+ * 遊ぶ人は**もう一方の口を掘って風を通してから**でないと、そこで発破をかけられない。
+ * 出発点と水風呂の近くは避ける (逃げ場の無い事故になるため)。
+ *
+ * **盤面の走査は乱数で始点をずらす。** 素直に 0 から探すと左上にばかり出る。
+ */
+/* 升どうしの距離 (縦横の歩数)。`field.c` の同名の関数は static なので、ここに1つ持つ。 */
+static uint8_t gdist(uint8_t c, uint8_t r, uint8_t c2, uint8_t r2)
+{
+    uint8_t dc = (uint8_t)((c > c2) ? (c - c2) : (c2 - c));
+    uint8_t dr = (uint8_t)((r > r2) ? (r - r2) : (r2 - r));
+    return (uint8_t)(dc + dr);
+}
+
+void place_gas(void)
+{
+    uint16_t k, i, st;
+    uint8_t want;
+
+    gas_n = 0;
+    if (!loop_n) {
+        return;                         /* 表には出さない */
+    }
+    want = (uint8_t)(2 + ((stage > 7) ? 1 : 0));
+    if (want > GAS_MAX) {
+        want = GAS_MAX;
+    }
+    st = rnd8();                        /* 0-255 を 0-175 へ落とす (剰余は高い) */
+    while (st >= NCELL) {
+        st = (uint16_t)(st - NCELL);
+    }
+    for (k = 0; k < NCELL && gas_n < want; k++) {
+        uint8_t c, r, n = 0;
+        i = (uint16_t)((st + k) % NCELL);
+        c = (uint8_t)(i % COLS);
+        r = (uint8_t)(i / COLS);
+        if (!cell_dug((int8_t)c, (int8_t)r) || water[i]) {
+            continue;
+        }
+        if (gdist(c, r, start_c, start_r) < 4) {
+            continue;               /* 出発点のそばには置かない */
+        }
+        if (cell_dug((int8_t)(c - 1), (int8_t)r)) { n++; }
+        if (cell_dug((int8_t)(c + 1), (int8_t)r)) { n++; }
+        if (cell_dug((int8_t)c, (int8_t)(r - 1))) { n++; }
+        if (cell_dug((int8_t)c, (int8_t)(r + 1))) { n++; }
+        if (n != 1) {
+            continue;                   /* 袋小路の先でなければ見送る */
+        }
+        gas_c[gas_n] = c;
+        gas_r[gas_n] = r;
+        gas_n++;
+    }
+}
+
+/*
+ * ガスへの引火。爆発した升 (c,r) の隣に生きたガスがあれば燃え移る。
+ * **ガスの升とその周りが燃え、そこに居たら死ぬ。** 離れていれば死なない
+ * (遠くの爆発で理不尽に死なないように、位置で決める)。
+ * 戻り値: 引火したか。
+ */
+uint8_t gas_ignite(uint8_t c, uint8_t r)
+{
+    uint8_t i, gc, gr;
+    for (i = 0; i < gas_n; i++) {
+        gc = gas_c[i];
+        gr = gas_r[i];
+        if (gdist(c, r, gc, gr) > 1 || !gas_live(i)) {
+            continue;
+        }
+        if (!invuln && gdist((uint8_t)player_cell_c(), (uint8_t)player_cell_r(),
+                             gc, gr) <= 1) {
+            dead = 1;               /* ガスの升とその隣に居たら巻き添え */
+        }
+        gas_c[i] = 0xFF;            /* 燃えたガスは消える (二度は引火しない) */
+        gas_r[i] = 0xFF;
+        return 1;
+    }
+    return 0;
+}
 
 static uint8_t wt;             /* 次に1升広がるまでのフレーム数 */
 static uint8_t wn;             /* いま水になっている升の数 */

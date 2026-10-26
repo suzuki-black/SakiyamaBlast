@@ -30,7 +30,11 @@ static uint8_t state;
 static uint8_t player_pat = 0xFF;   /* いま出している自機の絵 (変化時だけ色表を書く) */
 static uint8_t prev_trig;
 uint16_t frame_n;                 /* 実フレーム数。速度計測用 (1フレーム1増) */
-static uint8_t loop_n;            /* 0=表 1以降=裏 (裏面の内容は TODO) */
+/* **0 = 表 (1周目) / 1以上 = 裏 (2周目以降)。**
+   裏面の規則は各所がこれを見て切り替える (持ち時間・敵・湧水・水風呂・ガス)。
+   15面をクリアするとエンディングのあと 1 になり、タイトルに `URAMEN` が出る。
+   隠しコンフィグの `URAMEN` でも最初から 1 にできる。 */
+uint8_t loop_n;
 static uint8_t timer;
 static uint8_t msg_c0, msg_c1;    /* 開始表示が占めたセル列 (消すとき使う) */
 static char    msg[16];
@@ -460,7 +464,6 @@ void main(void)
                 vdp_display(1);
                 state = ST_CONFIG;
             } else if (fire_pressed()) {
-                loop_n = 0;
                 new_game();      /* start_stage() が ST_START にする */
             }
             continue;
@@ -469,7 +472,6 @@ void main(void)
         if (state == ST_CONFIG) {
             uint8_t r = config_update();
             if (r == CFG_START) {
-                loop_n = 0;
                 new_game();
             } else if (r == CFG_ENDING) {
                 goto_ending();
@@ -484,10 +486,12 @@ void main(void)
                    これが抜けていて、ページ1 (エンドロール) のまま次の面が
                    始まっていた (作者の報告、2026-10-25)。 */
                 ending_stop();
-                /* **裏面はまだ作っていないので、エンディングからはタイトルへ戻す**
-                   (作者の判断、2026-10-25)。難度を上げた2周目を作るときに
-                   ここで `loop_n` を増やして面1 から始め直す。
-                   仕様は `DESIGN.md` の post-SDCC TODO。 */
+                /* **エンディングを見たら裏面が開く。** その場で始めるのではなく、
+                   いったんタイトルへ戻して `URAMEN` を出す (作者の指定、2026-10-25)。
+                   次にスペースを押すと裏面が始まる。 */
+                if (!loop_n) {
+                    loop_n = 1;
+                }
                 goto_title();
             }
             continue;
@@ -517,7 +521,9 @@ void main(void)
 
         if (state == ST_OVER) {
             if (fire_pressed()) {
-                if (cfg_continue) {
+                /* **裏面 (2周目) はコンティニュー不可。** 設定が ON でも効かない。
+                   面1から通しで抜けることを裏の条件にする (作者の方針、2026-10-25)。 */
+                if (cfg_continue && !loop_n) {
                     lives = cfg_lives;      /* その面から続きを遊ぶ */
                     score_reset();
                     start_stage();
