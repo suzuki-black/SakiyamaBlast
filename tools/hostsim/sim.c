@@ -4,7 +4,7 @@
  * src/ のゲームロジックをそのまま gcc でビルドし、VDP/PSG だけスタブに差し替えて
  * ヘッドレスで走らせる。毎フレームの状態を JSONL で吐き、採点は Python 側で行う。
  *
- * 使い方:  hostsim --stage N [--seed S] [--frames F] [--bot greedy|idle]
+ * 使い方:  hostsim --stage N [--seed S] [--frames F] [--bot greedy|idle] [--ura]
  *
  * 実機との一致は「同じ乱数の種で同じ盤面が出るか」で確認する (tools/hostsim/verify.sh)。
  */
@@ -1197,6 +1197,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--bot") && i + 1 < argc) { greedy = !strcmp(argv[++i], "greedy"); }
         else if (!strcmp(argv[i], "--safe") && i + 1 < argc) { safe_steps = atoi(argv[++i]); }
         else if (!strcmp(argv[i], "--layout-seed") && i + 1 < argc) { lseed = (unsigned)atoi(argv[++i]); }
+        else if (!strcmp(argv[i], "--ura")) { loop_n = 1; }   /* 裏面の規則で測る */
         else if (!strcmp(argv[i], "--analyse")) { do_analyse = 1; }
         else if (!strcmp(argv[i], "--board")) { do_board = 1; }
         else if (!strcmp(argv[i], "--sweep") && i + 1 < argc) { sweep = atoi(argv[++i]); }

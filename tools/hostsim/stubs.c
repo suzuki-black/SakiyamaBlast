@@ -63,6 +63,10 @@ void bank_select(uint8_t s)              { (void)s; }
 
 /* --- main.c / hud.c が持っている状態のうち、ロジックが参照するもの --- */
 uint16_t frame_n;
+
+/* **裏面 (2周目) の切り替え。** 本体では main.c が持つ。測るときは sim の
+   `--ura` で 1 にして、表と裏の数字を並べて比べる。 */
+uint8_t loop_n;
 uint8_t  score_d[SCORE_DIGITS];
 
 /* 得点は桁配列ではなく素の数で持つ。指標の「放出量」で得点差分を使うため。 */
