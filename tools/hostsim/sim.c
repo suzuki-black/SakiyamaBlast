@@ -4,7 +4,7 @@
  * src/ のゲームロジックをそのまま gcc でビルドし、VDP/PSG だけスタブに差し替えて
  * ヘッドレスで走らせる。毎フレームの状態を JSONL で吐き、採点は Python 側で行う。
  *
- * 使い方:  hostsim --stage N [--seed S] [--frames F] [--bot greedy|idle] [--ura]
+ * 使い方:  hostsim --stage N [--seed S] [--frames F] [--bot smart|greedy|idle] [--ura]
  *
  * 実機との一致は「同じ乱数の種で同じ盤面が出るか」で確認する (tools/hostsim/verify.sh)。
  */
@@ -247,7 +247,17 @@ static uint8_t bot_greedy_decide(void)
     int pc = px >> 4, pr = py >> 4;
     int best = -1, bestd = 9999, i, k;
     int face_coal = -1, tc = pc, tr = pr, want = -1;
-    int hot = (bath_on && temp > (TEMP_MAX * 7 / 10));
+    /* **風呂は「行く」だけでなく「浸かり続ける」。**
+       以前は着いた時点で目標が消え、次の手を探して**すぐ出ていた**ので、
+       体温が下がりきらず面3以降は16回中16回オーバーヒートで死んでいた。
+       **冷めるまで入力を止める** (0 = 動かない = その場で浸かる)。 */
+    /* **早めに切り上げる。** 半分 (120) で向かうと、掘りながらの移動では
+       間に合わずに風呂の手前で茹だっていた (面3 は16回中16回)。1/3 で立つ。 */
+    int hot = (bath_on && temp > (TEMP_MAX / 3));
+
+    if (bath_on && pc == bath_c && pr == bath_r && temp > (TEMP_MAX / 5)) {
+        return 0;
+    }
 
     bfs(pc, pr);
     update_enemy_dist();
@@ -296,15 +306,21 @@ static uint8_t bot_greedy_decide(void)
         }
     }
 
-    /* 3. 通路が届いていないので土を掘る。一番近い黒ダイヤの方角へ、進める向きを選ぶ。 */
+    /* 3. 通路が届いていないので土を掘る。目標の方角へ、進める向きを選ぶ。
+          **体温が危ないときの目標は風呂。** 以前はここが黒ダイヤ決め打ちで、
+          風呂へ行きたいのに黒ダイヤの方へ掘っていた。 */
     if (want < 0) {
         int gc = -1, gr = -1;
         bestd = 9999;
-        for (i = 0; i < NCELL; i++) {
-            int d;
-            if (!coal[i]) { continue; }
-            d = abs((i % COLS) - pc) + abs((i / COLS) - pr);
-            if (d < bestd) { bestd = d; gc = i % COLS; gr = i / COLS; }
+        if (hot) {
+            gc = bath_c; gr = bath_r;
+        } else {
+            for (i = 0; i < NCELL; i++) {
+                int d;
+                if (!coal[i]) { continue; }
+                d = abs((i % COLS) - pc) + abs((i / COLS) - pr);
+                if (d < bestd) { bestd = d; gc = i % COLS; gr = i / COLS; }
+            }
         }
         if (gc >= 0) {
             int cand[4], n = 0;
@@ -332,6 +348,245 @@ static uint8_t bot_greedy_decide(void)
         if (bestk >= 0) { return stick[bestk]; }
     }
     return want >= 0 ? stick[want] : 0;
+}
+
+
+/* ------------------------------------------------------------------ *
+ * 賢いボット (2026-10-26)
+ *
+ * **貪欲ボットは次の一升しか見ない。** 風呂へ向かう判断が遅れ、途中で蛇行し、
+ * 面3以降はほとんどクリアできない (240回中16回)。
+ *
+ * ここでは**掘る時間込みの最短路**を毎升引き直してから歩く (240回中70回)。
+ *
+ *   升の重み (`bot_cost`) は**すべて「何升ぶん遠回りしてよいか」の尺度**。
+ *   基準は 掘り済み16 / 土24 で、黒ダイヤは 耐久 x PICK_FRAMES。
+ *   熱水・岩・鉱車のレール・敵の近さを、この尺度の罰則として足す。
+ *   ガスの升は通らない (裏面。入ると引火して死ぬ)。
+ *
+ *   **風呂は到着時の体温の見積もりで立つ** (`bot_h` を経路に沿って足す)。
+ *   風呂に入ったら冷めるまで出ない (0 を返して動かない)。
+ *
+ *   **敵は経路の重みで迂回する。** 最後の一歩で避ける作りにすると、
+ *   逃げる→寄られる→戻る の往復になってその場で茹だる。
+ *   隣まで来られたら離れ、逃げ場が無いときだけ振ってよろけさせる。
+ * ------------------------------------------------------------------ */
+#define BOT_INF (1 << 28)
+/* 風呂へ立つときの余裕 (体温)。敵をよけた遠回りと、風呂の升へ入るまでの数歩ぶん。 */
+#define BOT_SLACK 24
+/* **敵を避ける半径はボット専用に持つ。** `--safe` は採点側 (`metrics.py`) の
+   「ヒヤリ」のしきい値で、そちらを 2 にするとボットまで無警戒になってしまう。 */
+#define BOT_CAUTION 4
+#define BOT_EWEIGHT 24          /* 1歩近いごとに足す重み (升1つぶん) */
+
+static const int bot_dc[4] = { 0, -1, 0, 1 };
+static const int bot_dr[4] = { -1, 0, 1, 0 };
+static int bot_d[NCELL], bot_from[NCELL];
+/* **ボットが「いまつるはしを振りたい」と言うための旗。**
+   黒ダイヤを割るためだけでなく、**寄ってきた敵をよろけさせる**ために振る
+   (`PICK_REACH` = 2升届く)。これが無かったときは、どのボットも敵に触れて死ぬのが
+   いちばん多い死因だった (面2・3・6・8〜15 で16回中14〜16回。2026-10-26 実測)。 */
+static uint8_t bot_want_pick;
+/* **その升へ着いたときに体温がどれだけ上がっているか** (経路に沿って足した見積もり)。
+   `bot_d` と一緒に伝播させる。これが無かったときは、つるはしの熱
+   (`HEAT_PER_SWING` = 1振り4) が丸ごと抜けていて、風呂へ立つ判断が手遅れになり、
+   全面で16回中16回オーバーヒートで死んだ (2026-10-26 実測)。 */
+static int bot_h[NCELL];
+
+/* その升を通るあいだに上がる体温。 */
+static int bot_heat(int j)
+{
+    int c = j % COLS, r = j / COLS;
+    if (coal[j] && coal[j] != COAL_CRACKED) {
+        /* 耐久度のぶん振る。1振り = HEAT_PER_SWING + 振り切る時間ぶん。 */
+        return (int)coal[j] * (HEAT_PER_SWING + PICK_FRAMES / TEMP_TICK)
+               + 16 / TEMP_TICK;
+    }
+    if (cell_water((int8_t)c, (int8_t)r)) {
+        return 16 * WATER_HEAT;          /* 熱水は浸かっている間ずっと上がる */
+    }
+    return 16 / TEMP_TICK;               /* 歩くだけ (16フレームで1) */
+}
+
+/*
+ * その升へ入るのに払う額。**罰則は升1つぶん (16〜24) の尺度に揃えてある。**
+ * 以前は 200〜1400 を足していて、実費を完全に押し潰し、経路が「敵から最も遠い道」に
+ * なって延々と遠回りし、面3以降は16回中16回オーバーヒートで死んだ (実測)。
+ * 罰則を足すときは「何升ぶん遠回りしてよいか」で考えること。
+ */
+static int bot_cost(int j)
+{
+    int c = j % COLS, r = j / COLS, w;
+    if (gas_n && gas_at((int8_t)c, (int8_t)r)) {
+        return BOT_INF / 4;                       /* ガスは通らない (入ると死ぬ) */
+    }
+    if (coal[j] && coal[j] != COAL_CRACKED) {
+        /* **黒ダイヤには下の罰則を足さない。** 「岩の真下や敵の横の黒ダイヤは高い」
+           と正直に値付けしたら、240回中のクリアが 70 から 44 へ落ちた。
+           黒ダイヤは目的そのもので、そこを高くすると目的を避けて歩き回り、
+           かえって敵に当たる。**危ない場所を掘るのがこのゲームなので、
+           そこは割り引かない。** (2026-10-26 実測) */
+        return (int)coal[j] * PICK_FRAMES + 24;   /* 割ってから入る */
+    }
+    w = cell_dug((int8_t)c, (int8_t)r) ? 16 : 24;
+    if (cell_water((int8_t)c, (int8_t)r)) {
+        w += 96;                                  /* 熱水 = 4升ぶん遠回りしてよい */
+    }
+    /* **鉱車のレール行に長居しない。** 鉱車は押し出してくるので、行き止まりへ
+       押し込まれると潰される (`src/cart.c`)。 */
+    if (cart_on && r == cart_r) {
+        w += cart_at((int8_t)c, (int8_t)r) ? 400 : 64;
+    }
+    /* **岩の升と岩の真下は高くつく。** 押すと時間がかかり、落ちてくれば潰される。
+       素の最短路で突っ込ませたら、面1 でも16回中16回潰されて死んだ (実測)。 */
+    if (rock_at((int8_t)c, (int8_t)r) >= 0) {
+        w += 48;
+    }
+    if (r > 0 && rock_at((int8_t)c, (int8_t)(r - 1)) >= 0) {
+        w += 96;
+    }
+    /* **敵は「最後の一歩で避ける」のでは間に合わない。**
+       道を塞がれると、安全な隣へ逃げる→また寄られる→元の升へ戻る、を繰り返して
+       その場で往復し、茹だって死んだ (面1、seed 0。(8,0) と (8,1) の間で 56 回)。
+       **重みに入れておけば Dijkstra が最初から迂回する** ので往復が起きない。
+       近いほど高くつけるので、遠い敵のそばは通ってよい。 */
+    {
+        int d = danger_at(c, r);
+        if (d <= BOT_CAUTION) { w += (BOT_CAUTION + 1 - d) * BOT_EWEIGHT; }
+    }
+    return w;
+}
+
+static void bot_dijkstra(int sc, int sr)
+{
+    static uint8_t done[NCELL];
+    int k, n;
+    for (k = 0; k < NCELL; k++) {
+        bot_d[k] = BOT_INF; bot_h[k] = BOT_INF; bot_from[k] = -1; done[k] = 0;
+    }
+    bot_d[sr * COLS + sc] = 0;
+    bot_h[sr * COLS + sc] = 0;
+    for (n = 0; n < NCELL; n++) {
+        int bestk = -1, bestv = BOT_INF, c, r;
+        for (k = 0; k < NCELL; k++) {
+            if (!done[k] && bot_d[k] < bestv) { bestv = bot_d[k]; bestk = k; }
+        }
+        if (bestk < 0) { break; }
+        done[bestk] = 1;
+        c = bestk % COLS; r = bestk / COLS;
+        for (k = 0; k < 4; k++) {
+            int nc = c + bot_dc[k], nr = r + bot_dr[k], j, w;
+            if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) { continue; }
+            j = nr * COLS + nc;
+            w = bot_cost(j);
+            if (bot_d[bestk] + w < bot_d[j]) {
+                bot_d[j] = bot_d[bestk] + w;
+                bot_h[j] = bot_h[bestk] + bot_heat(j);
+                bot_from[j] = bestk;
+            }
+        }
+    }
+}
+
+/* 目標までの道の「最初の一升」を返す。戻り値 <0 なら道が無い。 */
+static int bot_first_step(int to, int from_cell)
+{
+    int prev = -1;
+    if (to < 0 || bot_d[to] >= BOT_INF) { return -1; }
+    while (to >= 0 && to != from_cell) { prev = to; to = bot_from[to]; }
+    return (to == from_cell) ? prev : -1;
+}
+
+static uint8_t bot_smart(void)
+{
+    static const uint8_t stick[4] = { 1, 7, 5, 3 };   /* 上 左 下 右 */
+    static uint8_t held;
+    int pc, pr, me, i, k, step, bathcell = -1, target = -1, bestd = BOT_INF;
+    int arrive_temp;
+
+    if ((px & 15) || (py & 15)) { return held; }      /* 升の途中では決め直さない */
+    pc = px >> 4; pr = py >> 4;
+    me = pr * COLS + pc;
+
+    /* **敵が隣まで来たら、逃げ道を探す。無ければ振ってよろけさせる。**
+       間合い (`PICK_REACH` = 2升) から振らせたら全面で死んだ: 振っている
+       `PICK_FRAMES` のあいだ動けないので、2升先の敵はそのまま寄って触ってくる。
+       よろけさせるのは**逃げ場が無いときの最後の手**で、第一の答えは離れること。 */
+    bot_want_pick = 0;
+    {
+        int ek = -1, j;
+        for (k = 0; k < 4 && ek < 0; k++) {
+            int nc = pc + bot_dc[k], nr = pr + bot_dr[k];
+            for (j = 0; j < ENEMY_MAX; j++) {
+                if (en_state[j] == 1
+                    && (en_x[j] >> 4) == nc && (en_y[j] >> 4) == nr) { ek = k; break; }
+            }
+        }
+        if (ek >= 0) {
+            int bk = -1, bs = 1;
+            for (j = 0; j < 4; j++) {
+                int nc = pc + bot_dc[j], nr = pr + bot_dr[j], d;
+                if (!can_step(nc, nr)) { continue; }
+                d = danger_at(nc, nr);
+                if (d > bs) { bs = d; bk = j; }
+            }
+            if (bk >= 0) { held = stick[bk]; return held; }
+            bot_want_pick = 1;
+            held = stick[ek];
+            return held;
+        }
+    }
+
+    /* 風呂に入っていて熱いなら、冷めるまで浸かる */
+    if (bath_on && pc == bath_c && pr == bath_r && temp > (TEMP_MAX / 5)) {
+        held = 0;
+        return held;
+    }
+
+    update_enemy_dist();            /* **bot_cost が danger_at を見るので先に** */
+    bot_dijkstra(pc, pr);
+
+    if (bath_on) {
+        bathcell = bath_r * COLS + bath_c;
+        /* **着いたときの体温の見積もりで立つ。** 毎升で引き直すので、
+           「いま向かえば間に合う」最後の瞬間まで黒ダイヤを掘れる。 */
+        arrive_temp = temp + bot_h[bathcell] + BOT_SLACK;
+        if (bot_d[bathcell] < BOT_INF && arrive_temp >= TEMP_MAX) {
+            target = bathcell;
+        }
+    }
+    if (target < 0) {                                  /* 一番「近い」黒ダイヤ */
+        for (i = 0; i < NCELL; i++) {
+            if (!coal[i]) { continue; }
+            if (bot_d[i] < bestd) { bestd = bot_d[i]; target = i; }
+        }
+    }
+    if (target < 0) { held = 0; return held; }
+
+    step = bot_first_step(target, me);
+    if (step < 0) { held = 0; return held; }
+
+    for (k = 0; k < 4; k++) {
+        if (pc + bot_dc[k] == step % COLS && pr + bot_dr[k] == step / COLS) {
+            /* **引き返すのは、踏み込んだら即死のときだけ。** 迂回は経路の重みで
+               済んでいるので、ここで毎升やり直すと往復に戻る。 */
+            if (danger_at(step % COLS, step / COLS) <= 1
+                && danger_at(pc, pr) > 1) {
+                int bk = -1, bs = danger_at(pc, pr), j;
+                for (j = 0; j < 4; j++) {
+                    int nc = pc + bot_dc[j], nr = pr + bot_dr[j], d;
+                    if (!can_step(nc, nr)) { continue; }
+                    d = danger_at(nc, nr);
+                    if (d > bs) { bs = d; bk = j; }
+                }
+                if (bk >= 0) { held = stick[bk]; return held; }
+            }
+            held = stick[k];
+            return held;
+        }
+    }
+    held = 0;
+    return held;
 }
 
 /* ------------------------------------------------------------------ *
@@ -1186,6 +1441,7 @@ static void cart_demo(int st)
 int main(int argc, char **argv)
 {
     int want_stage = 1, seed = 1, max_frames = 5400, greedy = 1, i, f;
+    uint8_t face_coal_now = 0;       /* いま向いている先が黒ダイヤか (つるはしを押す条件) */
     int do_analyse = 0, sweep = 0, do_water = 0, do_cart = 0, do_board = 0;
     unsigned lseed = 0;
     uint32_t prev_score = 0;
@@ -1194,7 +1450,10 @@ int main(int argc, char **argv)
         if (!strcmp(argv[i], "--stage")  && i + 1 < argc) { want_stage = atoi(argv[++i]); }
         else if (!strcmp(argv[i], "--seed")   && i + 1 < argc) { seed = atoi(argv[++i]); }
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc) { max_frames = atoi(argv[++i]); }
-        else if (!strcmp(argv[i], "--bot") && i + 1 < argc) { greedy = !strcmp(argv[++i], "greedy"); }
+        else if (!strcmp(argv[i], "--bot") && i + 1 < argc) {
+            const char *b = argv[++i];
+            greedy = !strcmp(b, "greedy") ? 1 : (!strcmp(b, "smart") ? 2 : 0);
+        }
         else if (!strcmp(argv[i], "--safe") && i + 1 < argc) { safe_steps = atoi(argv[++i]); }
         else if (!strcmp(argv[i], "--layout-seed") && i + 1 < argc) { lseed = (unsigned)atoi(argv[++i]); }
         else if (!strcmp(argv[i], "--ura")) { loop_n = 1; }   /* 裏面の規則で測る */
@@ -1277,23 +1536,30 @@ int main(int argc, char **argv)
         frame_n++;
         memset(sfx_fired, 0, sizeof sfx_fired);
 
-        sim_stick = greedy ? bot_greedy() : 0;
+        sim_stick = (greedy == 2) ? bot_smart() : (greedy ? bot_greedy() : 0);
         /* つるはしは「向いている先が黒ダイヤ」のときだけ振る (立ち上がり検出があるので隔フレーム) */
         {
             int cx = px >> 4, cy = py >> 4;
             uint8_t d = player_dir();
             if (d == DIR_UP) { cy--; } else if (d == DIR_DOWN) { cy++; }
             else if (d == DIR_LEFT) { cx--; } else if (d == DIR_RIGHT) { cx++; }
-            sim_trig = (uint8_t)(cell_coal((int8_t)cx, (int8_t)cy) && (f & 1));
+            face_coal_now = cell_coal((int8_t)cx, (int8_t)cy);
+            sim_trig = (uint8_t)(face_coal_now && (f & 1));
         }
         sim_trig_b = 0;
 
         if (!dead) {
             player_update();
-            /* **押しっぱなしにしっぱなしにしない。** そうすると「押した瞬間の1振り」
-               のあとずっと溜めたままになり、ボットが一度も掘らなくなる。
+            /* **黒ダイヤを向いているときだけ押す。**
+               以前は `swing_pow < CHARGE_MAX` だけで押していたので、**歩いている間も
+               ずっと溜め続け**、78フレームごとに威力3の空振りを打っていた
+               (体温 +12 と +4 が位置に関係なく周期的に入る)。歩くだけで毎秒12ほど
+               余計に発熱していて、どのボットも面3以降は16回中16回オーバーヒートで
+               死んでいた。空振りでも発熱する仕様 (`do_swing`) は正しく、
+               **押し方のほうが人の遊び方と違っていた** (2026-10-26)。
                最大まで溜めたら離す = 溜め打ちを繰り返す、という遊び方にする。 */
-            player_pick((uint8_t)(swing_pow < CHARGE_MAX));
+            player_pick((uint8_t)((face_coal_now || bot_want_pick)
+                                  && swing_pow < CHARGE_MAX));
         }
         coal_shake_tick();
         bomb_update();
@@ -1306,10 +1572,10 @@ int main(int argc, char **argv)
 
         printf("{\"f\":%d,\"p\":[%d,%d],\"temp\":%d,\"coal\":%d,\"dug\":%u,"
                "\"score\":%u,\"dscore\":%u,\"dead\":%d,\"stick\":%d,\"face\":%d,"
-               "\"treach\":%d,\"esc\":%d,\"e\":[",
+               "\"treach\":%d,\"esc\":%d,\"combo\":%d,\"e\":[",
                f, pc, pr, temp, coal_left, dug_n,
                sim_score, sim_score - prev_score, dead, sim_stick, player_dir(),
-               t_reach(pc, pr), escapes(pc, pr));
+               t_reach(pc, pr), escapes(pc, pr), (int)combo);
         prev_score = sim_score;
         for (k = 0; k < ENEMY_MAX; k++) {
             int ec = en_x[k] >> 4, er = en_y[k] >> 4;
@@ -1332,7 +1598,33 @@ int main(int argc, char **argv)
             return 0;
         }
         if (dead) {
-            printf("{\"type\":\"dead\",\"frames\":%d,\"cause\":%d}\n", f, dead_cause);
+            /* **死因 0 は「それ以外」が全部入る。** 岩か敵かガスかを現場の様子で分ける
+               (ゲーム側は 0 のまま区別していないので、ここで見るしかない)。 */
+            {
+                const char *why = "?";
+                int c0 = px >> 4, r0 = py >> 4, k0;
+                if (dead_cause == DEAD_HEAT)      { why = "heat"; }
+                else if (dead_cause == DEAD_TIME) { why = "time"; }
+                else if (gas_n && gas_at((int8_t)c0, (int8_t)r0)) { why = "gas"; }
+                else if (cart_on && r0 == cart_r) { why = "cart"; }
+                else if (rock_at((int8_t)c0, (int8_t)r0) >= 0
+                         || (r0 > 0 && rock_at((int8_t)c0, (int8_t)(r0 - 1)) >= 0)) {
+                    why = "rock";
+                } else {
+                    /* **重なりは画素で見る。** 升で見ると、斜めに隣り合って画素では
+                       重なっている当たり (p=[7,10] と敵 [8,9] など) を取りこぼして
+                       「不明」になった。 */
+                    for (k0 = 0; k0 < ENEMY_MAX; k0++) {
+                        if (en_state[k0] == 1
+                            && abs((int)en_x[k0] - (int)px) < 16
+                            && abs((int)en_y[k0] - (int)py) < 16) {
+                            why = "enemy"; break;
+                        }
+                    }
+                }
+                printf("{\"type\":\"dead\",\"frames\":%d,\"cause\":%d,\"why\":\"%s\"}\n",
+                       f, dead_cause, why);
+            }
             return 0;
         }
     }
