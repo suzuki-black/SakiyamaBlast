@@ -634,6 +634,94 @@ static int bot_first_step(int to, int from_cell)
     return (to == from_cell) ? prev : -1;
 }
 
+/* ------------------------------------------------------------------ *
+ * ダイナマイト (2026-10-29)
+ *
+ * **投げる条件は「当たるか」だけでなく「ストックを払う価値があるか」。**
+ * 弾は火薬を拾うぶんしか無く、開始は0。ただし**爆風で倒した敵は半々で火薬を
+ * 落とす** (`enemy_kill_at` の by_rock=0) ので、当て続けるかぎり枯れにくい。
+ *
+ * 飛び方は `src/bomb.c` のとおり:
+ *   - 向いている方へ最大 `BOMB_RANGE` 升。掘り済みで黒ダイヤ・岩・風呂が
+ *     無い升しか抜けられない (**熱水は抜ける**)。
+ *   - 最初に当たった敵の升で爆発し、**その升の敵を全部倒す**。
+ *   - 爆心から1升以内のガスに引火する。**自機がそのガスの1升以内に居ると死ぬ。**
+ *
+ * 投げるには**その方向を向く**必要がある (`main.c` は `player_dir()` を渡す)。
+ * ボットは投げたい向きへスティックを倒して返し、harness がその後で投げる。
+ * 人がやることと同じで、1フレームぶん自機もそちらへ動く。
+ *
+ * **溜め込まずに、届いたら撃つ。** 「危ないときだけ投げる」を入れると 720回中の
+ * クリアが 319 から 283 へ落ちた (2026-10-29 実測)。倒した敵は `lv_rest()` のあいだ
+ * 洞窟へ引っ込むうえ、**半々で火薬を落として弾が戻ってくる**ので、
+ * 温存する理由がない。狙う距離を 2〜4升に絞っても変わらなかった。
+ * ------------------------------------------------------------------ */
+static uint8_t bot_bomb_dir;        /* DIR_NONE なら投げない */
+
+/* `bomb.c` の flyable() と同じ条件。 */
+static int bomb_flyable(int c, int r)
+{
+    if (c < 0 || c >= COLS || r < 0 || r >= ROWS) { return 0; }
+    if (!cell_dug((int8_t)c, (int8_t)r)) { return 0; }
+    if (cell_coal((int8_t)c, (int8_t)r)) { return 0; }
+    if (rock_at((int8_t)c, (int8_t)r) >= 0) { return 0; }
+    if (bath_on && c == bath_c && r == bath_r) { return 0; }
+    return 1;
+}
+
+/* その升で爆発させたとき、自分がガスの巻き添えになるか (`gas_ignite`)。 */
+static int bomb_gas_risk(int bc, int br, int pc, int pr)
+{
+    int i;
+    for (i = 0; i < gas_n; i++) {
+        int gc = gas_c[i], gr = gas_r[i];
+        if (abs(bc - gc) + abs(br - gr) > 1) { continue; }   /* 引火しない */
+        if (!gas_live((uint8_t)i)) { continue; }
+        if (abs(pc - gc) + abs(pr - gr) <= 1) { return 1; }  /* 自分も巻き添え */
+    }
+    return 0;
+}
+
+/* その升に重なっている敵の数。多いほど1発の値打ちが上がる。 */
+static int bomb_targets(int c, int r)
+{
+    int k, n = 0;
+    if (!enemy_at((int8_t)c, (int8_t)r)) { return 0; }   /* 当たるかは本家で見る */
+    for (k = 0; k < ENEMY_MAX; k++) {
+        if (en_state[k] != 1) { continue; }
+        if (abs((int)en_x[k] - (c << 4)) < 12
+            && abs((int)en_y[k] - (r << 4)) < 12) { n++; }
+    }
+    return n ? n : 1;
+}
+
+/* 投げる向きを決める。DIR_NONE なら投げない。 */
+static uint8_t bomb_choose(int pc, int pr)
+{
+    static const uint8_t dir_of[4] = { DIR_UP, DIR_LEFT, DIR_DOWN, DIR_RIGHT };
+    int k, best = -1, bestn = 0, bestd = BOMB_RANGE + 1;
+
+    if (!stock || bomb_state) { return DIR_NONE; }
+    for (k = 0; k < 4; k++) {
+        int c = pc, r = pr, step;
+        for (step = 1; step <= BOMB_RANGE; step++) {
+            int n;
+            c += bot_dc[k]; r += bot_dr[k];
+            n = bomb_targets(c, r);
+            if (n) {
+                if (bomb_gas_risk(c, r, pc, pr)) { break; }
+                /* まとめて倒せるほうを選び、同数なら近いほう */
+                if (n > bestn || (n == bestn && step < bestd)) {
+                    bestn = n; bestd = step; best = k;
+                }
+                break;
+            }
+            if (!bomb_flyable(c, r)) { break; }   /* 土・黒ダイヤ・岩・風呂で止まる */
+        }
+    }
+    return (best < 0) ? DIR_NONE : dir_of[best];
+}
+
 static uint8_t bot_smart(void)
 {
     static const uint8_t stick[4] = { 1, 7, 5, 3 };   /* 上 左 下 右 */
@@ -641,6 +729,18 @@ static uint8_t bot_smart(void)
     int pc, pr, me, i, k, step, bathcell = -1, target = -1, bestd = BOT_INF;
     int arrive_temp;
 
+    /* **ダイナマイトが最優先。** 届くなら、寄られる前に片付けるほうが安い。
+       **升の途中では投げない。** 人のように「狙いが通った瞬間に押す」を
+       許すと、向きを変えるたびに歩みが寄せ直されて経路が崩れ、
+       720回中のクリアが 319 から 303 へ落ちた (2026-10-29 実測)。 */
+    bot_bomb_dir = ((px & 15) || (py & 15)) ? DIR_NONE
+                   : bomb_choose(px >> 4, py >> 4);
+    if (bot_bomb_dir != DIR_NONE) {
+        held = stick[bot_bomb_dir == DIR_UP ? 0
+                     : bot_bomb_dir == DIR_LEFT ? 1
+                     : bot_bomb_dir == DIR_DOWN ? 2 : 3];
+        return held;                                  /* その向きを向いてから投げる */
+    }
     if ((px & 15) || (py & 15)) { return held; }      /* 升の途中では決め直さない */
     pc = px >> 4; pr = py >> 4;
     me = pr * COLS + pc;
@@ -699,6 +799,10 @@ static uint8_t bot_smart(void)
             if (!coal[i]) { continue; }
             if (bot_d[i] < bestd) { bestd = bot_d[i]; target = i; }
         }
+        /* **火薬をわざわざ拾いに行かせるのは損だった。** 弾切れのとき火薬を
+           目標に加えると、720回中のクリアが 319 から 287〜312 へ落ちる
+           (遠回りの量を 0〜256 まで振っても、どれも素のほうが良い。2026-10-29 実測)。
+           掘る時間と体温を払って1発買うより、通りがかりに拾うぶんで足りる。 */
     }
     if (target < 0) { held = 0; return held; }
 
@@ -1706,6 +1810,12 @@ int main(int argc, char **argv)
                弱く連打すると 18 フレームごとに振りが入って**ずっと動けない**。 */
             player_pick((uint8_t)((face_coal_now || bot_want_pick)
                                   && swing_pow < CHARGE_MAX));
+            /* **`main.c` と同じ順で投げる。** `player_update` が向きを決めた
+               あとなので、ボットが倒したスティックの向きへ飛ぶ。 */
+            if (bot_bomb_dir != DIR_NONE) {
+                bomb_throw(player_dir());
+                bot_bomb_dir = DIR_NONE;
+            }
         }
         coal_shake_tick();
         bomb_update();
@@ -1718,11 +1828,12 @@ int main(int argc, char **argv)
 
         printf("{\"f\":%d,\"p\":[%d,%d],\"temp\":%d,\"coal\":%d,\"dug\":%u,"
                "\"score\":%u,\"dscore\":%u,\"dead\":%d,\"stick\":%d,\"face\":%d,"
-               "\"treach\":%d,\"esc\":%d,\"combo\":%d,\"stun\":%d,\"e\":[",
+               "\"treach\":%d,\"esc\":%d,\"combo\":%d,\"stun\":%d,\"stock\":%d,\"e\":[",
                f, pc, pr, temp, coal_left, dug_n,
                sim_score, sim_score - prev_score, dead, sim_stick, player_dir(),
                t_reach(pc, pr), escapes(pc, pr), (int)combo,
-               (int)(en_stun[0] + en_stun[1] + en_stun[2] + en_stun[3]));
+               (int)(en_stun[0] + en_stun[1] + en_stun[2] + en_stun[3]),
+               (int)stock);
         prev_score = sim_score;
         for (k = 0; k < ENEMY_MAX; k++) {
             int ec = en_x[k] >> 4, er = en_y[k] >> 4;
@@ -1753,15 +1864,25 @@ int main(int argc, char **argv)
                 if (dead_cause == DEAD_HEAT)      { why = "heat"; }
                 else if (dead_cause == DEAD_TIME) { why = "time"; }
                 else if (gas_n && gas_at((int8_t)c0, (int8_t)r0)) { why = "gas"; }
+                /* 自分の升で爆発した (`explode_on_enemy`)。**敵は先に消えている**ので
+                   下の重なり判定には掛からず、放っておくと「不明」になる。 */
+                else if (bomb_state == 2 && bomb_c == (uint8_t)((px + 8) >> 4)
+                         && bomb_r == (uint8_t)((py + 8) >> 4)) { why = "self"; }
                 else if (cart_on && r0 == cart_r) { why = "cart"; }
-                else if (rock_at((int8_t)c0, (int8_t)r0) >= 0
-                         || (r0 > 0 && rock_at((int8_t)c0, (int8_t)(r0 - 1)) >= 0)) {
-                    why = "rock";
-                } else {
+                else {
                     /* **重なりは画素で見る。** 升で見ると、斜めに隣り合って画素では
-                       重なっている当たり (p=[7,10] と敵 [8,9] など) を取りこぼして
-                       「不明」になった。 */
-                    for (k0 = 0; k0 < ENEMY_MAX; k0++) {
+                       重なっている当たりを取りこぼして「不明」になる。
+                       岩も同じで、`hits_player` は 13px の重なりで潰すので、
+                       升で見ていたときは**升をまたいで潰された1件を取りこぼした**
+                       (面6 seed1。岩が升 [7,7]、自機が升 [6,8] で画素では重なっていた)。 */
+                    for (k0 = 0; k0 < ROCK_MAX; k0++) {
+                        if (rock_state[k0] != ROCK_FALL) { continue; }
+                        if (abs((int)rock_x[k0] - (int)px) < 13
+                            && abs((int)rock_y[k0] - (int)py) < 13) {
+                            why = "rock"; break;
+                        }
+                    }
+                    for (k0 = 0; why[0] == '?' && k0 < ENEMY_MAX; k0++) {
                         if (en_state[k0] == 1
                             && abs((int)en_x[k0] - (int)px) < 16
                             && abs((int)en_y[k0] - (int)py) < 16) {
