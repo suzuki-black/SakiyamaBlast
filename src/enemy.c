@@ -18,9 +18,9 @@
 uint8_t en_state[ENEMY_MAX];
 uint8_t en_x[ENEMY_MAX], en_y[ENEMY_MAX];
 
-static uint8_t  en_dir[ENEMY_MAX];
+uint8_t  en_dir[ENEMY_MAX];               /* 向き (計測用に公開) */
 uint8_t  en_ghost[ENEMY_MAX];             /* 1 = 透明で土をすり抜けている (計測用に公開) */
-uint8_t  en_kind[ENEMY_MAX];       /* EN_RAT / EN_BAT */
+uint8_t  en_kind[ENEMY_MAX];       /* EN_RED / EN_PINK / EN_CYAN / EN_ORANGE */
 static uint8_t  en_gdirt[ENEMY_MAX];      /* 透明化してから一度でも土の中へ入ったか */
 static uint8_t  en_acc[ENEMY_MAX];
 static uint8_t  en_pause[ENEMY_MAX];
@@ -34,7 +34,7 @@ static uint8_t  en_pool;                  /* この面のプール数 (先頭か
 static uint8_t en_pc[ENEMY_MAX];
 uint8_t  en_warm[ENEMY_MAX];              /* 湧いて点滅中 (まだ当たらない)。計測用に公開 */
 uint8_t  en_stun[ENEMY_MAX];              /* よろけの深さ 0..STUN_MAX */
-static uint16_t en_stun_t[ENEMY_MAX];     /* 次に1段戻るまで */
+uint16_t en_stun_t[ENEMY_MAX];            /* 次に1段戻るまで (計測用に公開) */
 static uint8_t  en_col[ENEMY_MAX];      /* 色テーブルへ焼いた色 (変化時だけ書く) */
 static uint16_t spawn_timer;
 
@@ -786,7 +786,7 @@ static const uint8_t ghost_colours[16] = {
 
 void enemy_draw(void)
 {
-    uint8_t i, col;
+    uint8_t i, col, ph;
     for (i = 0; i < ENEMY_MAX; i++) {
         if (!en_state[i]) {
             spr_park((uint8_t)(SPR_ENEMY + i));
@@ -823,7 +823,22 @@ void enemy_draw(void)
                                 enemy_colours(en_kind[i], en_stun[i]));
             }
         }
+        /*
+         * **うねりの位相 (0〜3)。歩いた距離で進める。**
+         * 速い種ほど速くうねり、岩に詰まって止まっている間はうねりも止まる。
+         * 1升 (16px) 渡るあいだに一巡する。
+         *
+         * 土をすり抜けている最中だけは時間で回す。**斜めに進むので x と y が
+         * 打ち消し合い、距離では位相が進まない**ため (右上へ飛ぶと x+1 y-1 で
+         * 和が動かない)。体ごとにずらして、4体が揃って羽ばたかないようにする。
+         */
+        ph = (uint8_t)((en_ghost[i] ? (uint8_t)((frame_n >> 3) + i)
+                                    : (uint8_t)((en_x[i] + en_y[i]) >> 2)) & 3);
         spr_set((uint8_t)(SPR_ENEMY + i), en_x[i], (uint8_t)(en_y[i] - 1),
-                (uint8_t)(en_stun[i] ? (PAT_STUN1 + en_stun[i] - 1) : PAT_RAT));
+                (uint8_t)(en_stun[i]
+                          ? (PAT_STUN1 + en_stun[i] - 1)
+                          : (ph ? (uint8_t)((en_ghost[i] ? PAT_BAT1 : PAT_RAT1)
+                                            + ph - 1)
+                                : (uint8_t)(en_ghost[i] ? PAT_BAT : PAT_RAT))));
     }
 }

@@ -356,6 +356,11 @@ uint8_t gas_ignite(uint8_t c, uint8_t r); /* 爆発した升の隣のガスへ�
 #define PAT_CART     26  /* 鉱車 (空) */
 #define PAT_CARTROCK 27  /* 岩を載せた鉱車。**合体した1枚**にして走査線を節約する */
 #define PAT_ROCKPROP 28  /* 支柱で止めてある岩。叩くと折れて落ちる */
+/* **敵のうねり。** PAT_RAT / PAT_BAT が位相0で、続く3枚が位相1〜3。
+   4枚が**続き番号**なので、位相から足し算だけで選べる (`enemy_draw` は
+   RAM 実行の枠に居るので、表を持つ余裕が無い)。 */
+#define PAT_RAT1  29     /* ネズミ 歩き 位相1〜3 */
+#define PAT_BAT1  32     /* コウモリ (土をすり抜けている姿) 羽ばたき 位相1〜3 */
 /* かけらは「岩でも採掘できる」を絵で説明するためのもの。言葉にしにくい仕組みなので、
    自機へ集まる動きで「いま手に入った」を伝える。 */
 #define DEBRIS_MAX     6
@@ -695,6 +700,11 @@ extern uint16_t en_morph[ENEMY_MAX];   /* 透明化までの残りフレーム (
 extern uint8_t  en_ghost[ENEMY_MAX];   /* 1 = 透明化中 (計測用) */
 extern uint8_t  en_warm[ENEMY_MAX];    /* 1 = 湧いて点滅中でまだ当たらない (計測用) */
 extern uint8_t  en_stun[ENEMY_MAX];    /* 0 = 通常 / 1..STUN_MAX = よろけ (深いほど長い) */
+/* **先読みのために公開してある2本** (ボットが使う。ゲーム側は enemy.c の中だけで使う)。
+   向きが分かれば「引き返せない」ことが読めて、よろけの残りが分かれば
+   「この敵は何フレーム止まっているか」が読める (tools/hostsim/sim.c の forecast)。 */
+extern uint8_t  en_dir[ENEMY_MAX];     /* DIR_UP..DIR_RIGHT (計測用) */
+extern uint16_t en_stun_t[ENEMY_MAX];  /* よろけが1段戻るまでの残り (計測用) */
 /* 敵をよろけさせる。倒した数ではなく、当たった敵が居たかを返す。 */
 uint8_t enemy_stun_at(int8_t cx, int8_t cy, int8_t dx, int8_t dy, uint8_t power);
 /* 落盤。盤面の敵をまとめてよろけさせる (位置合わせが要らないので命中率が上がる)。 */

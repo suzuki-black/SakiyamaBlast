@@ -180,6 +180,141 @@ static int danger_at(int c, int r)
 }
 
 /* ------------------------------------------------------------------ *
+ * 敵の先読み (2026-10-28)
+ *
+ * **升までの「歩数」ではなく「来るまでのフレーム数」で測る。**
+ * 歩数で測ると、25px/s の橙と 35px/s の赤が同じ危険度になってしまう。
+ * 実際には3升先から来るのに 114 フレームと 81 フレームの差がある。
+ *
+ * 先読みに入れるもの:
+ *   - **種ごとの速さ** (`kind_spd`)。
+ *   - **引き返さない。** `decide_dir` は引き返しを候補から外すので、
+ *     いま通り過ぎた敵は最初の一歩では戻ってこられない。行き止まりだけは
+ *     引き返すので、他に道が無いときは許す。
+ *   - **よろけ** (`en_stun`)。潰れている間は動かないので、そのぶん遅れて来る。
+ *     これを入れると「先頭を潰してその横を通る」が経路として選べるようになる。
+ *   - **湧き口の点滅** (`en_warm`)。実体化するまでは動かないし当たらない。
+ *
+ * **入れてみて効かなかったもの** (どれも 720回で測った。docs/HOSTSIM.md §先読み):
+ *   - **透明化の予兆** (`en_morph`)。あと N フレームで土をすり抜けてくる敵を
+ *     直線距離で見る項。SPD_GHOST は這う速さ (1升 128 フレーム) なので、
+ *     坑道を歩いて来るほうがほとんど常に早く、入れると地平が埋まって
+ *     かえって勾配が消えた (241 -> 234)。**いま透明な敵は直線で見る**
+ *     (坑道を歩いていないので、そうしないと見えない)。
+ *   - **落ちてくる岩** (`under_falling_rock`)。歩数で測っていた頃の
+ *     `danger_at` は岩の真下を 0 にしていたが、`bot_cost` が岩そのものに
+ *     罰則を持っているので二重だった (241 -> 240)。
+ *
+ * `danger_at` (歩数) は残してある。毎フレームの記録に出す `treach` / `esc` が
+ * そちらの尺度で、採点側 (`metrics.py` / `emotion.py`) の値を動かさないため。
+ * ------------------------------------------------------------------ */
+#define FC_FAR     99999        /* 来られない */
+/* 重みの効き方は実測で決める (下の3つ)。掃くときは -DFC_HORIZON=... で上書きする。 */
+#ifndef FC_HORIZON
+#define FC_HORIZON   128        /* 先読みの地平。これより先に来る敵は気にしない */
+#endif
+#ifndef FC_DIV
+#define FC_DIV         1        /* 罰則 = (地平 - 到着フレーム) / これ */
+#endif
+#ifndef FC_PANIC
+#define FC_PANIC      32        /* これより早く来られる升は踏み込まない (1升ぶん) */
+#endif
+
+static int16_t en_hop[ENEMY_MAX][NCELL];   /* 引き返しを除いた歩数 */
+static int threat[NCELL];                  /* 一番早い敵が来るまでのフレーム数 */
+
+/* 1升 (16px) を渡るフレーム数。速度は分子加算式 (SPD_UNIT ごとに1px)。 */
+static int cross_frames(int spd)
+{
+    return 16 * SPD_UNIT / (spd ? spd : 1);
+}
+
+/* 敵kの歩数表。**最初の一歩だけ引き返しを除く。** */
+static void hops_from_enemy(int k, int16_t *out)
+{
+    static const int dc[4] = { 0, -1, 0, 1 };
+    static const int dr[4] = { -1, 0, 1, 0 };
+    static const int dir_k[5] = { -1, 0, 2, 1, 3 };   /* DIR_* -> dc/dr の添字 */
+    static uint16_t q[NCELL];
+    int head = 0, tail = 0, i, d, rev = -1, n;
+    int ec = en_x[k] >> 4, er = en_y[k] >> 4;
+    uint16_t home;
+
+    for (i = 0; i < NCELL; i++) { out[i] = -1; }
+    if (ec < 0 || ec >= COLS || er < 0 || er >= ROWS) { return; }
+    home = (uint16_t)(er * COLS + ec);
+
+    if (en_dir[k] >= DIR_UP && en_dir[k] <= DIR_RIGHT) {
+        rev = (dir_k[en_dir[k]] + 2) & 3;
+        for (d = 0, n = 0; d < 4; d++) {
+            int nc = ec + dc[d], nr = er + dr[d];
+            if (d == rev) { continue; }
+            if (passable(nc, nr) && linked(ec, er, nc, nr)) { n++; }
+        }
+        if (n == 0) { rev = -1; }       /* 行き止まり: 引き返す */
+    }
+
+    out[home] = 0;
+    q[tail++] = home;
+    while (head < tail) {
+        uint16_t cur = q[head++];
+        int c = cur % COLS, r = cur / COLS;
+        for (d = 0; d < 4; d++) {
+            int nc = c + dc[d], nr = r + dr[d], j;
+            if (cur == home && d == rev) { continue; }
+            if (!passable(nc, nr) || !linked(c, r, nc, nr)) { continue; }
+            j = nr * COLS + nc;
+            if (out[j] >= 0) { continue; }
+            out[j] = (int16_t)(out[cur] + 1);
+            q[tail++] = (uint16_t)j;
+        }
+    }
+}
+
+/* 盤面ぜんぶの「一番早い敵が来るまでのフレーム数」を引き直す。
+   升の判断のたびに呼ぶ (16フレームに1回ほど)。 */
+static void forecast(void)
+{
+    int k, i;
+    for (i = 0; i < NCELL; i++) { threat[i] = FC_FAR; }
+    for (k = 0; k < ENEMY_MAX; k++) {
+        int ec, er, walk, gwait, gstep, delay;
+        if (en_state[k] != 1) { continue; }
+        ec = en_x[k] >> 4; er = en_y[k] >> 4;
+
+        /* 動き出すまでの待ち。点滅中とよろけ中はその場で止まっている。 */
+        delay = (int)en_warm[k];
+        if (en_stun[k]) {
+            delay += (en_stun[k] - 1) * STUN_STEP + (int)en_stun_t[k];
+        }
+
+        /* **直線で来る道は、いま透明な敵だけ。** まだ透明でない敵に
+           「あと en_morph で透明になって直線で来る」を足すと成績が落ちた。 */
+        gwait = en_ghost[k] ? 0 : FC_FAR;
+        gstep = cross_frames(SPD_GHOST);
+
+        /* 坑道を歩いて来る道。透明化中の敵は盤面を歩いていない。 */
+        walk = en_ghost[k] ? -1 : cross_frames(kind_spd[en_kind[k]]);
+        if (walk > 0) { hops_from_enemy(k, en_hop[k]); }
+
+        for (i = 0; i < NCELL; i++) {
+            int dc2 = (i % COLS) - ec, dr2 = (i / COLS) - er, t;
+            if (dc2 < 0) { dc2 = -dc2; }
+            if (dr2 < 0) { dr2 = -dr2; }
+            /* 斜めに進めるので、直線では長い辺がそのまま升数になる */
+            t = (gwait >= FC_FAR) ? FC_FAR
+                : gwait + (dc2 > dr2 ? dc2 : dr2) * gstep;
+            if (walk > 0 && en_hop[k][i] >= 0) {
+                int wt = (int)en_hop[k][i] * walk;
+                if (wt < t) { t = wt; }
+            }
+            t += delay;
+            if (t < threat[i]) { threat[i] = t; }
+        }
+    }
+}
+
+/* ------------------------------------------------------------------ *
  * ボット
  * ------------------------------------------------------------------ */
 /* 貪欲ボット。
@@ -374,10 +509,9 @@ static uint8_t bot_greedy_decide(void)
 #define BOT_INF (1 << 28)
 /* 風呂へ立つときの余裕 (体温)。敵をよけた遠回りと、風呂の升へ入るまでの数歩ぶん。 */
 #define BOT_SLACK 24
-/* **敵を避ける半径はボット専用に持つ。** `--safe` は採点側 (`metrics.py`) の
-   「ヒヤリ」のしきい値で、そちらを 2 にするとボットまで無警戒になってしまう。 */
-#define BOT_CAUTION 4
-#define BOT_EWEIGHT 24          /* 1歩近いごとに足す重み (升1つぶん) */
+/* **敵を避ける半径はボット専用に持つ** (`FC_HORIZON`)。`--safe` は採点側
+   (`metrics.py`) の「ヒヤリ」のしきい値で、そちらを 2 にするとボットまで
+   無警戒になってしまう。 */
 
 static const int bot_dc[4] = { 0, -1, 0, 1 };
 static const int bot_dr[4] = { -1, 0, 1, 0 };
@@ -449,10 +583,13 @@ static int bot_cost(int j)
        道を塞がれると、安全な隣へ逃げる→また寄られる→元の升へ戻る、を繰り返して
        その場で往復し、茹だって死んだ (面1、seed 0。(8,0) と (8,1) の間で 56 回)。
        **重みに入れておけば Dijkstra が最初から迂回する** ので往復が起きない。
-       近いほど高くつけるので、遠い敵のそばは通ってよい。 */
+       早く来られる升ほど高くつけるので、遠い敵のそばは通ってよい。
+       **尺度が合うのは偶然ではない。** 自機は SPD_TUNNEL == SPD_UNIT なので
+       1升 16px を 16 フレームで渡る = 掘り済みの升の重み 16 とちょうど同じ。
+       つまりこの重みは「フレーム」と読み替えられる。 */
     {
-        int d = danger_at(c, r);
-        if (d <= BOT_CAUTION) { w += (BOT_CAUTION + 1 - d) * BOT_EWEIGHT; }
+        int t = threat[j];
+        if (t < FC_HORIZON) { w += (FC_HORIZON - t) / FC_DIV; }
     }
     return w;
 }
@@ -523,11 +660,12 @@ static uint8_t bot_smart(void)
             }
         }
         if (ek >= 0) {
-            int bk = -1, bs = 1;
+            int bk = -1, bs = FC_PANIC;
+            forecast();                  /* 逃げ先を先読みで選ぶ */
             for (j = 0; j < 4; j++) {
                 int nc = pc + bot_dc[j], nr = pr + bot_dr[j], d;
                 if (!can_step(nc, nr)) { continue; }
-                d = danger_at(nc, nr);
+                d = threat[nr * COLS + nc];
                 if (d > bs) { bs = d; bk = j; }
             }
             if (bk >= 0) { held = stick[bk]; return held; }
@@ -543,7 +681,8 @@ static uint8_t bot_smart(void)
         return held;
     }
 
-    update_enemy_dist();            /* **bot_cost が danger_at を見るので先に** */
+    update_enemy_dist();            /* 記録に出す treach / esc のため */
+    forecast();                     /* **bot_cost が threat を見るので先に** */
     bot_dijkstra(pc, pr);
 
     if (bath_on) {
@@ -570,13 +709,12 @@ static uint8_t bot_smart(void)
         if (pc + bot_dc[k] == step % COLS && pr + bot_dr[k] == step / COLS) {
             /* **引き返すのは、踏み込んだら即死のときだけ。** 迂回は経路の重みで
                済んでいるので、ここで毎升やり直すと往復に戻る。 */
-            if (danger_at(step % COLS, step / COLS) <= 1
-                && danger_at(pc, pr) > 1) {
-                int bk = -1, bs = danger_at(pc, pr), j;
+            if (threat[step] < FC_PANIC && threat[me] >= FC_PANIC) {
+                int bk = -1, bs = threat[me], j;
                 for (j = 0; j < 4; j++) {
                     int nc = pc + bot_dc[j], nr = pr + bot_dr[j], d;
                     if (!can_step(nc, nr)) { continue; }
-                    d = danger_at(nc, nr);
+                    d = threat[nr * COLS + nc];
                     if (d > bs) { bs = d; bk = j; }
                 }
                 if (bk >= 0) { held = stick[bk]; return held; }
@@ -1557,7 +1695,15 @@ int main(int argc, char **argv)
                余計に発熱していて、どのボットも面3以降は16回中16回オーバーヒートで
                死んでいた。空振りでも発熱する仕様 (`do_swing`) は正しく、
                **押し方のほうが人の遊び方と違っていた** (2026-10-26)。
-               最大まで溜めたら離す = 溜め打ちを繰り返す、という遊び方にする。 */
+               最大まで溜めたら離す = 溜め打ちを繰り返す、という遊び方にする。
+
+               **弱く連打するほうが得ではない。** 「敵が来るまでの時間で段を決め、
+               間に合わないなら弱く叩く」を入れたら 720回中のクリアが 241 から
+               216 へ落ちた (2026-10-28 実測)。溜めと振りで**中断できるかが違う**
+               のが理由で、振り (`swing` = PICK_FRAMES) のあいだは動けないが、
+               溜め (`charge_t`) のあいだは動ける (動けば溜めが切れるだけ)。
+               威力3まで溜めると 96 フレームのうち動けないのは2回の振りの 36 だけ。
+               弱く連打すると 18 フレームごとに振りが入って**ずっと動けない**。 */
             player_pick((uint8_t)((face_coal_now || bot_want_pick)
                                   && swing_pow < CHARGE_MAX));
         }
@@ -1572,16 +1718,17 @@ int main(int argc, char **argv)
 
         printf("{\"f\":%d,\"p\":[%d,%d],\"temp\":%d,\"coal\":%d,\"dug\":%u,"
                "\"score\":%u,\"dscore\":%u,\"dead\":%d,\"stick\":%d,\"face\":%d,"
-               "\"treach\":%d,\"esc\":%d,\"combo\":%d,\"e\":[",
+               "\"treach\":%d,\"esc\":%d,\"combo\":%d,\"stun\":%d,\"e\":[",
                f, pc, pr, temp, coal_left, dug_n,
                sim_score, sim_score - prev_score, dead, sim_stick, player_dir(),
-               t_reach(pc, pr), escapes(pc, pr), (int)combo);
+               t_reach(pc, pr), escapes(pc, pr), (int)combo,
+               (int)(en_stun[0] + en_stun[1] + en_stun[2] + en_stun[3]));
         prev_score = sim_score;
         for (k = 0; k < ENEMY_MAX; k++) {
             int ec = en_x[k] >> 4, er = en_y[k] >> 4;
             printf("%s{\"on\":%d,\"c\":[%d,%d],\"g\":%d,\"warm\":%d,\"d\":%d}",
                    k ? "," : "", en_state[k], ec, er, en_ghost[k],
-                   en_morph[k] ? 0 : 0,
+                   en_warm[k] ? 1 : 0,
                    (ec >= 0 && ec < COLS && er >= 0 && er < ROWS) ? bfs_d[er * COLS + ec] : -1);
         }
         printf("],\"r\":[");

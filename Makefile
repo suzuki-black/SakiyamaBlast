@@ -112,13 +112,13 @@ KANJI_SEG := 13
 MUSIC_SRC := $(SRCDIR)/music.c $(SRCDIR)/endtext.c
 MUSIC_SEG := 14
 
-ART_SPR_NAMES  := miner,bomb,rock,rat,bat,split,stun1,stun2,stun3,brace,wd1,wd2,wu1,wu2,wl1,wl2,wr1,wr2,bru,brl,brr,std,stu,stl,str,chip,cart,cartrock,rockprop
+ART_SPR_NAMES  := miner,bomb,rock,rat,bat,split,stun1,stun2,stun3,brace,wd1,wd2,wu1,wu2,wl1,wl2,wr1,wr2,bru,brl,brr,std,stu,stl,str,chip,cart,cartrock,rockprop,rat1,rat2,rat3,bat1,bat2,bat3
 ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,spring,springoff,toir,toil,toibr,toibl,rail,raill,railr,gas
 
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT
 MACHINE   ?= C-BIOS_MSX2+_JP
 
-.PHONY: hostsim grade emotion all run check gamedata gamedata-import clean
+.PHONY: hostsim grade emotion all run check gamedata gamedata-import enemy-anim clean
 
 all: $(ROM)
 
@@ -178,6 +178,12 @@ run: $(ROM)
 gamedata: $(ART_SPR_SRC) $(ART_TILE_SRC) tools/export_gamedata.py tools/palette.py
 	python3 tools/export_gamedata.py gamedata.json \
 	    --sprite-names $(ART_SPR_NAMES) --tile-names $(ART_TILE_NAMES)
+
+# 敵のアニメのコマを作り直す (assets/sprites.png の該当セルだけ書き替える)。
+# **普段は走らせない。** 絵の正は PNG のほうで、これはたたき台を作る道具。
+# 揺れ方を数字で直したいときだけ使う (勘どころはツールの説明にある)。
+enemy-anim:
+	python3 tools/gen_enemy_anim.py --names $(ART_SPR_NAMES) --preview $(BUILDDIR)
 
 # パターンエディタで編集した gamedata.json を取り込む (assets の PNG を書き戻す)
 gamedata-import: gamedata.json tools/import_gamedata.py tools/palette.py
