@@ -705,6 +705,18 @@ extern uint8_t  en_stun[ENEMY_MAX];    /* 0 = 通常 / 1..STUN_MAX = よろけ (
    「この敵は何フレーム止まっているか」が読める (tools/hostsim/sim.c の forecast)。 */
 extern uint8_t  en_dir[ENEMY_MAX];     /* DIR_UP..DIR_RIGHT (計測用) */
 extern uint16_t en_stun_t[ENEMY_MAX];  /* よろけが1段戻るまでの残り (計測用) */
+extern uint8_t  en_pause[ENEMY_MAX];   /* >0 の間は動かない (槍の構えが立てる) */
+
+/* --- spear.c --- 赤い敵のひと突き (間合い1升)。詳しくはそのファイルの説明。 */
+#define SPEAR_STAGE   4       /* 第二坑から持つ。裏面は最初から */
+#define SPEAR_WIND   18       /* 構え (0.3秒)。**この間は動かない = つるはしの的** */
+#define SPEAR_HOLD    6       /* 突き出したまま見せる長さ (0.1秒) */
+#define SPEAR_REST   45       /* 突いたあと次を出せるまで (0.75秒) */
+#define SPEAR_TOTAL  (SPEAR_WIND + SPEAR_HOLD + SPEAR_REST)
+#define SPEAR_JAB     6       /* 突いた瞬間に絵を前へずらす量 (px) */
+extern uint8_t en_spear[ENEMY_MAX];    /* 突きの進行。0 = 何もしていない */
+void    spear_tick(uint8_t i);         /* **点滅の判定より前**で呼ぶこと */
+uint8_t spear_jab(uint8_t i);          /* 1 = いま突き出している */
 /* 敵をよろけさせる。倒した数ではなく、当たった敵が居たかを返す。 */
 uint8_t enemy_stun_at(int8_t cx, int8_t cy, int8_t dx, int8_t dy, uint8_t power);
 /* 落盤。盤面の敵をまとめてよろけさせる (位置合わせが要らないので命中率が上がる)。 */

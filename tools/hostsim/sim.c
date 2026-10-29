@@ -831,6 +831,30 @@ static uint8_t bot_smart(void)
     return held;
 }
 
+/* 穂先の升に自機が重なっているか (死因の切り分け用)。
+   **敵の体からの距離で近似してはいけない。** 槍は1升先を突くので、
+   敵が升の端に居ると体からは 32px 離れていても当たる (それで取りこぼした)。
+   `src/spear.c` の `player_ahead` と同じ見方にしてある。 */
+static int spear_near(void)
+{
+    static const int dc[5] = { 0, 0, 0, -1, 1 };
+    static const int dr[5] = { 0, -1, 1, 0, 0 };
+    int k;
+    for (k = 0; k < ENEMY_MAX; k++) {
+        int d, tc, tr;
+        if (en_state[k] != 1 || en_spear[k] <= SPEAR_REST) { continue; }
+        d = en_dir[k];
+        if (d < DIR_UP || d > DIR_RIGHT) { continue; }
+        tc = (en_x[k] >> 4) + dc[d];
+        tr = (en_y[k] >> 4) + dr[d];
+        if (tc < 0 || tc >= COLS || tr < 0 || tr >= ROWS) { continue; }
+        if (abs((int)px - (tc << 4)) < 12 && abs((int)py - (tr << 4)) < 12) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /* ------------------------------------------------------------------ *
  * 本体
  * ------------------------------------------------------------------ */
@@ -1869,14 +1893,20 @@ int main(int argc, char **argv)
                 else if (bomb_state == 2 && bomb_c == (uint8_t)((px + 8) >> 4)
                          && bomb_r == (uint8_t)((py + 8) >> 4)) { why = "self"; }
                 else if (cart_on && r0 == cart_r) { why = "cart"; }
+                /* 槍 (赤の突き)。**1升離れている**ので下の重なり判定には掛からない。 */
+                else if (spear_near()) { why = "spear"; }
                 else {
                     /* **重なりは画素で見る。** 升で見ると、斜めに隣り合って画素では
                        重なっている当たりを取りこぼして「不明」になる。
                        岩も同じで、`hits_player` は 13px の重なりで潰すので、
                        升で見ていたときは**升をまたいで潰された1件を取りこぼした**
                        (面6 seed1。岩が升 [7,7]、自機が升 [6,8] で画素では重なっていた)。 */
+                    /* **落下中に限ってはいけない。** 潰した岩はその場で着地して
+                       状態が変わるので、死んだフレームには既に ROCK_FALL ではない。
+                       止まっている岩は自機と重なれない (通れないので) から、
+                       13px 重なっていればそれが死因でよい。 */
                     for (k0 = 0; k0 < ROCK_MAX; k0++) {
-                        if (rock_state[k0] != ROCK_FALL) { continue; }
+                        if (rock_state[k0] == ROCK_NONE) { continue; }
                         if (abs((int)rock_x[k0] - (int)px) < 13
                             && abs((int)rock_y[k0] - (int)py) < 13) {
                             why = "rock"; break;

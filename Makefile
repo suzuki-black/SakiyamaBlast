@@ -31,7 +31,9 @@ OPT_SPEED := --opt-code-speed
 OPT_SIZE  := --opt-code-size
 # **field.c も大きさ優先。** 9KB あるが、その大半は面の組み立て (1面に1回) で、
 # 毎フレーム走るのは描画の数本だけ。速度への影響は実測して確かめること。
-SIZE_SRC   = $(BANKED_SRC) $(SRCDIR)/field.c    # **遅延展開。** BANKED_SRC はこの後で定義される
+# **spear.c も大きさ優先。** 固定領域の空きが数百バイトしかなく、毎フレーム走るのは
+# 敵1体あたり数行だけなので、速度より大きさを取る (speed だと 616B、size だと 403B)。
+SIZE_SRC   = $(BANKED_SRC) $(SRCDIR)/field.c $(SRCDIR)/spear.c  # **遅延展開。** BANKED_SRC はこの後
 LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKDATA=0xA000 -Wl-b_MUSICDATA=0x2000 -Wl-b_RAMCODE=0xC9A0
 
 # 固定領域 (0x4000-0x9FFF) は 24KB しかない。絵と曲は**ただのデータ**なので、
@@ -199,7 +201,7 @@ clean:
 # ヘッドレスで走らせる。詳細は docs/HOSTSIM.md。
 HOSTSIM_SRC := $(SRCDIR)/field.c $(SRCDIR)/enemy.c $(SRCDIR)/player.c $(SRCDIR)/water.c \
                $(SRCDIR)/rock.c $(SRCDIR)/bomb.c $(SRCDIR)/bonus.c $(SRCDIR)/cart.c \
-               $(SRCDIR)/levels.c \
+               $(SRCDIR)/levels.c $(SRCDIR)/spear.c \
                tools/hostsim/stubs.c tools/hostsim/sim.c
 
 tools/hostsim/sim: $(HOSTSIM_SRC) $(HEADERS)

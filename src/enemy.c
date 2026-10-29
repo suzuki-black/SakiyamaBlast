@@ -23,7 +23,7 @@ uint8_t  en_ghost[ENEMY_MAX];             /* 1 = 透明で土をすり抜けて�
 uint8_t  en_kind[ENEMY_MAX];       /* EN_RED / EN_PINK / EN_CYAN / EN_ORANGE */
 static uint8_t  en_gdirt[ENEMY_MAX];      /* 透明化してから一度でも土の中へ入ったか */
 static uint8_t  en_acc[ENEMY_MAX];
-static uint8_t  en_pause[ENEMY_MAX];
+uint8_t  en_pause[ENEMY_MAX];             /* 動かない残りフレーム (槍の構えも立てる) */
 uint16_t en_morph[ENEMY_MAX];             /* 透明化までの残りフレーム (計測用に公開) */
 static uint16_t scatter_t;                /* 散開/追跡の切り替えタイマ */
 static uint8_t  scattering;               /* 1 = 散開中 (各自の隅へ向かう) */
@@ -678,6 +678,10 @@ void enemy_update(void)
         if (!en_state[i]) {
             continue;
         }
+        /* **槍 (赤だけ)。** 構えている間は `en_pause` が立つので、下の移動の枝が
+           そのまま止めてくれる。中身は `src/spear.c` (固定領域) にある。
+           **点滅中にも呼ぶ** — そこで前の面の構えが捨てられる。 */
+        spear_tick(i);
         if (en_warm[i]) {
             en_warm[i]--;                /* 湧き出し口で点滅中。動かないし当たらない */
             continue;
@@ -786,7 +790,7 @@ static const uint8_t ghost_colours[16] = {
 
 void enemy_draw(void)
 {
-    uint8_t i, col, ph;
+    uint8_t i, col, ph, sx, sy;
     for (i = 0; i < ENEMY_MAX; i++) {
         if (!en_state[i]) {
             spr_park((uint8_t)(SPR_ENEMY + i));
@@ -834,7 +838,15 @@ void enemy_draw(void)
          */
         ph = (uint8_t)((en_ghost[i] ? (uint8_t)((frame_n >> 3) + i)
                                     : (uint8_t)((en_x[i] + en_y[i]) >> 2)) & 3);
-        spr_set((uint8_t)(SPR_ENEMY + i), en_x[i], (uint8_t)(en_y[i] - 1),
+        /* **突いた瞬間は絵を前へ出す。** 穂先の絵を持たせる余地が無いので、
+           「固まる → 前へ出る → 戻る」という**動きのほうで**突きを見せる。 */
+        sx = en_x[i];
+        sy = (uint8_t)(en_y[i] - 1);
+        if (spear_jab(i)) {
+            sx = (uint8_t)(sx + dir_dc(en_dir[i]) * SPEAR_JAB);
+            sy = (uint8_t)(sy + dir_dr(en_dir[i]) * SPEAR_JAB);
+        }
+        spr_set((uint8_t)(SPR_ENEMY + i), sx, sy,
                 (uint8_t)(en_stun[i]
                           ? (PAT_STUN1 + en_stun[i] - 1)
                           : (ph ? (uint8_t)((en_ghost[i] ? PAT_BAT1 : PAT_RAT1)
