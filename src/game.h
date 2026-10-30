@@ -438,6 +438,8 @@ void    draw_bombdrop(uint8_t cx, uint8_t cy);
 /* 倒した敵の落とし物。is_ume なら梅干し (冷却)、そうでなければ火薬。 */
 void    drop_item_at(int8_t cx, int8_t cy, uint8_t is_ume);
 void    draw_ume(uint8_t cx, uint8_t cy);
+void    draw_gas(uint8_t cx, uint8_t cy);      /* 裏面のガス。組み立て側からも呼ぶ */
+void    carve_stage_number(void);              /* 面番号の掘り抜き。同上 */
 void    coal_crush_at(int8_t cx, int8_t cy);   /* 落ちてきた岩が割れた黒ダイヤを砕く */
 /* 落盤で、岩が載っている黒ダイヤを割る。つるはしで割ったのと同じ状態にするが、
    炭柱だった場合も落盤を再帰させない。 */

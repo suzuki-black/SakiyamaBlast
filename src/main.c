@@ -210,7 +210,12 @@ static void start_stage(void)
     /* パレットの差し替えと面の描き起こしは見せない。描き切ってから幕を上げる。 */
     vdp_display(0);
     set_game_palette();
+    /* **窓2を組み立て側へ向ける。** build_stage() は 0x8000 の STAGEGEN に
+       あるので、向けないと呼べない。**この間 player.c (PLAYCODE) は見えない**
+       ので、組み立てが終わったら必ず戻す。切り替えるのはここだけ。 */
+    win2_select(WIN2_GEN_SEG);
     build_stage();
+    win2_select(WIN2_PLAY_SEG);
     bomb_clear();
     player_start();
     enemy_stage_reset();

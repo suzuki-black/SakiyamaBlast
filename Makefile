@@ -29,18 +29,20 @@ AS        := sdasz80
 CFLAGS    := -mz80 --std-c99 --sdcccall 1 -I$(SRCDIR) -I$(BUILDDIR)
 OPT_SPEED := --opt-code-speed
 OPT_SIZE  := --opt-code-size
-# **field.c も大きさ優先。** 9KB あるが、その大半は面の組み立て (1面に1回) で、
-# 毎フレーム走るのは描画の数本だけ。速度への影響は実測して確かめること。
+# **field.c も大きさ優先。** 毎フレーム走るのは描画の数本だけ。
+# 速度への影響は実測して確かめること。
 # **spear.c も大きさ優先。** 固定領域の空きが数百バイトしかなく、毎フレーム走るのは
 # 敵1体あたり数行だけなので、速度より大きさを取る (speed だと 616B、size だと 403B)。
 # **player.c / rock.c / main.c もサイズ優先にした (2026-10-30)。** 固定領域が
 # 7バイトまで詰まったため。452バイト空いて、fps は openMSX の実測で変わらなかった
 # (`sh tools/fps.sh`。Z80 49.65 -> 49.90 / turbo R 59.80 -> 59.80)。
-SIZE_SRC   = $(BANKED_SRC) $(SRCDIR)/field.c $(SRCDIR)/spear.c \
-             $(SRCDIR)/player.c $(SRCDIR)/rock.c $(SRCDIR)/main.c  # **遅延展開**
-LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKDATA=0xA000 -Wl-b_MUSICDATA=0x2000 -Wl-b_RAMCODE=0xC9A0
+SIZE_SRC   = $(BANKED_SRC) $(WIN2_SRC) $(SRCDIR)/field.c $(SRCDIR)/spear.c \
+             $(SRCDIR)/rock.c $(SRCDIR)/main.c  # **遅延展開**
+LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 \
+             -Wl-b_BANKDATA=0xA000 -Wl-b_MUSICDATA=0x2000 -Wl-b_RAMCODE=0xC9A0 \
+             -Wl-b_STAGEGEN=0x8000 -Wl-b_PLAYCODE=0x8000
 
-# 固定領域 (0x4000-0x9FFF) は 24KB しかない。絵と曲は**ただのデータ**なので、
+# 固定領域 (0x4000-0x7FFF) は 16KB しかない。絵と曲は**ただのデータ**なので、
 # 0xA000 の窓へリンクして ROM のセグメント3へ置き、固定領域を空ける。
 # 実行時は bank_select(DATA_SEG) でこの窓を選んでおく。
 # バンク側 (0xA000 の窓) へ置くモジュール。
@@ -72,6 +74,29 @@ BANKED_SRC := \
 # **写す前に呼ばれるものは置けない** (crt0 / lowlevel / main の冒頭)。
 RAM_SRC   := $(SRCDIR)/enemy.c $(SRCDIR)/bomb.c $(SRCDIR)/sound.c $(SRCDIR)/opll.c $(SRCDIR)/pcm.c \
              $(SRCDIR)/vdp.c $(SRCDIR)/text.c $(SRCDIR)/tlimit.c
+
+# **2枚目の窓 (0x8000-0x9FFF)。オーバーレイ。**
+# 0x8000 を窓にすると固定領域は 0x4000-0x7FFF の 16KB へ縮む。縮めただけでは
+# 損なので、**同じ 0x8000 に2つの領域を重ねて置く** (どちらも「ここは 0x8000」と
+# してリンクし、ROM では別のセグメントへ入れて、win2_select() で入れ替える)。
+# これで 0x8000-0x9FFF の 8KB が「2回ぶん」使える。
+#
+#   STAGEGEN ... 面の組み立て (stagegen.c)。**1面に1回だけ**走る
+#   PLAYCODE ... 遊んでいる間ずっと使うもの (player.c)
+#
+# **切り替えは main.c がやる**: build_stage() の前後だけ STAGEGEN を向け、
+# それ以外は常に PLAYCODE。したがって:
+#   - STAGEGEN からは PLAYCODE が見えない (組み立て中に player_* は呼べない)
+#   - PLAYCODE からは STAGEGEN が見えない (build_stage 以外は呼べない)
+#   - 両方から見えるのは**固定領域・1枚目の窓 (0xA000)・RAM** だけ
+# 両方から呼ぶもの (draw_* / cell_* / carve_stage_number) は field.c に残してある。
+#
+# **割り込みは 0x8000 に触らない。** 和太鼓の ISR は RAM と 1枚目の窓しか使わない
+# ので、bank_select のような「控えを一緒に書き替える」注意は要らない。
+# 置き場 (ROM セグメント) は tools/ihx2rom.py の WIN2_SEGS が領域名で決める。
+GEN_SRC   := $(SRCDIR)/stagegen.c
+PLAY2_SRC := $(SRCDIR)/player.c
+WIN2_SRC   = $(GEN_SRC) $(PLAY2_SRC)
 
 CSRC      := $(wildcard $(SRCDIR)/*.c)
 HEADERS   := $(wildcard $(SRCDIR)/*.h)
@@ -164,13 +189,17 @@ $(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(HEADERS) $(MAKEFILE) $(TITLE_PAL) $(ART_SPR) 
 	  $(if $(filter $<,$(SIZE_SRC)),$(OPT_SIZE),$(OPT_SPEED)) \
 	  $(if $(filter $<,$(MUSIC_SRC)),--codeseg MUSICDATA --constseg MUSICDATA) \
 	  $(if $(filter $<,$(BANKED_SRC)),--codeseg BANKDATA --constseg BANKDATA) \
-	  $(if $(filter $<,$(RAM_SRC)),--codeseg RAMCODE --constseg RAMCODE) -c -o $@ $<
+	  $(if $(filter $<,$(RAM_SRC)),--codeseg RAMCODE --constseg RAMCODE) \
+	  $(if $(filter $<,$(GEN_SRC)),--codeseg STAGEGEN --constseg STAGEGEN) \
+	  $(if $(filter $<,$(PLAY2_SRC)),--codeseg PLAYCODE --constseg PLAYCODE) -c -o $@ $<
 
 # crt0 が必ず先頭に来るようにリンク順を固定する
 $(IHX): $(BUILDDIR)/crt0.rel $(AOBJ) $(COBJ)
 	$(CC) $(LDFLAGS) -o $@ $(BUILDDIR)/crt0.rel $(filter-out $(BUILDDIR)/crt0.rel,$(AOBJ)) $(COBJ)
 
-$(ROM): $(IHX) $(TITLE_BIN) $(ART_TILE_BIN) $(ART_SPR_BIN) $(TAIKO_BIN) $(KANJI_BIN) tools/ihx2rom.py
+$(ROM): $(IHX) $(TITLE_BIN) $(ART_TILE_BIN) $(ART_SPR_BIN) $(TAIKO_BIN) $(KANJI_BIN) \
+        tools/ihx2rom.py tools/win2check.py
+	@python3 tools/win2check.py
 	python3 tools/ihx2rom.py $(IHX) $(ROM) 128 $(TITLE_SEG):$(TITLE_BIN) \
 	    $(ART_TILE_SEG):$(ART_TILE_BIN) $(ART_SPR_SEG):$(ART_SPR_BIN) \
 	    $(TAIKO_SEG):$(TAIKO_BIN) $(KANJI_SEG):$(KANJI_BIN)
@@ -203,7 +232,8 @@ clean:
 # ---- 面の数値化 (ホスト側。MSX の ROM とは別物) ----
 # src/ のロジックをそのまま gcc でビルドし、VDP/PSG だけスタブへ差し替えて
 # ヘッドレスで走らせる。詳細は docs/HOSTSIM.md。
-HOSTSIM_SRC := $(SRCDIR)/field.c $(SRCDIR)/enemy.c $(SRCDIR)/player.c $(SRCDIR)/water.c \
+HOSTSIM_SRC := $(SRCDIR)/field.c $(SRCDIR)/stagegen.c \
+               $(SRCDIR)/enemy.c $(SRCDIR)/player.c $(SRCDIR)/water.c \
                $(SRCDIR)/rock.c $(SRCDIR)/bomb.c $(SRCDIR)/bonus.c $(SRCDIR)/cart.c \
                $(SRCDIR)/levels.c $(SRCDIR)/spear.c \
                tools/hostsim/stubs.c tools/hostsim/sim.c

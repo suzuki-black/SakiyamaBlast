@@ -44,14 +44,18 @@ MUSIC_SEG = 14
 # (オーバーレイ)。リンカは同じ番地に複数の領域を置けて、.ihx には**それぞれが
 # 0x8000 から始まるレコード**として順に出る。そこを切り分けている。
 #
-# **使っていないときは何も変わらない。** マップに 0x8000 始まりの領域が2つ以上
-# 無ければ 0x8000-0x9FFF はただの固定領域のまま (いまはこちら)。
+# **いま使っている**: STAGEGEN (面の組み立て) と PLAYCODE (player.c) の2枚。
+# マップに 0x8000 始まりの領域が2つ以上無ければ 0x8000-0x9FFF はただの固定領域に
+# 戻る (この分岐は、窓2をやめて元の 24KB へ戻せるように残してある)。
 WIN2_BASE = 0x8000
 WIN2_END = 0xA000
-# オーバーレイを置く ROM セグメント。**1枚目は seg2** (オーバーレイにすると
-# 固定領域が 0x4000-0x7FFF = seg0,1 だけになり seg2 が空くため)。
-# 増やすときは ROM を大きくして足すこと (いま 128KB = seg0..15)。
-WIN2_SEGS = (2, 15)
+# オーバーレイを置く ROM セグメント。**領域の名前で決める**ので、リンクの順番が
+# 変わっても入れ替わらない (ここを順番で決めていると、Makefile のリンク順を
+# いじった日に黙って入れ替わり、組み立てのつもりで player.c を呼ぶ ROM ができる)。
+# **STAGEGEN は seg2** (オーバーレイにすると固定領域が 0x4000-0x7FFF = seg0,1
+# だけになり seg2 が空くため)。増やすときは ROM を大きくして足すこと
+# (いま 128KB = seg0..15)。**src/msx.h の WIN2_*_SEG と揃えること。**
+WIN2_SEGS = {"STAGEGEN": 2, "PLAYCODE": 15}
 
 
 def parse_ihx(path, overlay=None):
@@ -110,6 +114,25 @@ def overlay_areas(mapf):
     return out
 
 
+def intruders(mapf):
+    """オーバーレイのとき、**0x8000-0x9FFF へ食い込んでいる他の領域**を返す。
+    固定領域 (0x4000-0x7FFF) が溢れるとここへ伸びてきて、窓の中身と重なる。
+    IHX の塊の数が合わなくなるので最終的には止まるが、原因が分かる形で先に止める。"""
+    out = []
+    if not mapf or not os.path.exists(mapf):
+        return out
+    for line in open(mapf, encoding="utf-8", errors="ignore"):
+        m = re.match(r"^_(\w+)\s+([0-9A-Fa-f]{8})\s+([0-9A-Fa-f]{8})\s", line)
+        if not m:
+            continue
+        name, base, size = m.group(1), int(m.group(2), 16), int(m.group(3), 16)
+        if not size or name in WIN2_SEGS:
+            continue
+        if base < WIN2_END and base + size > WIN2_BASE:
+            out.append((name, base, size))
+    return out
+
+
 def main(argv):
     if len(argv) < 3:
         print("usage: ihx2rom.py <in.ihx> <out.rom> [size_kb] [seg:file ...]",
@@ -126,6 +149,14 @@ def main(argv):
     fixed_end = WIN2_BASE if ovl else FIXED_END
 
     if ovl:
+        bad = intruders(mapf)
+        if bad:
+            for name, base, size in bad:
+                print("error: 領域 %s (0x%04X-0x%04X) が窓2 (0x%04X-0x%04X) に"
+                      "食い込んでいます。固定領域 0x4000-0x%04X が溢れました"
+                      % (name, base, base + size - 1, WIN2_BASE, WIN2_END - 1,
+                         WIN2_BASE - 1), file=sys.stderr)
+            return 1
         mem, ovl_blobs = parse_ihx(ihx, overlay=(WIN2_BASE, WIN2_END))
         if len(ovl_blobs) != len(ovl):
             print("error: 0x8000 の領域がマップでは %d 個、IHX では %d 塊です"
@@ -141,10 +172,11 @@ def main(argv):
                 print("error: 領域 %s が %d バイトで 1セグメント (%d) を超えます"
                       % (name, size, SEG_SIZE), file=sys.stderr)
                 return 1
-        if len(ovl_blobs) > len(WIN2_SEGS):
-            print("error: 0x8000 のオーバーレイが %d 枚ありますが、置き場は %d 枚しか"
-                  "用意していません (ihx2rom.py の WIN2_SEGS)"
-                  % (len(ovl_blobs), len(WIN2_SEGS)), file=sys.stderr)
+        unknown = [name for name, _ in ovl if name not in WIN2_SEGS]
+        if unknown:
+            print("error: 0x8000 の領域 %s に置き場がありません "
+                  "(ihx2rom.py の WIN2_SEGS へ追加すること)" % ", ".join(unknown),
+                  file=sys.stderr)
             return 1
     else:
         mem, ovl_blobs = parse_ihx(ihx), []
@@ -205,11 +237,11 @@ def main(argv):
             rom[RAMCODE_SEG * SEG_SIZE + (addr - RAMCODE_BASE)] = val
 
     # オーバーレイ: 同じ 0x8000 へリンクした領域を、それぞれ別のセグメントへ。
-    for i, ((name, _size), (_base, buf)) in enumerate(zip(ovl, ovl_blobs)):
-        off = WIN2_SEGS[i] * SEG_SIZE
+    for (name, _size), (_base, buf) in zip(ovl, ovl_blobs):
+        off = WIN2_SEGS[name] * SEG_SIZE
         rom[off:off + len(buf)] = buf
         print("  seg%d: 窓2 (0x8000) の %s = %d バイト (空き %d)"
-              % (WIN2_SEGS[i], name, len(buf), SEG_SIZE - len(buf)))
+              % (WIN2_SEGS[name], name, len(buf), SEG_SIZE - len(buf)))
 
     for addr, val in music.items():
         rom[MUSIC_SEG * SEG_SIZE + (addr - MUSIC_BASE)] = val
