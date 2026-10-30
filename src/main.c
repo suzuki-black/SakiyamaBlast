@@ -343,6 +343,9 @@ void main(void)
         }
     }
     bank_select(DATA_SEG);      /* 0xA000 の窓を絵と曲へ向けておく */
+    /* **2枚目の窓も明示的に選んでおく。** crt0 が起動時に書いた値と控えを揃える
+       (crt0 はポートへ直接書くので、控えだけが 0 のままになる)。 */
+    win2_select(WIN2_PLAY_SEG);
 
     /*
      * **turbo R なら R800 の DRAM モードへ切り替える。**

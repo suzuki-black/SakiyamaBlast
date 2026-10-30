@@ -39,10 +39,26 @@ RAMCODE_SEG = 8           # その中身を置く ROM セグメント
 MUSIC_BASE = 0x2000
 MUSIC_END = 0x4000
 MUSIC_SEG = 14
+# **2枚目の窓 (0x8000-0x9FFF)。** ここへ**複数の領域を同じ番地へ**リンクすると、
+# それぞれ別の ROM セグメントへ置かれ、実行時に win2_select() で入れ替えて使える
+# (オーバーレイ)。リンカは同じ番地に複数の領域を置けて、.ihx には**それぞれが
+# 0x8000 から始まるレコード**として順に出る。そこを切り分けている。
+#
+# **使っていないときは何も変わらない。** マップに 0x8000 始まりの領域が2つ以上
+# 無ければ 0x8000-0x9FFF はただの固定領域のまま (いまはこちら)。
+WIN2_BASE = 0x8000
+WIN2_END = 0xA000
+# オーバーレイを置く ROM セグメント。**1枚目は seg2** (オーバーレイにすると
+# 固定領域が 0x4000-0x7FFF = seg0,1 だけになり seg2 が空くため)。
+# 増やすときは ROM を大きくして足すこと (いま 128KB = seg0..15)。
+WIN2_SEGS = (2, 15)
 
 
-def parse_ihx(path):
+def parse_ihx(path, overlay=None):
+    """IHX を読む。overlay=(lo, hi) を渡すと、その範囲は重複を許して
+    **出てきた順の塊 (blob) の列**として返す (オーバーレイの切り分け用)。"""
     mem = {}
+    blobs = []
     with open(path, "r") as f:
         for lineno, line in enumerate(f, 1):
             line = line.strip()
@@ -59,6 +75,14 @@ def parse_ihx(path):
             if rectype != 0x00:
                 raise ValueError(f"{path}:{lineno}: 未対応のレコード種別 {rectype:02X}")
             addr = (addr_hi << 8) | addr_lo
+            if overlay and overlay[0] <= addr < overlay[1]:
+                # **番地が巻き戻ったら次の領域。** 同じ窓へリンクした別の領域が
+                # また 0x8000 から始まる、というのがオーバーレイの出方。
+                if not blobs or addr < blobs[-1][0] + len(blobs[-1][1]):
+                    blobs.append((addr, bytearray()))
+                base, buf = blobs[-1]
+                buf.extend(raw[4:4 + count])
+                continue
             for i in range(count):
                 # **同じ番地に2度書かれたら、領域どうしが重なっている。**
                 # 固定領域のコードが 0xA000 を越えると、そこへリンクした絵と曲に
@@ -68,7 +92,22 @@ def parse_ihx(path):
                     raise ValueError(f"{path}:{lineno}: 0x{addr + i:04X} に2つの領域が"
                                      "重なっています (固定領域 0x4000-0x9FFF が溢れた可能性)")
                 mem[addr + i] = raw[4 + i]
-    return mem
+    return (mem, blobs) if overlay else mem
+
+
+def overlay_areas(mapf):
+    """リンクマップから「0x8000 へ置かれた領域」を出てきた順に拾う。
+    2つ以上あればオーバーレイとして扱う。1つ以下なら普通の固定領域のまま。"""
+    out = []
+    if not mapf or not os.path.exists(mapf):
+        return out
+    for line in open(mapf, encoding="utf-8", errors="ignore"):
+        m = re.match(r"^_(\w+)\s+([0-9A-Fa-f]{8})\s+([0-9A-Fa-f]{8})\s", line)
+        if m and int(m.group(2), 16) == WIN2_BASE:
+            size = int(m.group(3), 16)
+            if size:
+                out.append((m.group(1), size))
+    return out
 
 
 def main(argv):
@@ -80,7 +119,35 @@ def main(argv):
     size_kb = int(argv[3]) if len(argv) > 3 and ":" not in argv[3] else 64
     blobs = [a for a in argv[3:] if ":" in a]
 
-    mem = parse_ihx(ihx)
+    mapf = ihx[:-4] + ".map" if ihx.endswith(".ihx") else None
+    ovl = overlay_areas(mapf)
+    if len(ovl) < 2:
+        ovl = []                      # 1つ以下なら 0x8000 はただの固定領域
+    fixed_end = WIN2_BASE if ovl else FIXED_END
+
+    if ovl:
+        mem, ovl_blobs = parse_ihx(ihx, overlay=(WIN2_BASE, WIN2_END))
+        if len(ovl_blobs) != len(ovl):
+            print("error: 0x8000 の領域がマップでは %d 個、IHX では %d 塊です"
+                  % (len(ovl), len(ovl_blobs)), file=sys.stderr)
+            return 1
+        for (name, size), (base, buf) in zip(ovl, ovl_blobs):
+            if base != WIN2_BASE or len(buf) != size:
+                print("error: 領域 %s はマップで 0x%04X/%d バイトですが、IHX では "
+                      "0x%04X/%d バイトです" % (name, WIN2_BASE, size, base, len(buf)),
+                      file=sys.stderr)
+                return 1
+            if size > SEG_SIZE:
+                print("error: 領域 %s が %d バイトで 1セグメント (%d) を超えます"
+                      % (name, size, SEG_SIZE), file=sys.stderr)
+                return 1
+        if len(ovl_blobs) > len(WIN2_SEGS):
+            print("error: 0x8000 のオーバーレイが %d 枚ありますが、置き場は %d 枚しか"
+                  "用意していません (ihx2rom.py の WIN2_SEGS)"
+                  % (len(ovl_blobs), len(WIN2_SEGS)), file=sys.stderr)
+            return 1
+    else:
+        mem, ovl_blobs = parse_ihx(ihx), []
     if not mem:
         print("error: IHX にデータがありません", file=sys.stderr)
         return 1
@@ -88,7 +155,6 @@ def main(argv):
     # **変数が RAM 実行の領域に食い込んでいないか。** 変数 (_DATA / _INITIALIZED) は
     # IHX に載らないのでリンクマップで見る。食い込むと、写したコードを変数が上書きして
     # 何の前触れもなく暴走する。
-    mapf = ihx[:-4] + ".map" if ihx.endswith(".ihx") else None
     if mapf and os.path.exists(mapf):
         end = 0
         for line in open(mapf, encoding="utf-8", errors="ignore"):
@@ -119,8 +185,7 @@ def main(argv):
         print("error: RAMCODE の領域が 2 セグメント (16384) を超えます", file=sys.stderr)
         return 1
     # 0xA000-0xBFFF は可変窓。ここへリンクされたもの (絵・曲) はセグメント3へ置く。
-    fixed_hi = max((a for a in mem if a < FIXED_END), default=ROM_BASE - 1)
-    banked = {a: v for a, v in mem.items() if FIXED_END <= a < WINDOW_END}
+    fixed_hi = max((a for a in mem if a < fixed_end), default=ROM_BASE - 1)
 
     total = size_kb * 1024
     if total % SEG_SIZE:
@@ -129,7 +194,7 @@ def main(argv):
 
     rom = bytearray(b"\xFF" * total)
     for addr, val in mem.items():
-        if addr < FIXED_END:
+        if addr < fixed_end:
             rom[addr - ROM_BASE] = val
         elif addr < WINDOW_END:
             # 窓 0xA000 の内容 = セグメント3 の中身
@@ -138,6 +203,13 @@ def main(argv):
             # RAM で走らせるコード。起動時に窓から RAM へ写す。
             # **8KB を超えるぶんは次のセグメントへ続ける** (写す側も2回に分かれる)。
             rom[RAMCODE_SEG * SEG_SIZE + (addr - RAMCODE_BASE)] = val
+
+    # オーバーレイ: 同じ 0x8000 へリンクした領域を、それぞれ別のセグメントへ。
+    for i, ((name, _size), (_base, buf)) in enumerate(zip(ovl, ovl_blobs)):
+        off = WIN2_SEGS[i] * SEG_SIZE
+        rom[off:off + len(buf)] = buf
+        print("  seg%d: 窓2 (0x8000) の %s = %d バイト (空き %d)"
+              % (WIN2_SEGS[i], name, len(buf), SEG_SIZE - len(buf)))
 
     for addr, val in music.items():
         rom[MUSIC_SEG * SEG_SIZE + (addr - MUSIC_BASE)] = val
@@ -166,7 +238,7 @@ def main(argv):
     used = fixed_hi - ROM_BASE + 1
     print(f"{out}: {total // 1024}KB ({total // SEG_SIZE} segments) / "
           f"fixed 0x{lo:04X}-0x{fixed_hi:04X} = {used} bytes, "
-          f"free {FIXED_END - fixed_hi - 1} bytes")
+          f"free {fixed_end - fixed_hi - 1} bytes")
     if ramcode:
         rhi = max(ramcode)
         if music:
@@ -175,6 +247,7 @@ def main(argv):
               f": RAM実行コード 0x{RAMCODE_BASE:04X}-0x{rhi:04X} = "
               f"{rhi - RAMCODE_BASE + 1} バイト "
               f"(RAM の空き {RAMCODE_END - RAMCODE_BASE} バイト中)")
+    banked = [a for a in mem if FIXED_END <= a < WINDOW_END]
     if banked:
         bhi = max(banked)
         print(f"  seg{DATA_SEG}: 絵と曲 0xA000-0x{bhi:04X} = {bhi - FIXED_END + 1} バイト"

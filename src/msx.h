@@ -63,6 +63,12 @@ void bank_select(uint8_t seg) __z88dk_fastcall;
 #define ART_SPR_SEG  11        /* スプライト: 形 (1枚32バイト) のあとに色 (1枚16バイト) */
 
 extern uint8_t bank_cur;   /* いま窓が向いているセグメント (bank_select が控える) */
+/* **2枚目の窓 (0x8000-0x9FFF)。** 同じ 0x8000 へリンクした領域を入れ替えるため。
+   いまはまだ誰も入れ替えておらず、起動時に WIN2_PLAY_SEG を選んだままにしてある。
+   仕組みは tools/ihx2rom.py の WIN2_BASE の説明を参照。 */
+void    win2_select(uint8_t seg) __z88dk_fastcall;
+extern uint8_t win2_cur;
+#define WIN2_PLAY_SEG 2    /* 0x8000 の1枚目 (ihx2rom.py の WIN2_SEGS と揃える) */
 #define TAIKO_SEG 12
 #define KANJI_SEG 13
 #define MUSIC_SEG 14   /* 曲データ (src/sound.c が読む前に窓を向ける) */   /* 漢字の字形 (src/kanji.c が blob_read で読む) */

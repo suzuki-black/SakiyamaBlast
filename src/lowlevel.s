@@ -17,6 +17,8 @@
 	.globl	_oam_flush
 	.globl	_bank_select
 	.globl	_bank_cur
+	.globl	_win2_select
+	.globl	_win2_cur
 	.globl	_pcm_ctrl
 	.globl	_blob_read
 	.globl	_blob_off
@@ -37,6 +39,7 @@ VDP_ADDR	= 0x99			; レジスタ/アドレス設定・ステータス読み
 VDP_PALT	= 0x9A			; パレット
 VDP_INDR	= 0x9B			; R#17 間接書き込み (コマンドレジスタ用)
 
+ASC8_8000	= 0x7000		; 0x8000-0x9FFF のバンクレジスタ (2枚目の窓)
 ASC8_A000	= 0x7800		; 0xA000-0xBFFF のバンクレジスタ
 PCM_DATA	= 0xA4			; turbo R の PCM データ
 PCM_CTRL	= 0xA5			; 同 制御 (bit0 BUFF / bit1 MUTE)
@@ -255,6 +258,26 @@ _bank_select::
 	; 戻ってきたコードが別のセグメントを読む。
 	ld	(#_bank_cur), a
 	ld	(#ASC8_A000), a
+	ret
+
+;-------------------------------------------------------------------
+; void win2_select(uint8_t seg) __z88dk_fastcall;
+;   **2枚目の窓 (0x8000-0x9FFF)** に ROM セグメント seg を割り当てる。
+;
+;   同じ 0x8000 へリンクした領域どうしを入れ替えるためのもの
+;   (オーバーレイ。tools/ihx2rom.py の WIN2_BASE を参照)。
+;
+;   **割り込みはこの窓に触らない**ので、bank_select のような順番の注意は要らない
+;   (和太鼓の ISR が触るのは 0xA000 のほうだけ)。控えを持つのは、
+;   「切り替えて、用が済んだら元へ戻す」を書くときのため。
+;
+;   **切り替えている間は、この窓にあるコードが見えなくなる。** 呼ぶ側は
+;   固定領域か RAM に居ること。
+;-------------------------------------------------------------------
+_win2_select::
+	ld	a, l
+	ld	(#_win2_cur), a
+	ld	(#ASC8_8000), a
 	ret
 
 ;-------------------------------------------------------------------

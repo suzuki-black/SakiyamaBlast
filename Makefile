@@ -33,7 +33,11 @@ OPT_SIZE  := --opt-code-size
 # 毎フレーム走るのは描画の数本だけ。速度への影響は実測して確かめること。
 # **spear.c も大きさ優先。** 固定領域の空きが数百バイトしかなく、毎フレーム走るのは
 # 敵1体あたり数行だけなので、速度より大きさを取る (speed だと 616B、size だと 403B)。
-SIZE_SRC   = $(BANKED_SRC) $(SRCDIR)/field.c $(SRCDIR)/spear.c  # **遅延展開。** BANKED_SRC はこの後
+# **player.c / rock.c / main.c もサイズ優先にした (2026-10-30)。** 固定領域が
+# 7バイトまで詰まったため。452バイト空いて、fps は openMSX の実測で変わらなかった
+# (`sh tools/fps.sh`。Z80 49.65 -> 49.90 / turbo R 59.80 -> 59.80)。
+SIZE_SRC   = $(BANKED_SRC) $(SRCDIR)/field.c $(SRCDIR)/spear.c \
+             $(SRCDIR)/player.c $(SRCDIR)/rock.c $(SRCDIR)/main.c  # **遅延展開**
 LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 -Wl-b_BANKDATA=0xA000 -Wl-b_MUSICDATA=0x2000 -Wl-b_RAMCODE=0xC9A0
 
 # 固定領域 (0x4000-0x9FFF) は 24KB しかない。絵と曲は**ただのデータ**なので、
@@ -120,7 +124,7 @@ ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,spr
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT
 MACHINE   ?= C-BIOS_MSX2+_JP
 
-.PHONY: hostsim grade emotion all run check gamedata gamedata-import enemy-anim clean
+.PHONY: hostsim grade emotion all run check fps gamedata gamedata-import enemy-anim clean
 
 all: $(ROM)
 
@@ -219,3 +223,8 @@ emotion: tools/hostsim/sim
 
 check: $(ROM)
 	sh tools/smoketest.sh $(ROM)
+
+# ゲーム中の fps を両機種で測る。**最適化の指定を変えたら必ずこれを通すこと。**
+# 面1で掘らせ続けて、エミュレータ内の経過時間に対する frame_n を数える。
+fps: $(ROM)
+	sh tools/fps.sh $(ROM)
