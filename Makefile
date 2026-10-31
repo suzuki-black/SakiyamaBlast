@@ -149,7 +149,7 @@ ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,spr
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT
 MACHINE   ?= C-BIOS_MSX2+_JP
 
-.PHONY: hostsim grade emotion all run check fps gamedata gamedata-import enemy-anim clean
+.PHONY: hostsim grade emotion roundtrip all run check fps gamedata gamedata-import enemy-anim clean
 
 all: $(ROM)
 
@@ -236,7 +236,7 @@ HOSTSIM_SRC := $(SRCDIR)/field.c $(SRCDIR)/stagegen.c \
                $(SRCDIR)/enemy.c $(SRCDIR)/player.c $(SRCDIR)/water.c \
                $(SRCDIR)/rock.c $(SRCDIR)/bomb.c $(SRCDIR)/bonus.c $(SRCDIR)/cart.c \
                $(SRCDIR)/levels.c $(SRCDIR)/spear.c \
-               tools/hostsim/stubs.c tools/hostsim/sim.c
+               tools/hostsim/stubs.c tools/hostsim/sim.c tools/hostsim/stagefile.c
 
 tools/hostsim/sim: $(HOSTSIM_SRC) $(HEADERS)
 	cc -std=c99 -O2 -Wall -DHOSTSIM -D__z88dk_fastcall= -I$(SRCDIR) -o $@ $(HOSTSIM_SRC)
@@ -250,6 +250,11 @@ grade: tools/hostsim/sim
 # 面ごとの「感情」を数にする (ストレスと爽快感)。詳細は tools/hostsim/emotion.py の説明。
 emotion: tools/hostsim/sim
 	python3 tools/hostsim/emotion.py --all --runs 16
+
+# 面データの往復を確かめる (面エディタとの受け渡しに取りこぼしが無いか)。
+# 盤面を決める変数を足したときは必ず回すこと。詳細は docs/STAGE_FORMAT.md。
+roundtrip: tools/hostsim/sim
+	sh tools/hostsim/roundtrip.sh
 
 check: $(ROM)
 	sh tools/smoketest.sh $(ROM)

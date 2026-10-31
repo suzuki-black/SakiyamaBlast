@@ -9,7 +9,12 @@ make grade                                    # 面1〜15を24回ずつ採点
 tools/hostsim/metrics.py --stage 7 --runs 50  # 1面だけ詳しく
 tools/hostsim/sim --stage 1 --seed 3          # 生ログ (JSONL) を見る
 tools/hostsim/sim --stage 7 --board           # 組み立て直後の盤面 (* = 掘らせる隙間)
+tools/hostsim/sim --stage 7 --dump            # 面データとして書き出す
+tools/hostsim/sim --load s7.json              # 面データから読む (面エディタとの接続点)
+make roundtrip                                # 面データの往復を検査する
 ```
+
+面データの形式と、手で直して採点するまでの手順は `docs/STAGE_FORMAT.md`。
 
 15面 × 24回で数秒。何百回でも回せる。
 
@@ -35,7 +40,7 @@ tools/hostsim/sim --stage 5 --analyse            # その面の盤面を測る
 tools/hostsim/sim --stage 5 --sweep 60000        # 種を総当たりして全部測る (0.5秒)
 tools/hostsim/sim --stage 5 --layout-seed 805    # 種を指定して走らせる
 python3 tools/hostsim/pick_seeds.py              # 面ごとに選んで表を出す
-python3 tools/hostsim/pick_seeds.py --write      # src/field.c の stage_seed[] に書く
+python3 tools/hostsim/pick_seeds.py --write      # src/stagegen.c の stage_seed[] に書く
 ```
 
 `--analyse` は**ボットを走らせない**。貪欲ボットは面1すらクリアできず盤面の良し悪しを
@@ -325,28 +330,38 @@ python3 tools/hostsim/pick_seeds.py --write      # src/field.c の stage_seed[] 
         └──────────────── 合否と指標を editor へ返す ────────────────────┘
 ```
 
-**接続点はもう出来ている。** `sim --stage N --seed S` の1行目 (`type:"stage"`) に
-盤面が `grid` として入っている。
+**道具の側は通した (2026-10-31)。** 面データを書き出し、読み直し、採点まで
+一本で繋がっている。形式の仕様は `docs/STAGE_FORMAT.md`。
 
+```sh
+make hostsim
+tools/hostsim/sim --stage 1 --dump > s1.json      # 生成した面を書き出す
+#   s1.json を手で直す (dug / cell / over の3枚)
+python3 tools/hostsim/metrics.py --load s1.json   # 採点する
+python3 tools/hostsim/emotion.py --load s1.json   # 感情を測る
+tools/hostsim/sim --load s1.json --board          # 盤面を目で見る
+tools/hostsim/sim --load s1.json --analyse        # 連鎖と岩の効き方を測る
 ```
- 0 |.............O..|      . =土      空白=坑道
- 1 |....... .....5..|      数字=黒ダイヤの耐久 (炭柱は大きい)
- 5 |....222B......O.|      x=割れた黒ダイヤ  O=岩
- 6 |.......p2.....5.|      B=水風呂  N=湧き出し口  p=火薬
- 9 |..... ppppN.....|
-```
 
-必要な作業:
-
-- [ ] **面データ形式を決める。** いまの `grid` 表記をそのまま入力にも使えるようにする。
-      16列×11行の文字列配列＋メタ情報 (面番号・黒ダイヤの耐久・敵のプール数)。
-      `tools/gamedata` の JSON と同じ流儀に揃えると、エディタ側の実装を共用できる
-- [ ] **`sim --load <file>` を足す。** `build_stage()` の代わりに面データを流し込む。
-      `dug[] / coal[] / cell_link[] / 岩 / 風呂 / 湧き出し口 / 自機の出発点` を
-      直接組み立てるので、`field.c` に「外から与える」入口が1つ要る
-- [ ] **`metrics.py --load <file>` を足す。** 面番号ではなくファイルを採点できるようにする
+- [x] **面データ形式を決めた。** 16列×11行の文字列を**3枚**（`dug` / `cell` / `over`）。
+      `tools/gamedata` と同じ流儀（`format` / `formatVersion` / `generator`）。
+      **1枚に詰めると落ちる**ことを面10 で実測した（`docs/STAGE_FORMAT.md` §1.4）
+- [x] **`sim --load <file>` を足した。** `tools/hostsim/stagefile.c`。
+      **`field.c` には入口を足していない** — 盤面を決める変数はすべて `game.h` で
+      公開されているので、ホスト側から直接書けば足りる。ROM は1バイトも増えない
+      （面データを ROM に持たせるかどうかは下の「未決の設計判断」次第なので、
+      決まる前にゲーム側へ入口を掘らない）
+- [x] **`metrics.py --load <file>` を足した。** `emotion.py --load` も同じ
+- [x] **取りこぼしの検査を足した。** `make roundtrip`。盤面を決める変数を全部並べて
+      出す `--state` を、組み立て直後と読み直し後で比べる。表15＋裏15 で一致する
 - [ ] **エディタ本体。** `MsxPatternStudio` と同じく別セッション・別ツール。
-      置いた瞬間に採点が回って「この面はヒヤリが少なすぎる」と返るのが理想
+      置いた瞬間に採点が回って「この面はヒヤリが少なすぎる」と返るのが理想。
+      **読み書きと整合の検査は `sim` に任せられる**ので、エディタ側は JSON を
+      書くだけでよい（申し送りは `docs/STAGE_FORMAT.md` §8）
+
+**1升で判定が変わる。** 面1 の炭層の真上から岩を1個取るだけで、クリア率 1.0 →
+0.0、放出 162 → 13、体温 52 → 158 へ振れた（12回／面）。手で面を作るなら、
+置くたびに採点を回すこと。
 
 **未決の設計判断 (先に決める必要がある)**:
 

@@ -42,6 +42,9 @@ SakiyamaBlast - 面の「感情」の数値化
     tools/hostsim/emotion.py --all
     tools/hostsim/emotion.py --all --ura
     tools/hostsim/emotion.py --all --json
+    tools/hostsim/emotion.py --load foo.json     # 面データを測る
+
+**--load は面エディタとの接続点。** 形式は docs/STAGE_FORMAT.md。
 """
 import argparse
 import json
@@ -74,20 +77,24 @@ REF_COMBO = 8           # 1回の連鎖で8個採れれば満点
 REF_BURST = 4000        # 0.5秒で4000点入れば満点
 
 
-def run(stage, seed, frames, ura):
-    cmd = [SIM, "--stage", str(stage), "--seed", str(seed),
+def run(stage, seed, frames, ura, load=None):
+    """面番号から組み立てて走らせる。load を渡すとその面データを読む。"""
+    what = ["--load", load] if load else ["--stage", str(stage)]
+    cmd = [SIM] + what + ["--seed", str(seed),
            "--frames", str(frames), "--bot", "smart"]
     if ura:
         cmd.append("--ura")
     out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
-    rows, tail = [], None
+    rows, tail, head = [], None, None
     for line in out.splitlines():
         d = json.loads(line)
         if "f" in d:
             rows.append(d)
-        elif d.get("type") != "stage":
+        elif d.get("type") == "stage":
+            head = d
+        else:
             tail = d
-    return rows, tail
+    return rows, tail, head
 
 
 def tally(rows, tail):
@@ -202,10 +209,12 @@ def why_text(whys):
                     for k in order if k in seen)
 
 
-def grade(stage, runs, frames, ura):
+def grade(stage, runs, frames, ura, load=None):
     ts, whys = [], []
     for seed in range(runs):
-        rows, tail = run(stage, seed, frames, ura)
+        rows, tail, head = run(stage, seed, frames, ura, load)
+        if head:
+            stage = head["stage"]      # --load では面番号は面データが持っている
         t = tally(rows, tail)
         if t:
             ts.append(t)
@@ -260,10 +269,17 @@ def main():
     ap.add_argument("--runs", type=int, default=16)
     ap.add_argument("--frames", type=int, default=12000)
     ap.add_argument("--ura", action="store_true", help="裏面の規則で測る")
+    ap.add_argument("--load", metavar="FILE",
+                    help="面データを測る (面エディタとの接続点)")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
-    stages = range(1, 16) if a.all or not a.stage else [a.stage]
-    rs = [r for r in (grade(s, a.runs, a.frames, a.ura) for s in stages) if r]
+    if a.load:
+        if a.all:
+            sys.exit("--load と --all は併せられません。")
+        rs = [r for r in [grade(a.stage or 1, a.runs, a.frames, a.ura, a.load)] if r]
+    else:
+        stages = range(1, 16) if a.all or not a.stage else [a.stage]
+        rs = [r for r in (grade(s, a.runs, a.frames, a.ura) for s in stages) if r]
     if a.json:
         json.dump(rs, sys.stdout, ensure_ascii=False, indent=1)
         print()

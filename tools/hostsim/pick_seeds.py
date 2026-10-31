@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """面ごとの盤面の種を総当たりして選ぶ。
 
-盤面は面番号だけで決まる（`src/field.c` の `stage_seed[]`）。**その1つが悪ければ
+盤面は面番号だけで決まる（`src/stagegen.c` の `stage_seed[]`）。**その1つが悪ければ
 そのまま出荷される**ので、狙った手応えになる種を探して固定する。
 
 貪欲ボットは面1すらクリアできないので判定には使わない。代わりに
@@ -24,12 +24,14 @@
     colmax: 一番長い縦の炭層＝一気に狙える連鎖の上限
 
     python3 tools/hostsim/pick_seeds.py            # 探して表を出すだけ
-    python3 tools/hostsim/pick_seeds.py --write    # src/field.c に書き込む
+    python3 tools/hostsim/pick_seeds.py --write    # src/stagegen.c に書き込む
 """
 import json, re, subprocess, sys
 
 SIM = 'tools/hostsim/sim'
-FIELD = 'src/field.c'
+# stage_seed[] の置き場。**field.c から stagegen.c へ分けた (2026-10-30)。**
+# ここが古いと --write が黙って何もしないので、下で置換できたか確かめている。
+SEEDS_SRC = 'src/stagegen.c'
 SWEEP = 60000
 
 # **指標を作り替えた (2026-09-12)。**
@@ -246,14 +248,16 @@ def main():
                _HPICK0_MIN.get(st, _HPICK_MIN[st]),
                ('  <- 目で見て固定' if st in PINNED else '')))
     if '--write' in sys.argv:
-        src = open(FIELD).read()
+        src = open(SEEDS_SRC).read()
         body = ',\n    '.join(', '.join('%5d' % s for s in seeds[i:i + 5])
                               for i in range(0, 15, 5))
-        src = re.sub(r'(const uint16_t stage_seed\[15\] = \{\n)(.*?)(\n\};)',
-                     lambda m: m.group(1) + '    ' + body + ',' + m.group(3),
-                     src, count=1, flags=re.S)
-        open(FIELD, 'w').write(src)
-        print('\n-> %s の stage_seed[] を書き換えた' % FIELD)
+        src, n = re.subn(r'(const uint16_t stage_seed\[15\] = \{\n)(.*?)(\n\};)',
+                         lambda m: m.group(1) + '    ' + body + ',' + m.group(3),
+                         src, count=1, flags=re.S)
+        if n != 1:
+            sys.exit('%s に stage_seed[15] が見つからない (置き場が動いた?)' % SEEDS_SRC)
+        open(SEEDS_SRC, 'w').write(src)
+        print('\n-> %s の stage_seed[] を書き換えた' % SEEDS_SRC)
 
 
 main()

@@ -13,6 +13,10 @@ tools/hostsim/sim が吐く JSONL を読み、面の当たり外れを数字に�
     tools/hostsim/metrics.py --stage 1 --runs 24
     tools/hostsim/metrics.py --stage 1 --runs 24 --json
     tools/hostsim/metrics.py --all                  # 面1〜15をまとめて検品
+    tools/hostsim/metrics.py --load foo.json        # 面データを採点する
+
+**--load は面エディタとの接続点。** 面番号ではなくファイルを採点できるので、
+置いた面をそのままゲートに通せる。形式は docs/STAGE_FORMAT.md。
 """
 import argparse, json, os, statistics, subprocess, sys
 
@@ -29,8 +33,10 @@ SAFE_S   = 3.0    # 「敵が遠い」と見なす到達余裕
 BURST_S  = 0.3    # 「放出量」を測る窓
 
 
-def run_sim(stage, seed, frames=5400, safe=2):
-    out = subprocess.run([SIM, "--stage", str(stage), "--seed", str(seed),
+def run_sim(stage, seed, frames=5400, safe=2, load=None):
+    """面番号から組み立てて走らせる。load を渡すとその面データを読む。"""
+    what = ["--load", load] if load else ["--stage", str(stage)]
+    out = subprocess.run([SIM] + what + ["--seed", str(seed),
                           "--frames", str(frames), "--safe", str(safe)],
                          capture_output=True, text=True, check=True).stdout
     head, rows, tail = None, [], None
@@ -119,14 +125,16 @@ def analyse(head, rows, tail):
     }
 
 
-def summarise(stage, runs, frames, safe):
+def summarise(stage, runs, frames, safe, load=None):
     rs = []
     for seed in range(1, runs + 1):
-        head, rows, tail = run_sim(stage, seed, frames, safe)
+        head, rows, tail = run_sim(stage, seed, frames, safe, load)
         a = analyse(head, rows, tail)
         if a:
             a["seed"] = seed
             rs.append(a)
+        if head:
+            stage = head["stage"]      # --load では面番号は面データが持っている
     if not rs:
         return None
     clears = [r for r in rs if r["result"] == "clear"]
@@ -179,25 +187,36 @@ def main():
     ap.add_argument("--frames", type=int, default=5400)
     ap.add_argument("--safe", type=int, default=2)
     ap.add_argument("--all", action="store_true", help="面1〜15をまとめて検品")
+    ap.add_argument("--load", metavar="FILE",
+                    help="面データを採点する (面エディタとの接続点)")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
 
     if not os.path.exists(SIM):
         sys.exit(f"{SIM} がありません。make hostsim を先に実行してください。")
+    if a.load and a.all:
+        sys.exit("--load と --all は併せられません。")
 
-    stages = range(1, 16) if a.all else [a.stage]
     out = []
-    for st in stages:
-        s = summarise(st, a.runs, a.frames, a.safe)
+    if a.load:
+        s = summarise(a.stage, a.runs, a.frames, a.safe, a.load)
         if s:
+            s["source"] = a.load
             s["fails"] = verdict(s)
             out.append(s)
+    else:
+        for st in (range(1, 16) if a.all else [a.stage]):
+            s = summarise(st, a.runs, a.frames, a.safe)
+            if s:
+                s["fails"] = verdict(s)
+                out.append(s)
 
     if a.json:
         print(json.dumps(out, ensure_ascii=False, indent=2))
         return
 
-    print(f"面の採点 ({a.runs}回/面, ボット=貪欲, safe={a.safe})")
+    src = f", {a.load}" if a.load else ""
+    print(f"面の採点 ({a.runs}回/面, ボット=貪欲, safe={a.safe}{src})")
     print(f"{'面':>3} {'クリア率':>7} {'秒':>5} {'ヒヤリ/分':>8} {'爽快率':>6} "
           f"{'麻痺':>4} {'凡死':>4} {'退屈':>4} {'放出':>4} {'体温':>4}  判定")
     for s in out:

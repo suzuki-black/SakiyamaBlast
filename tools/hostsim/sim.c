@@ -6,10 +6,17 @@
  *
  * 使い方:  hostsim --stage N [--seed S] [--frames F] [--bot smart|greedy|idle] [--ura]
  *
- * 実機との一致は「同じ乱数の種で同じ盤面が出るか」で確認する (tools/hostsim/verify.sh)。
+ * **面は番号から組み立てるか、面データから読む。** 面エディタと繋ぐための
+ * `--dump` / `--load` / `--state` は tools/hostsim/stagefile.c。
+ * 形式は docs/STAGE_FORMAT.md。
+ *
+ * 実機との一致は「同じ面番号で同じ盤面が出るか」で確認する
+ * (`sh tools/smoketest.sh build/sakiyama.rom`。openMSX で ROM を走らせて
+ * ゲーム側の RAM を読む。以前ここに書いてあった verify.sh は無い)。
  */
 #include "game.h"
 #include "sound.h"
+#include "stagefile.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1595,7 +1602,8 @@ static int gap_reserved(int c, int r)
 static void board_demo(int st)
 {
     int c, r, i;
-    build_stage();
+    /* **組み立ては呼び元がやる。** ここで組み直すと `--load` で読んだ盤面を
+       上書きしてしまう (以前はここでも build_stage() を呼んでいた)。 */
     printf("面%d 仕込んだ鉱脈 %d本", st, gapv_n);
     for (i = 0; i < gapv_n; i++) { printf(" (列%d 行%d)", gapv_c[i], gapv_r[i]); }
     putchar('\n');
@@ -1709,6 +1717,8 @@ int main(int argc, char **argv)
     int want_stage = 1, seed = 1, max_frames = 5400, greedy = 1, i, f;
     uint8_t face_coal_now = 0;       /* いま向いている先が黒ダイヤか (つるはしを押す条件) */
     int do_analyse = 0, sweep = 0, do_water = 0, do_cart = 0, do_board = 0;
+    int do_dump = 0, do_state = 0;
+    const char *loadfile = NULL;
     unsigned lseed = 0;
     uint32_t prev_score = 0;
 
@@ -1728,6 +1738,20 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--sweep") && i + 1 < argc) { sweep = atoi(argv[++i]); }
         else if (!strcmp(argv[i], "--water")) { do_water = 1; }
         else if (!strcmp(argv[i], "--cart")) { do_cart = 1; }
+        /* 面エディタとの受け渡し (docs/STAGE_FORMAT.md) */
+        else if (!strcmp(argv[i], "--dump"))  { do_dump = 1; }
+        else if (!strcmp(argv[i], "--state")) { do_state = 1; }
+        else if (!strcmp(argv[i], "--load") && i + 1 < argc) { loadfile = argv[++i]; }
+        else {
+            fprintf(stderr, "知らない引数 \"%s\"\n", argv[i]);
+            return 1;
+        }
+    }
+    /* **面データを読むときは、生成を前提にした小道具と併せられない。**
+       どれも自分で build_stage() を呼ぶので、読んだ盤面が消える。 */
+    if (loadfile && (sweep || do_water || do_cart)) {
+        fprintf(stderr, "--load は --sweep / --water / --cart と併せられません\n");
+        return 1;
     }
 
     /* 乱数の種。実機は起動からの経過で決まるので、ここでは明示的に回して合わせる。 */
@@ -1754,7 +1778,23 @@ int main(int argc, char **argv)
         cart_demo(want_stage);
         return 0;
     }
-    build_stage();
+    if (loadfile) {
+        /* **面データから読む。** 乱数は1回も使わないので、上で撒いた
+           `--seed` がそのまま遊びの種として残る (build_stage() も
+           組み立ての間だけ種を差し替えて元へ戻すので、同じ条件になる)。 */
+        stage_load(loadfile);
+        want_stage = stage;
+    } else {
+        build_stage();
+    }
+    if (do_dump) {
+        stage_dump(stdout, lseed ? lseed : layout_seed(), loadfile);
+        return 0;
+    }
+    if (do_state) {
+        stage_state(stdout);
+        return 0;
+    }
     if (do_board) {
         board_demo(want_stage);
         return 0;
