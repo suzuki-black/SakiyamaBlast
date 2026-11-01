@@ -39,6 +39,11 @@ STAGES = os.path.join(HERE, "stages")                  # 保存先。ここか�
 MAX_BODY = 256 * 1024          # 面データは数KB。これより大きいものは受けない
 NAME_OK = re.compile(r"\A[0-9A-Za-z_-]{1,64}\.json\Z")
 
+# ボットの腕。**metrics.py / emotion.py の --bot と揃えること。**
+# 採点の数字は腕に強く引きずられるので (面5 はストレスが 54 と 2 に分かれた)、
+# 両方の道具に同じ腕を渡し、どちらで測ったかを画面に出す。
+BOTS = ("greedy", "smart")
+
 # 幕ごとの土の2色 (MSX の R/G/B 0-7)。
 # **src/levels.c の set_dirt_palette() と必ず一致させること。**
 # 絵のほうは触らなくてよい (tools/palette.py の RUNTIME が示すとおり、
@@ -85,18 +90,22 @@ def api_validate(data):
     return with_tmp_stage(data, go)
 
 
-def api_grade(data, runs, frames):
-    """metrics.py と emotion.py をそのまま呼ぶ。**採点の規則はあちらが持つ。**"""
+def api_grade(data, runs, frames, bot):
+    """metrics.py と emotion.py をそのまま呼ぶ。**採点の規則はあちらが持つ。**
+
+    **腕は両方に同じものを渡す。** 片方を貪欲、片方を先読みで回すと、
+    並べた2枚が別の遊び手の話になる (面5 はストレスが 54 と 2 に分かれた)。
+    """
     def go(path):
-        out = {}
-        rc, so, se = run([sys.executable, METRICS, "--load", path,
+        out = {"bot": bot}
+        rc, so, se = run([sys.executable, METRICS, "--load", path, "--bot", bot,
                           "--runs", str(runs), "--frames", str(frames), "--json"])
         if rc != 0:
             return {"ok": False, "error": (se or so).strip()[-400:]}
         got = json.loads(so or "[]")
         out["metrics"] = got[0] if got else None
 
-        rc, so, se = run([sys.executable, EMOTION, "--load", path,
+        rc, so, se = run([sys.executable, EMOTION, "--load", path, "--bot", bot,
                           "--runs", str(max(2, runs // 2)), "--frames", str(frames), "--json"]
                          + (["--ura"] if data.get("loop") else []))
         if rc == 0:
@@ -288,8 +297,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if u.path == "/api/grade":
             runs = self.qint(q, "runs", 8, 1, 64)
             frames = self.qint(q, "frames", 5400, 600, 20000)
+            # **腕は名前を検査してから通す。** そのまま返事に載せる値なので、
+            # 知らない文字列を持ち帰らせない。
+            bot = q.get("bot", ["greedy"])[0]
+            if bot not in BOTS:
+                return self.send_json({"ok": False, "error": "知らないボット"}, 400)
             try:
-                return self.send_json(api_grade(body, runs, frames))
+                return self.send_json(api_grade(body, runs, frames, bot))
             except subprocess.TimeoutExpired:
                 return self.send_json({"ok": False, "error": "採点が時間切れ (回数か長さを下げてください)"})
         if u.path == "/api/save":

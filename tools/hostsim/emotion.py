@@ -2,7 +2,7 @@
 """
 SakiyamaBlast - 面の「感情」の数値化
 
-`tools/hostsim/sim --bot smart` に面を通させ、毎フレームの記録から
+`tools/hostsim/sim` に面を通させ、毎フレームの記録から
 **遊んでいる間に何が起きていたか**を数に落とす。狙いは metrics.py と同じで、
 「面白さ」を測るのではなく **面白さの必要条件が欠けている面を見つける** こと。
 
@@ -42,9 +42,15 @@ SakiyamaBlast - 面の「感情」の数値化
     tools/hostsim/emotion.py --all
     tools/hostsim/emotion.py --all --ura
     tools/hostsim/emotion.py --all --json
+    tools/hostsim/emotion.py --all --bot greedy  # 初見の人に近い腕で測る
     tools/hostsim/emotion.py --load foo.json     # 面データを測る
 
 **--load は面エディタとの接続点。** 形式は docs/STAGE_FORMAT.md。
+
+**ボットの腕を添えずに読んではいけない。** 既定は `smart` (経路と敵を先読みする)。
+腕が上がるほど敵圧が下がるので、**面が易しくなったのではなくボットが敵を
+消しているだけ**という読み違いが起きる (面1 のストレスが 59 → 9 へ落ちた)。
+初見の人が感じる圧に近いのは `--bot greedy`。出力には使った腕を載せてある。
 """
 import argparse
 import json
@@ -77,11 +83,14 @@ REF_COMBO = 8           # 1回の連鎖で8個採れれば満点
 REF_BURST = 4000        # 0.5秒で4000点入れば満点
 
 
-def run(stage, seed, frames, ura, load=None):
+BOTS = ("greedy", "smart", "idle")
+
+
+def run(stage, seed, frames, ura, load=None, bot="smart"):
     """面番号から組み立てて走らせる。load を渡すとその面データを読む。"""
     what = ["--load", load] if load else ["--stage", str(stage)]
     cmd = [SIM] + what + ["--seed", str(seed),
-           "--frames", str(frames), "--bot", "smart"]
+           "--frames", str(frames), "--bot", bot]
     if ura:
         cmd.append("--ura")
     out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
@@ -209,10 +218,10 @@ def why_text(whys):
                     for k in order if k in seen)
 
 
-def grade(stage, runs, frames, ura, load=None):
+def grade(stage, runs, frames, ura, load=None, bot="smart"):
     ts, whys = [], []
     for seed in range(runs):
-        rows, tail, head = run(stage, seed, frames, ura, load)
+        rows, tail, head = run(stage, seed, frames, ura, load, bot)
         if head:
             stage = head["stage"]      # --load では面番号は面データが持っている
         t = tally(rows, tail)
@@ -229,6 +238,9 @@ def grade(stage, runs, frames, ura, load=None):
     return {
         "stage": stage,
         "runs": len(ts),
+        # **腕を数字に貼り付ける。** 添えないと、腕のせいで下がった敵圧が
+        # 「面が易しくなった」として読まれる。
+        "bot": bot,
         "clear_rate": clear_rate,
         "stress": stress,
         "exhil": exhil,
@@ -244,7 +256,9 @@ def bar(v):
     return "#" * n + "." * (10 - n)
 
 
-def show(rs):
+def show(rs, bot):
+    bots = {"greedy": "貪欲", "smart": "先読み", "idle": "動かない"}
+    print("面の感情 (ボット=%s)" % bots.get(bot, bot))
     print("面  ストレス     爽快感       クリア 連鎖 放出   敵圧 熱圧 袋小 掘/秒 初熱 測定  判定")
     for r in rs:
         print("%2d  %s %3.0f  %s %3.0f  %4.0f%%  %2d  %5.0f  %3.0f%% %3.0f%% %3.0f%%  %4.1f %4.0fs %3.0fs  %s"
@@ -257,6 +271,7 @@ def show(rs):
     print("※ 割合は**走り切った時間に対する割合**。途中で死ぬ面は測定秒が短く、")
     print("  その面の後半は測れていない (連鎖が 1 で止まるのは多くがこれ)。")
     print("※ 数字はボットの腕に左右される。敵をよく避けるボットほど敵圧が低く出る。")
+    print("  面どうしを比べるときは**同じ腕で測った表どうし**で比べること。")
     print()
     for r in rs:
         print("面%-2d %s / %s" % (r["stage"], r["verdict"], r["why"]))
@@ -269,6 +284,8 @@ def main():
     ap.add_argument("--runs", type=int, default=16)
     ap.add_argument("--frames", type=int, default=12000)
     ap.add_argument("--ura", action="store_true", help="裏面の規則で測る")
+    ap.add_argument("--bot", choices=BOTS, default="smart",
+                    help="ボットの腕 (既定 smart = 経路と敵を先読みする)")
     ap.add_argument("--load", metavar="FILE",
                     help="面データを測る (面エディタとの接続点)")
     ap.add_argument("--json", action="store_true")
@@ -276,15 +293,15 @@ def main():
     if a.load:
         if a.all:
             sys.exit("--load と --all は併せられません。")
-        rs = [r for r in [grade(a.stage or 1, a.runs, a.frames, a.ura, a.load)] if r]
+        rs = [r for r in [grade(a.stage or 1, a.runs, a.frames, a.ura, a.load, a.bot)] if r]
     else:
         stages = range(1, 16) if a.all or not a.stage else [a.stage]
-        rs = [r for r in (grade(s, a.runs, a.frames, a.ura) for s in stages) if r]
+        rs = [r for r in (grade(s, a.runs, a.frames, a.ura, None, a.bot) for s in stages) if r]
     if a.json:
         json.dump(rs, sys.stdout, ensure_ascii=False, indent=1)
         print()
     else:
-        show(rs)
+        show(rs, a.bot)
 
 
 if __name__ == "__main__":

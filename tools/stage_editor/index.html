@@ -50,11 +50,18 @@
   <aside id="score">
     <div class="grp">
       <label>回数 <input id="runs" type="number" value="8" min="1" max="64"></label>
+      <label>腕 <select id="bot" title="ボットの腕。貪欲=初見の人に近い弱さ、先読み=経路と敵を読む">
+        <option value="greedy" selected>貪欲</option>
+        <option value="smart">先読み</option>
+      </select></label>
       <button id="grade">採点する</button>
     </div>
     <div id="result">
       <p class="note">採点は <code>metrics.py</code> と <code>emotion.py</code> を
       そのまま呼ぶ。<strong>判定の基準はコマンドライン版と同じもの。</strong></p>
+      <p class="note"><strong>数字はボットの腕に強く引きずられる。</strong>
+      面5 は腕を変えるだけでストレスが 54 から 2 へ落ちた（面が易しくなったのではなく、
+      ボットが敵を消してしまうため）。<strong>比べるときは同じ腕どうしで。</strong></p>
       <p class="note">合否は <strong>面白さの必要条件が欠けていないか</strong>を見る門で、
       点数ではない。ヒヤリ0回の面はつまらないと言えるが、ヒヤリ5回の面が
       面白いとは言えない。</p>

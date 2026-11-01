@@ -13,10 +13,16 @@ tools/hostsim/sim が吐く JSONL を読み、面の当たり外れを数字に�
     tools/hostsim/metrics.py --stage 1 --runs 24
     tools/hostsim/metrics.py --stage 1 --runs 24 --json
     tools/hostsim/metrics.py --all                  # 面1〜15をまとめて検品
+    tools/hostsim/metrics.py --all --bot smart      # 腕の良いボットで検品
     tools/hostsim/metrics.py --load foo.json        # 面データを採点する
 
 **--load は面エディタとの接続点。** 面番号ではなくファイルを採点できるので、
 置いた面をそのままゲートに通せる。形式は docs/STAGE_FORMAT.md。
+
+**数字はボットの腕に左右されるので、腕を添えずに読んではいけない。**
+既定は貪欲 (`greedy`) で、これは初見の人に近い弱さ。`--bot smart` は経路と敵を
+先読みするので、同じ面でもクリア率と爽快率が大きく動く (docs/HOSTSIM.md §2)。
+出力には使ったボットを必ず載せてある。
 """
 import argparse, json, os, statistics, subprocess, sys
 
@@ -33,11 +39,15 @@ SAFE_S   = 3.0    # 「敵が遠い」と見なす到達余裕
 BURST_S  = 0.3    # 「放出量」を測る窓
 
 
-def run_sim(stage, seed, frames=5400, safe=2, load=None):
+BOTS = ("greedy", "smart", "idle")
+
+
+def run_sim(stage, seed, frames=5400, safe=2, load=None, bot="greedy"):
     """面番号から組み立てて走らせる。load を渡すとその面データを読む。"""
     what = ["--load", load] if load else ["--stage", str(stage)]
     out = subprocess.run([SIM] + what + ["--seed", str(seed),
-                          "--frames", str(frames), "--safe", str(safe)],
+                          "--frames", str(frames), "--safe", str(safe),
+                          "--bot", bot],
                          capture_output=True, text=True, check=True).stdout
     head, rows, tail = None, [], None
     for line in out.splitlines():
@@ -125,10 +135,10 @@ def analyse(head, rows, tail):
     }
 
 
-def summarise(stage, runs, frames, safe, load=None):
+def summarise(stage, runs, frames, safe, load=None, bot="greedy"):
     rs = []
     for seed in range(1, runs + 1):
-        head, rows, tail = run_sim(stage, seed, frames, safe, load)
+        head, rows, tail = run_sim(stage, seed, frames, safe, load, bot)
         a = analyse(head, rows, tail)
         if a:
             a["seed"] = seed
@@ -144,6 +154,9 @@ def summarise(stage, runs, frames, safe, load=None):
     return {
         "stage": stage,
         "runs": len(rs),
+        # **腕を数字に貼り付ける。** 添えずに持ち出されると、弱いボットの成績が
+        # 面の難しさとして読まれる (docs/HOSTSIM.md §2)。
+        "bot": bot,
         "clear_rate": round(len(clears) / len(rs), 2),
         "clear_secs": round(statistics.mean([r["secs"] for r in clears]), 1) if clears else None,
         "scares_per_min": avg("scares_per_min"),
@@ -190,6 +203,8 @@ def main():
     ap.add_argument("--frames", type=int, default=5400)
     ap.add_argument("--safe", type=int, default=2)
     ap.add_argument("--all", action="store_true", help="面1〜15をまとめて検品")
+    ap.add_argument("--bot", choices=BOTS, default="greedy",
+                    help="ボットの腕 (既定 greedy = 初見の人に近い弱さ)")
     ap.add_argument("--load", metavar="FILE",
                     help="面データを採点する (面エディタとの接続点)")
     ap.add_argument("--json", action="store_true")
@@ -202,14 +217,14 @@ def main():
 
     out = []
     if a.load:
-        s = summarise(a.stage, a.runs, a.frames, a.safe, a.load)
+        s = summarise(a.stage, a.runs, a.frames, a.safe, a.load, a.bot)
         if s:
             s["source"] = a.load
             s["fails"] = verdict(s)
             out.append(s)
     else:
         for st in (range(1, 16) if a.all else [a.stage]):
-            s = summarise(st, a.runs, a.frames, a.safe)
+            s = summarise(st, a.runs, a.frames, a.safe, None, a.bot)
             if s:
                 s["fails"] = verdict(s)
                 out.append(s)
@@ -219,7 +234,8 @@ def main():
         return
 
     src = f", {a.load}" if a.load else ""
-    print(f"面の採点 ({a.runs}回/面, ボット=貪欲, safe={a.safe}{src})")
+    bots = {"greedy": "貪欲", "smart": "先読み", "idle": "動かない"}
+    print(f"面の採点 ({a.runs}回/面, ボット={bots[a.bot]}, safe={a.safe}{src})")
     print(f"{'面':>3} {'クリア率':>7} {'秒':>5} {'ヒヤリ/分':>8} {'爽快率':>6} "
           f"{'麻痺':>4} {'凡死':>4} {'退屈':>4} {'放出':>4} {'体温':>4}  判定")
     for s in out:

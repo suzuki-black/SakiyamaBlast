@@ -527,6 +527,13 @@ function gateRow(m, g) {
   return { label, v: round2(v), range, bad };
 }
 
+/* ボットの腕の呼び名。**向こうが持っている値をそのまま見出しに出す。**
+   採点の数字は腕に強く引きずられるので (面5 はストレスが 54 と 2 に分かれた)、
+   腕の書いていない表を作らない。知らない名前が来たらそのまま出す。 */
+function botName(b) {
+  return { greedy: '貪欲', smart: '先読み', idle: '動かない' }[b] || (b || '不明');
+}
+
 function showGrade(res) {
   const box = $('result');
   box.textContent = '';
@@ -537,7 +544,7 @@ function showGrade(res) {
   }
 
   const h = document.createElement('h2');
-  h.textContent = `合格条件  (面${m.stage} / ${m.runs}回 / ボット=貪欲)`;
+  h.textContent = `合格条件  (面${m.stage} / ${m.runs}回 / 腕=${botName(m.bot)})`;
   box.appendChild(h);
 
   const tb = document.createElement('table');
@@ -573,7 +580,7 @@ function showGrade(res) {
   const e = res.emotion;
   if (e) {
     const h2 = document.createElement('h2');
-    h2.textContent = `感情  (ボット=賢い / ${e.runs}回)`;
+    h2.textContent = `感情  (腕=${botName(e.bot)} / ${e.runs}回)`;
     box.appendChild(h2);
     const t3 = document.createElement('table');
     t3.innerHTML = '<tr><th>軸</th><th>値</th><th></th></tr>';
@@ -619,7 +626,8 @@ async function grade() {
   $('result').innerHTML = '<p class="busy">採点中… (回数を増やすほど待ちます)</p>';
   try {
     const runs = Math.max(1, Math.min(64, +$('runs').value || 8));
-    const res = await api(`/api/grade?runs=${runs}`, post(toFile()));
+    const bot = $('bot').value === 'smart' ? 'smart' : 'greedy';
+    const res = await api(`/api/grade?runs=${runs}&bot=${bot}`, post(toFile()));
     if (res.ok) { showGrade(res); }
     else { $('result').textContent = res.error || '採点に失敗した'; }
   } catch (err) {

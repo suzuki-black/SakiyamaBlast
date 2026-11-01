@@ -93,7 +93,8 @@ main {
 #valid.ok::before { content: "○ "; font-weight: bold; }
 
 /* ---- 採点 ---- */
-#score .grp { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+/* 腕の選択が入るので折り返す (横に並べきれない幅がある)。 */
+#score .grp { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
 #result table { border-collapse: collapse; width: 100%; margin: 6px 0 14px; }
 #result th, #result td {
   border: 1px solid var(--line); padding: 3px 7px; text-align: left;
