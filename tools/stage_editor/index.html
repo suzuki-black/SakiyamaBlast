@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>面エディタ — クロダイヤ</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<header>
+  <h1>面エディタ</h1>
+
+  <span class="grp">
+    <label>面 <select id="stage"></select></label>
+    <label><input type="checkbox" id="loop"> 裏面</label>
+  </span>
+
+  <span class="grp">
+    <label>種 <input id="seed" size="7" placeholder="既定"></label>
+    <button id="gen" title="生成した面を下敷きにする">生成から読む</button>
+  </span>
+
+  <span class="grp">
+    <select id="files"><option value="">(保存したもの)</option></select>
+    <button id="open">開く</button>
+  </span>
+
+  <span class="grp">
+    <input id="name" size="14" value="stage01.json">
+    <button id="save">保存</button>
+  </span>
+
+  <span class="grp">
+    <button id="undo" title="Ctrl-Z">戻す</button>
+    <label><input type="checkbox" id="gridon" checked> 升目</label>
+  </span>
+</header>
+
+<main>
+  <aside id="brushes" aria-label="置くもの"></aside>
+
+  <section id="boardwrap">
+    <canvas id="board" width="768" height="528"
+            aria-label="盤面。16列 11行。左の一覧から選んで置く"></canvas>
+    <p id="hint">左の一覧から選んで、盤面を押すか引く。右押しで消す。</p>
+    <p id="valid" class="idle">—</p>
+  </section>
+
+  <aside id="score">
+    <div class="grp">
+      <label>回数 <input id="runs" type="number" value="8" min="1" max="64"></label>
+      <button id="grade">採点する</button>
+    </div>
+    <div id="result">
+      <p class="note">採点は <code>metrics.py</code> と <code>emotion.py</code> を
+      そのまま呼ぶ。<strong>判定の基準はコマンドライン版と同じもの。</strong></p>
+      <p class="note">合否は <strong>面白さの必要条件が欠けていないか</strong>を見る門で、
+      点数ではない。ヒヤリ0回の面はつまらないと言えるが、ヒヤリ5回の面が
+      面白いとは言えない。</p>
+    </div>
+  </aside>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

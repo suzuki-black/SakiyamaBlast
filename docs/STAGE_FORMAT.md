@@ -227,7 +227,12 @@ tools/hostsim/sim --load s1.json --analyse    # 連鎖・岩の効き方を測�
 
 ---
 
-## 8. 面エディタ側への申し送り
+## 8. 面エディタ
+
+**`make editor` で開く** (`tools/stage_editor/`)。盤面を置くとその場で採点が回る。
+使い方は `tools/stage_editor/README.md`。
+
+この形式を別の道具から扱うときの申し送り:
 
 - **読み書きは `tools/hostsim/sim` に任せられる。** エディタは JSON を書くだけでよく、
   盤面の整合はここの検査が見る（弾かれた理由は行番号付きで stderr に出る）。

@@ -154,6 +154,9 @@ def summarise(stage, runs, frames, safe, load=None):
         "burst": avg("burst"),
         "temp_max": avg("temp_max"),
         "coal_left": avg("coal_left"),
+        # **合格条件そのものを添える。** 面エディタがしきい値を写し取ると、
+        # 片方だけ直した日に静かに食い違う (tools/stage_editor)。
+        "gates": GATES,
     }
 
 

@@ -149,7 +149,7 @@ ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,spr
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT
 MACHINE   ?= C-BIOS_MSX2+_JP
 
-.PHONY: hostsim grade emotion roundtrip all run check fps gamedata gamedata-import enemy-anim clean
+.PHONY: hostsim grade emotion roundtrip editor all run check fps gamedata gamedata-import enemy-anim clean
 
 all: $(ROM)
 
@@ -255,6 +255,10 @@ emotion: tools/hostsim/sim
 # 盤面を決める変数を足したときは必ず回すこと。詳細は docs/STAGE_FORMAT.md。
 roundtrip: tools/hostsim/sim
 	sh tools/hostsim/roundtrip.sh
+
+# 面エディタ (ブラウザで開く。127.0.0.1 にだけ開く)。詳細は tools/stage_editor/README.md。
+editor: tools/hostsim/sim
+	python3 tools/stage_editor/editor.py
 
 check: $(ROM)
 	sh tools/smoketest.sh $(ROM)

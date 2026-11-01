@@ -12,6 +12,7 @@ tools/hostsim/sim --stage 7 --board           # 組み立て直後の盤面 (* =
 tools/hostsim/sim --stage 7 --dump            # 面データとして書き出す
 tools/hostsim/sim --load s7.json              # 面データから読む (面エディタとの接続点)
 make roundtrip                                # 面データの往復を検査する
+make editor                                   # 面エディタ (ブラウザで開く)
 ```
 
 面データの形式と、手で直して採点するまでの手順は `docs/STAGE_FORMAT.md`。
@@ -354,10 +355,12 @@ tools/hostsim/sim --load s1.json --analyse        # 連鎖と岩の効き方を�
 - [x] **`metrics.py --load <file>` を足した。** `emotion.py --load` も同じ
 - [x] **取りこぼしの検査を足した。** `make roundtrip`。盤面を決める変数を全部並べて
       出す `--state` を、組み立て直後と読み直し後で比べる。表15＋裏15 で一致する
-- [ ] **エディタ本体。** `MsxPatternStudio` と同じく別セッション・別ツール。
-      置いた瞬間に採点が回って「この面はヒヤリが少なすぎる」と返るのが理想。
-      **読み書きと整合の検査は `sim` に任せられる**ので、エディタ側は JSON を
-      書くだけでよい（申し送りは `docs/STAGE_FORMAT.md` §8）
+- [x] **エディタ本体 (2026-11-01)。** `make editor` でブラウザに開く。
+      `tools/stage_editor/`。盤面を置くと**その場で採点が回る**。
+      **採点の規則も盤面の整合もエディタは持たない** ── しきい値は
+      `metrics.py` の `GATES` を受け取って並べ、整合は `sim --load` に
+      読ませて文句をそのまま出す。片方だけ直した日に食い違わないように。
+      使い方は `tools/stage_editor/README.md`
 
 **1升で判定が変わる。** 面1 の炭層の真上から岩を1個取るだけで、クリア率 1.0 →
 0.0、放出 162 → 13、体温 52 → 158 へ振れた（12回／面）。手で面を作るなら、
