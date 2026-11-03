@@ -161,8 +161,13 @@ static void spawn_tick(void)
    つるはしは土ごと叩くので、透明化している敵にも届く (Dig Dug 準拠)。 */
 static uint8_t near_cell(uint8_t i, int8_t cx, int8_t cy)
 {
-    int16_t dx = (int16_t)((int16_t)en_x[i] - ((int16_t)cx << 4));
-    int16_t dy = (int16_t)((int16_t)en_y[i] - ((int16_t)cy << 4));
+    /* **升の番地を16倍するのに左シフトを使わない。** `cx`/`cy` は盤外の升
+       (つるはしが盤の縁の外を向いたときの -1 など) でも呼ばれるので、
+       `(int16_t)cx << 4` は**負の値の左シフト = C では未定義動作**になる
+       (UndefinedBehaviorSanitizer が実際に報告する)。掛け算なら定義どおりで、
+       盤外は画素の距離が離れるだけなので判定も変わらない。 */
+    int16_t dx = (int16_t)((int16_t)en_x[i] - (int16_t)(cx * 16));
+    int16_t dy = (int16_t)((int16_t)en_y[i] - (int16_t)(cy * 16));
     if (dx < 0) { dx = (int16_t)-dx; }
     if (dy < 0) { dy = (int16_t)-dy; }
     return (uint8_t)((dx < 12 && dy < 12) ? 1 : 0);

@@ -171,6 +171,17 @@ python3 tools/hostsim/pick_seeds.py --write      # src/stagegen.c の stage_seed
   **合格/不合格のゲートとして使う**
 - **しきい値はまだ較正していない。** 1.0秒 / 0.5秒 / 3.0秒 は暫定値で、
   人に遊んでもらって「ヒヤッとした瞬間」の申告と突き合わせて合わせる必要がある
+- **ついでに、ゲーム側のあやしい式を見つける道具にもなる。** サニタイザ付きで
+  建てて走らせると、Z80 では黙って通っている未定義動作が出てくる
+  (これで `enemy.c` の「負の値の左シフト」が見つかった。2026-11-03)。
+
+  ```sh
+  cc -std=c99 -O1 -g -fsanitize=address,undefined -DHOSTSIM -D__z88dk_fastcall= -Isrc \
+     -o /tmp/sim_san src/field.c src/stagegen.c src/enemy.c src/player.c src/water.c \
+     src/rock.c src/bomb.c src/bonus.c src/cart.c src/levels.c src/spear.c \
+     tools/hostsim/stubs.c tools/hostsim/sim.c tools/hostsim/stagefile.c
+  /tmp/sim_san --stage 6 --seed 1 --frames 5400 --bot smart >/dev/null
+  ```
 
 ## ボットは2つある (`--bot`)
 
