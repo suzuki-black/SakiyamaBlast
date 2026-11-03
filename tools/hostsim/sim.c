@@ -804,6 +804,120 @@ static uint8_t bomb_choose(int pc, int pr)
     return (best < 0) ? DIR_NONE : dir_of[best];
 }
 
+/* ------------------------------------------------------------------ *
+ * 岩で潰す (2026-11-03)
+ *
+ * **落ちている岩は縦一列の敵をまとめて潰す** (`enemy_kill_at` の by_rock=1)。
+ * 倒された敵は `lv_rest()` のあいだ洞窟へ引っ込み、**必ず梅干しを落とす**
+ * (体温が下がる = 時間が買える)。弾も資源も要らないので、当たるなら安い手。
+ *
+ * 落ちる条件は `src/rock.c` の `supported()` のとおりで、支えは5つある。
+ *   支柱 (`rock_prop`) / 真下の土 / 真下の黒ダイヤ / 真下の岩・鉱車 / **真下の自機**
+ * つまりプレイヤーが引ける引き金は3つで、**ここで打つのは1つめだけ**。
+ *   A **支柱を折る** —— 横から1振り。真下が空いていなければ落ちない
+ *   B 真下から外れる —— 自分が支えなので横へ1歩。測ったら損だった
+ *   C 真下の黒ダイヤを割る —— 「岩で帯ごと採る」の下ごしらえ。別に測って外した
+ * B と C を外した理由は docs/HOSTSIM.md「岩で潰す」の節にある。
+ *
+ * **狙って落とせるのは引き金がもう手の届くところにあるときだけ。** 岩は支えを
+ * 失ってから 45 フレーム揺れるので、遠くの引き金まで歩くと着くころに敵は居ない
+ * (落ち先に敵が居る形は平均 61 フレームで消える = 歩けるのは4升ぶん)。
+ * だから歩くのは `CR_W` までに絞る。
+ *
+ * 落ち先は `rock_fall_step` の着地判定と同じに見る (真下が掘り済みか黒ダイヤの
+ * あいだ落ち続け、土・岩・鉱車で止まる)。**樋は追わない** —— 板に乗った岩は
+ * 横へ1升ずれるので、そこで数えるのを止める (多く数えるより、嘘を言わないほうを採る)。
+ * ------------------------------------------------------------------ */
+#ifndef CR_SPAN     /* 落ち先を何升ぶん先まで見るか (4〜11 で成績は動かない) */
+#define CR_SPAN 8
+#endif
+#ifndef CR_W        /* 引き金まで歩いてよい額 (bot_d の尺度。1升 = 16〜24) */
+#define CR_W 64
+#endif
+
+/* 岩 i が落ちたら潰せる敵の数。 */
+static int crush_count(int i)
+{
+    int c = rock_x[i] >> 4, r = rock_y[i] >> 4, rr, n = 0, k;
+    for (rr = r + 1; rr <= r + CR_SPAN && rr < ROWS; rr++) {
+        if (rock_at((int8_t)c, (int8_t)rr) >= 0) { break; }
+        if (cart_at((int8_t)c, (int8_t)rr)) { break; }
+        if (!cell_dug((int8_t)c, (int8_t)rr) && !cell_coal((int8_t)c, (int8_t)rr)) {
+            break;                      /* 土で止まる */
+        }
+        for (k = 0; k < ENEMY_MAX; k++) {
+            if (en_state[k] != 1) { continue; }
+            if ((en_x[k] >> 4) != c || (en_y[k] >> 4) != rr) { continue; }
+            n++;
+        }
+        if (cell_chute((int8_t)c, (int8_t)rr)) { break; }   /* 樋。横へずれるので追わない */
+    }
+    return n;
+}
+
+/* 真下が空いているか (支柱を折れば落ちるか)。`supported()` と同じ見方。 */
+static int crush_below_open(int i)
+{
+    int c = rock_x[i] >> 4, r = rock_y[i] >> 4;
+    if (r + 1 >= ROWS) { return 0; }
+    if (!cell_dug((int8_t)c, (int8_t)(r + 1))) { return 0; }
+    if (rock_at((int8_t)c, (int8_t)(r + 1)) >= 0) { return 0; }
+    if (cart_at((int8_t)c, (int8_t)r) || cart_at((int8_t)c, (int8_t)(r + 1))) { return 0; }
+    if ((px >> 4) == c && (py >> 4) == r + 1) { return 0; }   /* 自機が支えている */
+    return 1;
+}
+
+/*
+ * 支柱を折って岩を落とす手。打つなら stick の向きを *out に入れて 1 を返す。
+ * 隣に居れば折り、`CR_W` 以内なら隣まで歩く。**折れるほうが先。**
+ */
+static int crush_try(int pc, int pr, const uint8_t *stick, uint8_t *out)
+{
+    int i, k, best = -1, bestn = 0, bestk = -1, bestd = CR_W + 1, walk = -1;
+    for (i = 0; i < ROCK_MAX; i++) {
+        int c, r, n;
+        if (rock_state[i] != ROCK_WAIT || !rock_prop[i]) { continue; }
+        if (!crush_below_open(i)) { continue; }
+        c = rock_x[i] >> 4; r = rock_y[i] >> 4;
+        n = crush_count(i);
+        if (!n) { continue; }
+        if (abs(c - pc) + abs(r - pr) == 1) {        /* 隣。その場で折る */
+            for (k = 0; k < 4; k++) {
+                if (pc + bot_dc[k] == c && pr + bot_dr[k] == r && n > bestn) {
+                    bestn = n; best = i; bestk = k;
+                }
+            }
+            continue;
+        }
+        for (k = 0; k < 4; k++) {                    /* 岩の隣まで歩く */
+            int nc = c + bot_dc[k], nr = r + bot_dr[k], j;
+            if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) { continue; }
+            /* **掘り済みの升だけを足場にする。** 土を掘ってから折るのでは
+               45 フレームの揺れに間に合わない (上の説明)。 */
+            if (!passable(nc, nr) && !cell_dug((int8_t)nc, (int8_t)nr)) { continue; }
+            j = nr * COLS + nc;
+            if (bot_d[j] >= BOT_INF || bot_d[j] > bestd) { continue; }
+            bestd = bot_d[j]; walk = j;
+        }
+    }
+    if (best >= 0) {
+        bot_want_pick = 1;              /* 岩を向いて1振り = 支柱が折れる */
+        *out = stick[bestk];
+        return 1;
+    }
+    if (walk < 0) { return 0; }
+    {
+        int step = bot_first_step(walk, pr * COLS + pc);
+        for (k = 0; step >= 0 && k < 4; k++) {
+            if (pc + bot_dc[k] == step % COLS && pr + bot_dr[k] == step / COLS) {
+                *out = stick[k];
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 static uint8_t bot_smart(void)
 {
     static const uint8_t stick[4] = { 1, 7, 5, 3 };   /* 上 左 下 右 */
@@ -866,6 +980,14 @@ static uint8_t bot_smart(void)
     update_enemy_dist();            /* 記録に出す treach / esc のため */
     forecast();                     /* **bot_cost が threat を見るので先に** */
     bot_dijkstra(pc, pr);
+
+    /* **岩で潰す。** 支柱を折れば落ちる岩の落ち先に敵が居るときだけ。
+       逃げるほうが先 (上のブロックで返っている) ので、ここへ来るのは
+       隣に敵が居ないときだけ。 */
+    {
+        uint8_t cd;
+        if (crush_try(pc, pr, stick, &cd)) { held = cd; return held; }
+    }
 
     if (bath_on) {
         bathcell = bath_r * COLS + bath_c;
