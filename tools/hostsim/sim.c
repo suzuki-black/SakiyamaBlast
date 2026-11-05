@@ -1918,6 +1918,7 @@ int main(int argc, char **argv)
     const char *loadfile = NULL;
     unsigned lseed = 0;
     uint32_t prev_score = 0;
+    static uint8_t coal_snap[COLS * ROWS];
 
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--stage")  && i + 1 < argc) { want_stage = atoi(argv[++i]); }
@@ -2034,6 +2035,9 @@ int main(int argc, char **argv)
     }
     printf("]}\n");
 
+    /* 前のフレームの `coal[]`。採られた升を出すのに使う (下の "ct")。 */
+    memcpy(coal_snap, coal, sizeof coal_snap);
+
     for (f = 0; f < max_frames; f++) {
         int pc, pr, k;
         frame_n++;
@@ -2107,6 +2111,22 @@ int main(int argc, char **argv)
         for (k = 0; k < ROCK_MAX; k++) {
             printf("%s[%d,%d,%d]", k ? "," : "",
                    rock_state[k], rock_x[k] >> 4, rock_y[k] >> 4);
+        }
+        printf("],\"ct\":[");
+        /* **採られた黒ダイヤの升をそのまま出す。** 向きから当てるのでは当たらない
+           ── 割れた塊を踏むと**繋がっているぶんが一度に**入り (`coal_take`)、
+           落ちる岩が突き抜けたぶん (`coal_crush_at`) は自機が居ない升なので、
+           「自機の升と向いている先」を見ると面7 では8枚のうち2枚を取り落とした。
+           `coal[]` は `game.h` が公開しているので、**ここで配列を見比べれば
+           src/ を1バイトも触らずに正確に出る**。 */
+        {
+            int n2 = 0;
+            for (k = 0; k < COLS * ROWS; k++) {
+                if (coal_snap[k] && !coal[k]) {
+                    printf("%s[%d,%d]", n2++ ? "," : "", k % COLS, k / COLS);
+                }
+                coal_snap[k] = coal[k];
+            }
         }
         printf("],\"sfx\":%d}\n", (int)(sfx_fired[0] + sfx_fired[1] + sfx_fired[2] +
                sfx_fired[3] + sfx_fired[4] + sfx_fired[5] + sfx_fired[6] +

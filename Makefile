@@ -149,7 +149,7 @@ ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,spr
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT
 MACHINE   ?= C-BIOS_MSX2+_JP
 
-.PHONY: hostsim grade emotion roundtrip editor all run check fps gamedata gamedata-import enemy-anim clean
+.PHONY: hostsim grade diag emotion roundtrip editor all run check fps gamedata gamedata-import enemy-anim clean
 
 all: $(ROM)
 
@@ -246,6 +246,12 @@ hostsim: tools/hostsim/sim
 # 面1〜15を採点する。合格条件を外れた面は配置を振り直す判断材料になる。
 grade: tools/hostsim/sim
 	python3 tools/hostsim/metrics.py --all --runs 24
+
+# 面を診断する。**採点 (grade) との違いは、升を名指しするところ。**
+# 「面12 は死の74%が (2,5)」まで出るので、振り直すのではなくどこを動かすかを
+# 決められる。詳細は tools/hostsim/diagnose.py の説明。
+diag: tools/hostsim/sim
+	python3 tools/hostsim/diagnose.py --all --runs 24
 
 # 面ごとの「感情」を数にする (ストレスと爽快感)。詳細は tools/hostsim/emotion.py の説明。
 emotion: tools/hostsim/sim
