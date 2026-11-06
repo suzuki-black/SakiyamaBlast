@@ -25,8 +25,15 @@
 
     python3 tools/hostsim/pick_seeds.py            # 探して表を出すだけ
     python3 tools/hostsim/pick_seeds.py --write    # src/stagegen.c に書き込む
+    python3 tools/hostsim/pick_seeds.py --no-play  # 遊ばせる検査を省く (速いが書けない)
+
+**静的な指標のあとに、実際に遊ばせる検査を1つ掛けてある** (`PLAY_FLOOR`、
+2026-11-06)。上の指標は「置いた物の形」までしか見ないので、**最後の数枚へ
+行けない盤面**が通ってしまう。全採掘がクリアの条件なので、それはそのまま
+抜けられない面になる。詳しくは `PLAY_FLOOR` のところ。
 """
-import json, re, subprocess, sys
+import json, os, re, subprocess, sys
+from concurrent.futures import ThreadPoolExecutor
 
 SIM = 'tools/hostsim/sim'
 # stage_seed[] の置き場。**field.c から stagegen.c へ分けた (2026-10-30)。**
@@ -112,10 +119,23 @@ _HPICK0_MIN = {1: 4, 2: 2, 3: 2}
 #
 # rowdup はずらす岩の無い面にも課す。**以前の面3が1行に岩2個で出荷されていた**
 # (真上の候補が尽きて「どこでも」に回ったとき、行を落とさずに候補を作り直していた)。
+#
+# **表を探す先は複数見る。** もとは `src/field.c` 決め打ちだったが、2026-10-30 に
+# 組み立てを `src/stagegen.c` へ分けたときに表も一緒に動き、このツールは
+# 起動しなくなっていた (`m` が None で AttributeError)。見つからなければ
+# どこを探したかを言って止める ── 黙って既定値を使うと、**条件を課したつもりで
+# 課していない種**が選ばれる。
+_TBL_SRC = ('src/stagegen.c', 'src/field.c')
+
+
 def _tbl(name):
-    m = re.search(name + r'\[MAX_STAGE\] = \{(.*?)\}', open('src/field.c').read(), re.S)
-    body = re.sub(r'/\*.*?\*/', ' ', m.group(1), flags=re.S)      # 注釈は落とす
-    return [int(x) for x in body.replace('\n', ' ').split(',') if x.strip()]
+    for path in _TBL_SRC:
+        m = re.search(name + r'\[MAX_STAGE\] = \{(.*?)\}', open(path).read(), re.S)
+        if m:
+            body = re.sub(r'/\*.*?\*/', ' ', m.group(1), flags=re.S)   # 注釈は落とす
+            return [int(x) for x in body.replace('\n', ' ').split(',') if x.strip()]
+    sys.exit('%s[MAX_STAGE] が %s に見つからない (置き場が動いた?)'
+             % (name, ' / '.join(_TBL_SRC)))
 
 
 ROCK_OFF = dict(zip(range(1, 16), _tbl('rock_off_tbl')))
@@ -205,6 +225,69 @@ def score(row, want):
             - W_HPREP * row['hprep'])
 
 
+# ---------------------------------------------------------------- 実際に採れるか
+#
+# **静的な指標だけでは「最後の数枚へ行けない盤面」が通る (2026-11-06)。**
+#
+# 上の指標はどれも「置いた物の形」と「一手でどれだけ採れるか」までで、
+# **採り切れるか**を見ていない。全採掘がクリアの条件なので、1枚でも事実上
+# 採れない升があれば、その面は抜けられない面として出荷される。
+# 面6 が実際にそれで、必須条件を通った242通りのうち **164通り (68%) は
+# ボットが全採掘して抜ける**のに、引いていた種は最低採取 0.06 だった
+# (docs/HOSTSIM.md「面6 は盤面の引きが悪かった」)。
+#
+# そこで **`smart` ボットに実際に遊ばせて、どの黒ダイヤも採れることを課す。**
+#
+# - **測るのは「いちばん採れない1枚の採取率」で、クリア率ではない。**
+#   クリア率に床を張ると、ボットにとって易しい盤面を選ぶことになり
+#   面ごとの難度の階段をボットの腕で踏み潰す (面11 と面13 は最低採取
+#   0.50 / 0.56 で**採り切れる**面だが、クリア率は 0.46 / 0.58 しかない)。
+#   床は**壊れた盤面を落とすため**のもので、難度を揃えるためのものではない。
+#   同じ理由で、床を満たす種のうち**いちばんクリア率が高いもの**も採らない
+#   (面6 なら最低採取 1.00 の種になる)。採るのは点のいちばん良いもの。
+# - **床を満たす種が1つも無い面は、落とさずに警告して通す。** 原因が盤面では
+#   ない面があるので (面12 は敵の表、面14 は掘る量。docs/HOSTSIM.md の
+#   「抜けられない4面を1面ずつ切り分けた」)、ここで止めると種を選び直せなくなる。
+# - **持ち時間は模していない** (`src/tlimit.c` はホスト版に入っていない)。
+#   いちばん長い面の 180秒ぶんのフレームを渡している。実測では4面とも
+#   90秒でも同じ数字で、ボットは時間切れではなく死んで終わる。
+PLAY_RUNS   = 16          # 1つの種あたりの試行数
+PLAY_FRAMES = 10800       # 180秒 (いちばん長い面の持ち時間)
+PLAY_FLOOR  = 0.3         # どの黒ダイヤも、この割合以上で採れること
+PLAY_TRY    = 40          # 点の良い順にここまで試す (全部試すと面1つで数分)
+
+_POOL = ThreadPoolExecutor(max_workers=os.cpu_count())
+
+
+def _play_one(args):
+    stage, lseed, seed = args
+    out = subprocess.run([SIM, '--stage', str(stage), '--layout-seed', str(lseed),
+                          '--seed', str(seed), '--frames', str(PLAY_FRAMES),
+                          '--safe', '2', '--bot', 'smart'],
+                         capture_output=True, text=True, check=True).stdout
+    grid, taken, tail = None, set(), None
+    for line in out.splitlines():
+        d = json.loads(line)
+        if d.get('type') == 'stage':
+            grid = d['grid']
+        elif 'f' in d:
+            taken |= {tuple(x) for x in d.get('ct', ())}
+        else:
+            tail = d
+    coals = {(c, r) for r in range(11) for c in range(16) if grid[r][c].isdigit()}
+    return (tail.get('type') if tail else '?'), coals, taken
+
+
+def play_rate(stage, lseed):
+    """その種を 16回遊ばせて (いちばん採れない1枚の採取率, クリア率) を返す。"""
+    res = list(_POOL.map(_play_one, [(stage, lseed, s)
+                                     for s in range(1, PLAY_RUNS + 1)]))
+    coals = res[0][1]
+    worst = min(sum(1 for _, _, t in res if c in t) for c in coals) / len(res)
+    clear = sum(1 for r, _, _ in res if r == 'clear') / len(res)
+    return worst, clear
+
+
 def _sweep_all():
     """15面を並列に総当たりする (1面ずつだと十数分かかる)。"""
     procs = {st: subprocess.Popen([SIM, '--stage', str(st), '--sweep', str(SWEEP)],
@@ -220,10 +303,16 @@ def _sweep_all():
 
 
 def main():
-    print('%3s %6s %6s %6s %6s %6s %6s %6s %6s %6s %6s %5s %5s  %s' %
+    play = '--no-play' not in sys.argv
+    # **`--no-play --write` は断る。** 床を外して選ぶと面6 は床に落ちる種
+    # (29123) へ戻るので、黙って書くと直したものが元へ戻る。
+    if not play and '--write' in sys.argv:
+        sys.exit('--no-play と --write は併せられない '
+                 '(床を外して選んだ種を書くと、直した面が元へ戻る)')
+    print('%3s %6s %6s %6s %6s %6s %6s %6s %6s %6s %6s %5s %5s %6s  %s' %
           ('面', '種', '一手', 'hpick', 'hbend', '落盤', '樋', '連鎖', 'ずらす', '1個', '全部',
-           '炭左右', '岩左右', '狙い/最低'))
-    seeds = []
+           '炭左右', '岩左右', '最低採取', '狙い/最低'))
+    seeds, warn = [], []
     allrows = _sweep_all()
     for st in range(1, 16):
         rows = allrows[st]
@@ -234,19 +323,38 @@ def main():
             if not keep:
                 sys.exit('面%d: 必須条件を満たす種が %d 通りの中に無い' % (st, len(rows)))
             rows = keep
-        best = min(rows, key=lambda r: (score(r, want), r['seed']))
+        order = sorted(rows, key=lambda r: (score(r, want), r['seed']))
+        best, got = order[0], None
+        if play and st not in PINNED:
+            # **点の良い順に、採り切れる種を探す。** 先頭が床を満たせばそれが答えで
+            # (いまの種はそうやって選ばれている)、満たさなければ下へ降りる。
+            for r in order[:PLAY_TRY]:
+                worst, _ = play_rate(st, r['seed'])
+                if worst >= PLAY_FLOOR:
+                    best, got = r, worst
+                    break
+            if got is None:
+                # **落とさずに通す。** 原因が盤面でない面がある (docs/HOSTSIM.md)。
+                got = play_rate(st, best['seed'])[0]
+                warn.append('面%d: 最低採取が %.2f しかない種しか無い '
+                            '(%d通りのうち上位%d通りを試した)。'
+                            '盤面ではない原因を疑うこと' %
+                            (st, got, len(rows), min(PLAY_TRY, len(rows))))
         if st in PINNED:
             pin = [r for r in rows if r['seed'] == PINNED[st]]
             if not pin:
                 sys.exit('面%d: 固定した種 %d が条件を満たさない' % (st, PINNED[st]))
             best = pin[0]
         seeds.append(best['seed'])
-        print('%3d %6d %6d %6d %6d %6d %6d %6d %4d/%d %6d %6d %5d %5d  %d/%d%s' %
+        print('%3d %6d %6d %6d %6d %6d %6d %6d %4d/%d %6d %6d %5d %5d %6s  %d/%d%s' %
               (st, best['seed'], best['hand'], best['hpick'], best['hbend'],
                best['taken'], best['chutes'], best['combo'], best['npush'], ROCK_OFF[st],
-               best['hpush'], best['hprep'], best['cbal'], best['rbal'], want,
+               best['hpush'], best['hprep'], best['cbal'], best['rbal'],
+               ('%.2f' % got) if got is not None else '-', want,
                _HPICK0_MIN.get(st, _HPICK_MIN[st]),
-               ('  <- 目で見て固定' if st in PINNED else '')))
+               ('  <- 目で見て固定' if st in PINNED else '')), flush=True)
+    for line in warn:
+        print('警告: ' + line)
     if '--write' in sys.argv:
         src = open(SEEDS_SRC).read()
         body = ',\n    '.join(', '.join('%5d' % s for s in seeds[i:i + 5])
@@ -260,4 +368,7 @@ def main():
         print('\n-> %s の stage_seed[] を書き換えた' % SEEDS_SRC)
 
 
-main()
+# **import できるようにしてある。** 必須条件 (`_require`) は種を選ぶ道具の本体なので、
+# 別の道具から同じ条件で候補を絞れるようにしておく (条件を書き写すと必ずずれる)。
+if __name__ == '__main__':
+    main()
