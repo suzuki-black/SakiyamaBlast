@@ -57,7 +57,7 @@ LDFLAGS   := -mz80 --no-std-crt0 --code-loc 0x4010 --data-loc 0xC000 \
 BANKED_SRC := \
               $(SRCDIR)/config.c $(SRCDIR)/debris.c $(SRCDIR)/kanji.c \
               $(SRCDIR)/haze.c $(SRCDIR)/water.c $(SRCDIR)/hud.c $(SRCDIR)/cart.c \
-              $(SRCDIR)/levels.c $(SRCDIR)/ending.c
+              $(SRCDIR)/levels.c
 
 # **RAM へ写して実行するモジュール。**
 # 0x4000-0xBFFF の 32KB はもう埋まっていて、並べ替えでは空きが作れない。
@@ -94,8 +94,12 @@ RAM_SRC   := $(SRCDIR)/enemy.c $(SRCDIR)/bomb.c $(SRCDIR)/sound.c $(SRCDIR)/opll
 # **割り込みは 0x8000 に触らない。** 和太鼓の ISR は RAM と 1枚目の窓しか使わない
 # ので、bank_select のような「控えを一緒に書き替える」注意は要らない。
 # 置き場 (ROM セグメント) は tools/ihx2rom.py の WIN2_SEGS が領域名で決める。
+#
+# **ending.c はここへ移した** (2026-11-07)。1枚目の窓 (0xA000) は空きが13バイトしか
+# 無く、止まる位置の直しが入らなかった。エンドロールは組み立て中に走らないので
+# PLAYCODE の条件を満たす (タイトル画像の制限もかからない)。
 GEN_SRC   := $(SRCDIR)/stagegen.c
-PLAY2_SRC := $(SRCDIR)/player.c
+PLAY2_SRC := $(SRCDIR)/player.c $(SRCDIR)/ending.c
 WIN2_SRC   = $(GEN_SRC) $(PLAY2_SRC)
 
 CSRC      := $(wildcard $(SRCDIR)/*.c)

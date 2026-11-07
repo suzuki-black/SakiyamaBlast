@@ -40,8 +40,27 @@ static uint16_t roll_px;           /* 流した画素数 */
 static uint8_t  roll_i;            /* 次に用意する行 */
 static uint8_t  roll_t;            /* 1画素ぶんの待ち */
 
-#define ROLL_END  ((uint16_t)(END_ROLL_N - ROLL_TAIL) * ROW_H + LEAD - ROLL_TOP)
 #define ROLL_OVER 0xFFFF        /* 置き直しまで済んだ印 (変数を増やさないため) */
+
+/*
+ * どこまで流したら止まるか。**行数ではなく「用意した帯の数」で決める。**
+ *
+ * **どちらの物語も、全99行のうち一部しか流さない。**
+ *   表 ... 0..24 と 45..98 = 79本 (裏の物語20行を飛ばす)
+ *   裏 ... 25..98        = 74本 (表の物語25行を飛ばす)
+ * 行数 (99) で止める位置を決めていたときは、表で 320画素、裏で 400画素ぶん
+ * 流しすぎていた。`PUSH SPACE KEY` を含む終わりの塊が画面の上へ抜けてしまい、
+ * 真っ暗なまま9秒 (裏は14秒) 流れてから置き直していた
+ * (作者の報告、2026-11-06「最後の英文すら流れていってしまった」。
+ *  openMSX で両方を実測: 表 1622->1302、裏 1622->1222 画素)。
+ */
+static uint16_t roll_end(void)
+{
+    uint8_t n = (uint8_t)(END_ROLL_N
+                          - (loop_n ? ROLL_URA : (ROLL_CREDITS - ROLL_URA))
+                          - ROLL_TAIL);
+    return (uint16_t)n * ROW_H + LEAD - ROLL_TOP;
+}
 
 /*
  * ページ1 の行番号から y を作る (256 を足すだけ)。
@@ -130,7 +149,7 @@ void ending_tick(void)
     if (roll_px == ROLL_OVER) {
         return;
     }
-    if (roll_px >= ROLL_END) {
+    if (roll_px >= roll_end()) {
         /* **消して置き直す。** 256行を輪にして回しているので、止めただけだと
            画面の上側に1周前の行が残る (実際に残った)。オフセットを戻し、
            見えている範囲を消してから、終わりの塊を同じ位置へ描き直す。 */
