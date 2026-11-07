@@ -365,18 +365,28 @@ static uint8_t gap_vein_at(uint8_t c, uint8_t r, uint8_t g, uint8_t hp, uint8_t 
     return 1;
 }
 
-/* 仕込む鉱脈を左右へ1本ずつ。端から内側へ探すので、2本は自然に離れる。 */
+/*
+ * 仕込む鉱脈を2本。
+ *
+ * **探し始める列を乱数で決めて、端で折り返す (2026-11-07)。**
+ * 以前は「左端 (または右端) から内側へ」順に探していたので、**どの面でも
+ * 盤面の端に寄っていた** —— 15面ぶん測ると20本のうち16本が列0〜2 か列13〜15
+ * (直したあとは7本)。
+ * 下ごしらえ (隙間を掘る) はこの鉱脈でやるものなので、**毎面その作業が
+ * 左右の壁際で起きる**ことになり、面の印象が揃ってしまっていた
+ * (作者の指摘、2026-11-07「配置までほぼ一緒のステージがたくさんあった」)。
+ * 2本目は半周ずらした列から探すので、**2本が離れる性質は変わらない。**
+ */
 static void place_gap_veins(void)
 {
     uint8_t hp = coal_hp_at();
-    uint8_t side = (uint8_t)(rnd8() & 1);
+    uint8_t base = (uint8_t)(rnd8() & (COLS - 1));
     uint8_t g[2], k;
 
     gapv_n = 0;
     g[0] = vgap_tbl[stage - 1];
     g[1] = vgap2_tbl[stage - 1];
     for (k = 0; k < 2; k++) {
-        uint8_t o = (uint8_t)(rnd8() % 3);      /* 端にべったり張り付かせない */
         uint8_t r0 = (uint8_t)(1 + (rnd8() & 1));
         uint8_t t, placed = 0, want = g[k];
         if (!want) {
@@ -387,8 +397,8 @@ static void place_gap_veins(void)
            減らしてでも必ず1本は仕込む。狙いの段数に乗っているかは
            tools/hostsim/pick_seeds.py が種を選ぶときに見る。 */
         while (want && !placed) {
-            for (t = o; t < COLS && !placed; t++) {
-                uint8_t c = (uint8_t)(side ? (COLS - 1 - t) : t), r;
+            for (t = 0; t < COLS && !placed; t++) {
+                uint8_t c = (uint8_t)((base + t) & (COLS - 1)), r;
                 for (r = r0; (uint8_t)(r + 2 * want) < ROWS; r++) {
                     if (gap_vein_at(c, r, want, hp, 1)) {
                         placed = 1;
@@ -398,7 +408,7 @@ static void place_gap_veins(void)
             }
             want--;
         }
-        side ^= 1;
+        base = (uint8_t)((base + COLS / 2) & (COLS - 1));   /* 2本目は半周先から */
     }
 }
 
@@ -570,15 +580,33 @@ static uint8_t chute_dir_ok(uint8_t c, uint8_t r, int8_t d, uint8_t need_coal)
  * 1 が本命で、これが取れると「岩の下を掘る → 曲がる → 炭層を貫く」が
  * 掘る前から目で追える形になる。
  */
+/*
+ * その列にもう板が置いてあるか。
+ *
+ * **1列に1枚までにする (2026-11-07)。** 板の候補は「上の列に岩が居る升」に
+ * 絞られるので、岩の少ない面では**4枚とも同じ列に縦に並んでいた**
+ * (面8 は列0 に4枚、面9 は列10 に4枚)。それでは分岐が生まれず、
+ * 盤面のどこを見ても同じ形になる。
+ */
+static uint8_t chute_in_col(uint8_t c)
+{
+    uint8_t r;
+    for (r = 0; r < ROWS; r++) {
+        if (chute[(uint16_t)r * COLS + c]) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void place_chutes(void)
 {
-    uint8_t want;
+    uint8_t want = lv_chutes();
+    uint8_t made = 0, need;
 
-    if (stage < CHUTE_START_ST) {
+    if (!want) {
         return;                 /* 第一坑には樋を置かない */
     }
-    want = (uint8_t)((stage >= CHUTE_HIGH_ST) ? CHUTE_HIGH : CHUTE_LOW);
-    uint8_t made = 0, need;
 
     build_rock_top();               /* 岩は置き終わっているので1回で足りる */
     /* **候補の一覧は段ごとに1回だけ作る。** 板1枚ごとに作り直すと
@@ -593,6 +621,9 @@ static void place_chutes(void)
             uint8_t dir;
             if (need < 2 && !rock_above(c, r)) {
                 continue;           /* 岩の通らない列に置いても意味が無い */
+            }
+            if (chute_in_col(c)) {
+                continue;           /* 1列に1枚まで (縦に並ぶと分岐が生まれない) */
             }
             if (r > 0 && rock_at((int8_t)c, (int8_t)(r - 1)) >= 0) {
                 continue;           /* 真上の岩が開始と同時に落ちてしまう */
@@ -1362,11 +1393,18 @@ static void set_stage_layout(void)
    あれば、その面は抜けられない面として出荷される。**面6 が実際にそれだった** ——
    同じ必須条件を通る242通りのうち164通り (68%) はボットが全採掘して抜けるのに、
    引いていた種 (29123) は最低採取 0.06 だった。面6 の種を 2414 へ替えてある
-   (docs/HOSTSIM.md「面6 は盤面の引きが悪かった」)。 */
+   (docs/HOSTSIM.md「面6 は盤面の引きが悪かった」)。
+
+   **15面ぶん選び直した (2026-11-07)。** 数字の掘り抜きの置き場を面ごとに振り
+   (`src/field.c` の `dig_pos_tbl`)、仕込んだ鉱脈の探し方と樋の枚数を替えたので、
+   **盤面が丸ごと別物になった**。置き場や置き方を触ったら必ず選び直すこと
+   (`python3 tools/hostsim/pick_seeds.py --write`。全面で17分)。
+   このときの最低採取は 面13 が 0.31、面12 が 0.12、面14・15 が 0.00
+   (面14・15 は直す前も 0.00 で、原因は盤面の外。docs/HOSTSIM.md「抜けられない4面」)。 */
 const uint16_t stage_seed[15] = {
-    17612, 24442,  4491,  6972, 35089,
-     2414, 29237, 52263,  1123, 24137,
-    12328,  6459, 45399, 27511, 28965,
+     9242,   541,   867,  2373, 29955,
+    32262, 41945, 11792, 32229,  4860,
+    10628, 28064, 38259, 10595,  2310,
 };
 uint16_t layout_seed_force;      /* 0 以外なら強制的にこの種を使う (道具用) */
 

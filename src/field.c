@@ -787,31 +787,83 @@ static const uint8_t digit_rows[10][9] = {
     { 0x0E,0x11,0x11,0x11,0x0F,0x01,0x01,0x02,0x0C },   /* 9 */
 };
 
-#define DIGIT_TOP 1        /* 数字を置く先頭行 */
-
-static void carve_digit(uint8_t d, uint8_t col0)
+static void carve_digit(uint8_t d, uint8_t col0, uint8_t top)
 {
     uint8_t r, c;
     for (r = 0; r < 9; r++) {
         uint8_t bits = digit_rows[d][r];
         for (c = 0; c < 5; c++) {
             if (bits & (0x10 >> c)) {
-                cf_set((uint16_t)(DIGIT_TOP + r) * COLS + (uint8_t)(col0 + c), CF_DUG);
+                cf_set((uint16_t)(top + r) * COLS + (uint8_t)(col0 + c), CF_DUG);
             }
         }
     }
 }
 
-/* 面番号の形に掘り抜く。1桁なら中央に1つ、2桁なら左右に並べる。
-   **組み立て (stagegen.c) から呼ぶので大域。** 字形の表 (90B) ごと
+/*
+ * **数字の置き場を面ごとに振る (2026-11-07)。**
+ *
+ * 以前は 1桁なら必ず列5、2桁なら列1と列9、どちらも行1に固定だった。
+ * 字形は 5列x9行 なので、**15面すべての坑道が盤面の同じ場所に開いていた** ——
+ * 面1〜9 は列5〜9 の帯だけ、面10〜15 は「十の位の1」が6面とも同じ列1。
+ * 坑道の重なり (Jaccard) を測ると面10〜15 どうしで 0.34〜0.61、
+ * つまり**半分以上の升が文字どおり同じ場所**だった。残りの置き物
+ * (黒ダイヤ・岩・炭柱・樋) はこの骨格のまわりに散るので、骨格が同じなら
+ * 面全体が似る。作者の指摘 (2026-11-07)「配置までほぼ一緒のステージが
+ * たくさんあった」の一番大きな原因はここ。
+ *
+ * **1バイトに収める。** 上位ニブル = 先頭行 (0〜2。字形が9行なので 11-9=2 まで)、
+ * 下位ニブル = 左端の列 (0〜11。5列ぶん要る)。2桁の面は十の位がこの値で、
+ * 一の位は `DIG_GAP` 列ぶん右 (どの面も6列にしてあり、数字として読める近さを保つ)。
+ *
+ * **面1 だけは動かさない** (列5・行1)。はじめて遊ぶ面の見え方は変えない。
+ *
+ * **面6 は (行1,列7)。** はじめ (行1,列0) にしたところ、その置き場で選ばれる種は
+ * 「いちばん採れない1枚の採取率」が 0.31 までしか上がらず、直す前の 0.50 より
+ * 渋い面になっていた (ボットのクリアが16回中9→4)。置き場を5通り測り直して、
+ * **直す前と同じ 0.50 に戻る値**を採った。クリア率がいちばん高い値
+ * (行2,列8 = 1.00) は採らない —— それは「ボットにとって易しい盤面を選ぶ」ことで、
+ * 面ごとの難度の階段をボットの腕で踏み潰す (種選びに書いてある約束と同じ理由)。
+ *
+ * 置き場を変えると盤面が丸ごと変わるので、**`stage_seed[]` は選び直すこと**
+ * (`python3 tools/hostsim/pick_seeds.py --write`)。
+ */
+#define DIG_AT(top, col) (uint8_t)(((top) << 4) | (col))
+static const uint8_t dig_pos_tbl[MAX_STAGE] = {
+    DIG_AT(1,  5), DIG_AT(2,  1), DIG_AT(0,  9), DIG_AT(1,  3), DIG_AT(2, 10),
+    DIG_AT(1,  7), DIG_AT(0,  6), DIG_AT(2,  2), DIG_AT(1, 11),
+    /* 2桁。一の位は +6 列 (0,6 / 4,10 / 2,8 / 5,11 / 1,7 / 3,9) */
+    DIG_AT(2,  0), DIG_AT(0,  4), DIG_AT(1,  2), DIG_AT(2,  5), DIG_AT(0,  1),
+    DIG_AT(1,  3),
+};
+#define DIG_GAP 6          /* 2桁のときの十の位と一の位の間隔 (列) */
+/* 左端の列の上限。字形が5列あるので 1桁は 11 まで、2桁は一の位がさらに
+   DIG_GAP 右へ出るので 5 まで。 */
+#define DIG_COL_MAX  (COLS - 5)
+#define DIG_COL_MAX2 (COLS - 5 - DIG_GAP)
+
+/* 面番号の形に掘り抜く。1桁なら1つ、2桁なら DIG_GAP 列あけて2つ。
+   **組み立て (stagegen.c) から呼ぶので大域。** 字形の表 (90B) と置き場の表ごと
    固定領域に置いてあるのは、0x8000 の窓に入りきらなかったため。 */
 void carve_stage_number(void)
 {
+    uint8_t p = dig_pos_tbl[(uint8_t)(((stage >= 1 && stage <= MAX_STAGE) ? stage : 1) - 1)];
+    uint8_t top = (uint8_t)(p >> 4), col = (uint8_t)(p & 0x0F);
     if (stage < 10) {
-        carve_digit(stage, 5);
+        /* **はみ出しは必ず止める。** 字形は升の番号を直に作って書き込むので、
+           右へ出ると**次の行へ回り込み、盤面の最後の行では配列の外へ書く。**
+           表を直すときに気づかないと静かに壊れるので、ここで抑える
+           (置き場を試す道具で実際に列9 を渡してしまった。2026-11-07)。 */
+        if (col > DIG_COL_MAX) {
+            col = DIG_COL_MAX;
+        }
+        carve_digit(stage, col, top);
     } else {
-        carve_digit((uint8_t)(stage / 10), 1);
-        carve_digit((uint8_t)(stage % 10), 9);
+        if (col > DIG_COL_MAX2) {
+            col = DIG_COL_MAX2;
+        }
+        carve_digit((uint8_t)(stage / 10), col, top);
+        carve_digit((uint8_t)(stage % 10), (uint8_t)(col + DIG_GAP), top);
     }
 }
 

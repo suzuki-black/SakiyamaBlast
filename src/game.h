@@ -83,6 +83,7 @@ uint16_t lv_rest(void);        /* 倒された敵が洞窟にこもるフレー�
 uint16_t lv_ghost(void);       /* 透明化までのフレーム数 (掘る前) */
 uint16_t lv_ghost_min(void);   /* 透明化までの下限 */
 uint8_t  lv_press(void);       /* 切羽圧: 1升掘るごとに縮むフレーム数 */
+uint8_t  lv_chutes(void);      /* この面に置く樋の枚数 */
 #define EN_RED        0
 #define EN_PINK       1
 #define EN_CYAN       2
@@ -639,9 +640,9 @@ uint8_t player_cell_r(void);
 /* (敵の POOL_BASE / POOL_STEP とは別物。あちらは敵の数) */
 #define WPOOL_ST    10        /* この面から溜まり湯を置く (第四坑から) */
 #define WPOOL_MAX    3        /* 1面に置く上限。2面ごとに1つ増える */
-#define CHUTE_LOW    2        /* 低次面の枚数 (経路が1本) */
-#define CHUTE_HIGH   4        /* 高次面の枚数 (分岐が生まれる) */
-#define CHUTE_HIGH_ST 8       /* この面から高次面の枚数にする */
+/* **枚数は面ごとの表 (`src/levels.c` の `chute_tbl`)。** もとは2段
+   (低次2枚 / 面8以降4枚) の定数だったが、後半の表面を「岩の動きを計算させる」
+   方向で締めるために幕ごとに増やす形へ替えた (2026-11-07)。`lv_chutes()` で読む。 */
 #define ROCK_TOI_SPD 2        /* 樋を横へ滑る px/frame (1升=8フレーム) */
 /* **採掘音は2フレームおきに1つずつ鳴らす。**
    落盤で岩が同時に落ちると、同じフレームに複数の升を採ることがある。
