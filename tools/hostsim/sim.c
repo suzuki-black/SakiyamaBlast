@@ -125,6 +125,39 @@ static int reach_frames(int k, int c, int r)
     return (int)d * 16 * SPD_UNIT / (spd ? spd : 1);
 }
 
+/*
+ * **支えを失った岩が落ちてくる升か** (2026-11-08)。同じ列を上へ辿り、
+ * 揺れ中 / 落下中の岩を探す。間の升が岩を通さない (未掘の土・無傷の黒ダイヤ) なら
+ * そこで止まるので、辿るのはやめる。
+ *
+ * **真下の1升は数えない。** そこに立てば自機が支えになって落ちてこない
+ * (`supported()` が見るのは岩の1升下だけ。Dig Dug 準拠)。`bot_cost` にも
+ * もともと「岩の真下は +96」が入っている。
+ *
+ * **2升以上離れた形は、自機が自分で作る。** 岩を支えている黒ダイヤを真下から
+ * 割ると、岩と自機の間に割れた升が1つ挟まる。岩は支えを失って揺れ、45フレーム後に
+ * 落ちて**割れた升を通り抜けて**自機の升へ届く。`bot_cost` がこの形を見ていなかった
+ * ため、面14 では**敵が1人も居なくても48回中48回**、同じ升 (1,6) で潰れていた
+ * (2026-11-08 実測。docs/PITFALLS.md)。
+ */
+static int rock_drops_onto(int c, int r)
+{
+    int rr;
+    for (rr = r - 1; rr >= 0; rr--) {
+        int k = rock_at((int8_t)c, (int8_t)rr);
+        if (k >= 0) {
+            if (rock_state[k] != ROCK_JIG && rock_state[k] != ROCK_FALL) {
+                return 0;                      /* 静止している岩は落ちてこない */
+            }
+            return (r - rr >= 2) ? 1 : 0;      /* 真下は支えになるので除く */
+        }
+        if (!cell_dug((int8_t)c, (int8_t)rr)) {
+            return 0;                          /* 岩はここで止まる */
+        }
+    }
+    return 0;
+}
+
 /* 到達余裕: 一番早く自機の升へ来られる敵の所要フレーム数。 */
 static int t_reach(int c, int r)
 {
@@ -161,14 +194,21 @@ static int under_falling_rock(int c, int r)
     uint8_t k;
     for (k = 0; k < ROCK_MAX; k++) {
         int rr;
-        /* **揺れている岩 (ROCK_JIG) は危険としない。** 自機がその真下に入ると
-           支えになって落ちなくなる (Dig Dug 準拠)。揺れを避けさせると、
-           炭層の上に岩がある配置で「掘った黒ダイヤを取りに行かない」ボットになる。
-           本当に危ないのは既に落ちている岩だけ。 */
-        if (rock_state[k] != ROCK_FALL) { continue; }
+        if (rock_state[k] != ROCK_FALL && rock_state[k] != ROCK_JIG) { continue; }
         if ((rock_x[k] >> 4) != c) { continue; }
         rr = rock_y[k] >> 4;
-        if (rr <= r && r - rr <= 4) { return 1; }   /* 同じ列の上にある */
+        if (rr > r || r - rr > 4) { continue; }     /* 同じ列の上にあるものだけ */
+        /* **揺れている岩 (ROCK_JIG) は、真下 (1升) に居るなら危険としない。**
+           そこに立てば支えになって落ちなくなる (Dig Dug 準拠。`supported()` が
+           見るのは岩の1升下だけ)。揺れを一律で避けさせると、炭層の上に岩がある
+           配置で「掘った黒ダイヤを取りに行かない」ボットになる。
+           **2升以上離れていたら支えていない** (2026-11-08)。自機が支えの黒ダイヤを
+           下から割ると、岩との間に割れた升が1つ挟まるので、この形になる。
+           揺れ出した岩は支えを失っているので必ず落ちてきて、割れた升を通り抜けて
+           自機の升へ届く。面14 はここで**敵が1人も居なくても48回中48回**
+           同じ升 (1,6) で潰れていた (docs/PITFALLS.md)。 */
+        if (rock_state[k] == ROCK_JIG && r - rr <= 1) { continue; }
+        return 1;
     }
     return 0;
 }
@@ -651,6 +691,11 @@ static int bot_cost(int j)
         w += 48;
     }
     if (r > 0 && rock_at((int8_t)c, (int8_t)(r - 1)) >= 0) {
+        w += 96;
+    }
+    /* **支えを失って落ちてくる岩の通り道も同じだけ高くつく** (`rock_drops_onto`)。
+       潰されれば結果は同じなので、罰則も真下と同じ 96 にしてある。 */
+    if (rock_drops_onto(c, r)) {
         w += 96;
     }
     /* **敵は「最後の一歩で避ける」のでは間に合わない。**
