@@ -297,7 +297,15 @@ def _board_ok(st, row):
     sec = _TLIMIT[st - 1]
     why = '理想の順路 %.0f秒 / 持ち時間 %d秒・回れない黒ダイヤ %d枚' \
           % (par, sec, row['parleft'])
-    return (row['parleft'] == 0 and par < sec), why
+    ok = row['parleft'] == 0 and par < sec
+    # **硬磐の黒ダイヤには、それを貫ける岩が無ければならない。**
+    # つるはしが通らないので、引き金の岩が届かない盤面は**開始から詰んでいる**。
+    # 置き場 (src/stagegen.c) が岩を載せた鉱脈にだけ硬磐を置くので 0 でなければ
+    # おかしいが、置き場を触ったときに黙って崩れるのはここなので検査する。
+    if row.get('hardbad'):
+        ok = False
+        why += '・貫ける岩が無い硬磐 %d枚' % row['hardbad']
+    return ok, why
 
 
 def _play_one(args):

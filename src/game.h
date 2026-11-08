@@ -196,6 +196,18 @@ uint8_t  lv_chutes(void);      /* この面に置く樋の枚数 */
    振っている間は動けないので、そこへ敵が寄ってくるのが駆け引きになる。 */
 #define PICK_FRAMES   18      /* 1回振り切るまで (0.3秒) */
 #define COAL_CRACKED  255     /* coal[] のこの値は「割れて採掘待ち」 */
+/* **硬磐の黒ダイヤ。つるはしが通らず、落ちてくる岩だけが採る** (第五坑から)。
+ * これは耐久度ではなく種類なので、**旗ではなく `coal[]` の値で持つ**。
+ * `cflag[]` は bit0〜bit7 を使い切っている (CF_DUG..CF_PROP と LINK_RIGHT/LINK_DOWN)
+ * ので、旗を1本足そうとすると膜と衝突する (2026-11-08 に一度やった)。
+ * 値で持てば、既にある判定のほとんどがそのまま通る:
+ *   `cell_coal()`   … 0 でも 255 でもないので「立ちはだかる黒ダイヤ」 ✓
+ *   `coal_smash()`  … 耐久を見ずに COAL_CRACKED にするので、岩は貫ける ✓
+ *   `coal_refill_at()` … 対象は COAL_CRACKED だけなので触らない ✓
+ * 手を入れるのは「つるはしで減らす」`coal_hit()` と、絵を選ぶ `draw_coal()` だけ。 */
+#define COAL_HARD     254
+#define HARD_DIA_ST   13      /* 表はこの面から (第五坑) */
+#define HARD_DIA_ST_B 10      /* 裏はここから (levels.c の hard_dia_here) */
 #define COAL_HP_MAX   11     /* 2桁は升の上辺に彫る (draw_coal)。炭柱は通常+3 */
 /*
  * **敵が踏み抜けた「割れたまま未採掘の黒ダイヤ」は塞がり直す。**
@@ -397,7 +409,10 @@ extern uint8_t  cflag[NCELL];
 #define CF_UME      0x08     /* 梅干し。岩で潰した敵が落とす。拾うと体温が下がる */
 #define CF_PILLAR   0x10     /* 炭柱 */
 #define CF_PROP     0x20     /* 支柱 (つっかい棒)。立っている間、真上の岩は落ちない */
-/* bit6 / bit7 は土の膜 (LINK_RIGHT / LINK_DOWN)。下の「升と升の境目」を参照 */
+/* bit6 / bit7 は土の膜 (LINK_RIGHT / LINK_DOWN)。下の「升と升の境目」を参照。
+   **8ビット全部埋まっている。** 旗を足したくなったら、まず升ごとの配列を
+   もう1本詰める (CLAUDE.md の「逃がし先」§2) か、値で持てないかを考える
+   (硬磐の黒ダイヤは coal[] の値 COAL_HARD にした)。 */
 #define cf_on(i, b)   (cflag[i] & (uint8_t)(b))
 #define cf_set(i, b)  (cflag[i] = (uint8_t)(cflag[i] | (uint8_t)(b)))
 #define cf_clr(i, b)  (cflag[i] = (uint8_t)(cflag[i] & (uint8_t)~(uint8_t)(b)))
@@ -410,6 +425,14 @@ extern uint8_t  coal_left;       /* まだ採掘していない黒ダイヤの�
 /* **下ごしらえを仕込んだ鉱脈の一番上の升** (VEIN_GAP_RESV の説明を参照)。
    その真上に岩を載せてあるので、ここが連鎖の引き金になる。計測と検査のために公開する。 */
 extern uint8_t  gapv_c[2], gapv_r[2], gapv_n;
+/* **その鉱脈の一番下の升** (行ではなく升の番号)。硬磐 (COAL_HARD) をここへ置く。
+   段数は place_gap_veins() が「入らなければ浅いほうへ落とす」ので**狙いの値とは
+   違う**ことがあり、実際に置けた段数は gap_vein_at() の中でしか分からない。
+   **行ではなく番号で持つ**のは、置くときに行 x COLS を掛け直さずに済ませるため
+   (STAGEGEN の空きは数十バイトしかない)。行が要るときは / COLS で出す。 */
+extern uint16_t gapv_bi[2];
+/* 硬磐の黒ダイヤを仕込む面か (levels.c)。 */
+uint8_t hard_dia_here(void);
 /* 升と升の境目が抜けているか (薄皮一枚の土の膜が残っていないか)。
    掘り跡は内側2pxだけを抜くので、**隣り合う升が両方 dug でも間に土の膜が残る**
    ことがある。dug だけで判定すると、敵がその膜を実体のまますり抜けてしまう。
@@ -585,6 +608,8 @@ extern uint8_t temp;          /* 体温 0..TEMP_MAX */
 void player_start(void);
 void player_update(void);
 void player_respawn(void);
+/* 盤面がもう採り切れないか (詰み)。真なら `goto_stuck()` で面に来る前へ巻き戻す。 */
+uint8_t stage_stuck(void);
 void player_carve(void);
 void player_pick(uint8_t held);  /* つるはしを振る。held = A ボタンを押しているか */
 uint8_t player_dir(void);       /* いま向いている方向 */

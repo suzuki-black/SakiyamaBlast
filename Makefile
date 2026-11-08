@@ -148,7 +148,7 @@ MUSIC_SRC := $(SRCDIR)/music.c $(SRCDIR)/endtext.c
 MUSIC_SEG := 14
 
 ART_SPR_NAMES  := miner,bomb,rock,rat,bat,split,stun1,stun2,stun3,brace,wd1,wd2,wu1,wu2,wl1,wl2,wr1,wr2,bru,brl,brr,std,stu,stl,str,chip,cart,cartrock,rockprop,rat1,rat2,rat3,bat1,bat2,bat3
-ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,spring,springoff,toir,toil,toibr,toibl,rail,raill,railr,gas
+ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,spring,springoff,toir,toil,toibr,toibl,rail,raill,railr,gas,diahard
 
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT
 MACHINE   ?= C-BIOS_MSX2+_JP

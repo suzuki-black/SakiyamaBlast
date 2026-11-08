@@ -22,6 +22,7 @@
 #define ST_ENDING 5       /* エンディング */
 #define ST_MISS   6       /* ミス。短いジングルの間、画面をその場で止める */
 #define ST_OVER   7       /* ゲームオーバー */
+#define ST_STUCK  8       /* 詰み。巻き戻した旨を出してキー待ち (goto_stuck) */
 
 #define START_HOLD  60    /* 開始表示を出しておくフレーム数 (1秒) */
 #define MSG_ROW     5     /* 開始表示を出すセル行 */
@@ -161,6 +162,28 @@ static void show_msg(const char *t, uint8_t n, uint8_t col)
     msg_c1 = (uint8_t)((x + (uint16_t)n * 16 - 1) >> 4);
 }
 
+/* 中央に2行目を出す。**消す範囲は憶えない** —— これを使うのは詰みの表示だけで、
+   そのあとは必ず面を組み直すか、ゲームオーバーへ行くので画面ごと描き替わる。 */
+static void show_msg2(const char *t, uint8_t n, uint8_t col)
+{
+    uint16_t x = (uint16_t)((256 - (uint16_t)n * 16) >> 1) & 0xFFFE;
+    text_draw(x, (uint16_t)((MSG_ROW + 2) * CELL), t, col, COL_TUNNEL, 2);
+}
+
+/* 何かキーが押されているか。**行0〜10 のどれかに押下 (0) があれば真。**
+   詰みの表示を消すのに使う。特定のキーにしないのは、止まった理由が
+   プレイヤーの手順ではなく盤面なので、押し直しを探させる筋合いが無いから。 */
+static uint8_t any_key(void)
+{
+    uint8_t r;
+    for (r = 0; r < 11; r++) {
+        if (snsmat(r) != 0xFF) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /*
  * 面の開始表示「第 n 坑 m 番方」。
  *
@@ -200,8 +223,41 @@ static void hide_stage_msg(void)
     player_carve();          /* 表示が自機の掘り跡に掛かっていた場合に備えて */
 }
 
+/* 面クリア時に得点を入れた本数。ストックは次の面へ持ち越すので、これを憶えて
+   おかないと同じ1本に毎面ボーナスが入ってしまう。1本につき1回だけ入れる。 */
+static uint8_t scored_stock;
+
+/*
+ * **面に入ったときの控え** (詰みのやり直しに使う。2026-11-08)。
+ *
+ * 詰み (盤面がもう採り切れない状態) は普通のミスと扱いを分ける。普通のミスは
+ * `player_respawn()` で**自機だけ**戻す ―― 盤面はそのままなので、割った黒ダイヤも
+ * 落とした岩もそこに残る。**詰みでそれをやると意味が無い**（岩を失った盤面へ
+ * 戻るだけなので、残機を1つずつオーバーヒートで溶かすしかなくなる）。
+ *
+ * そこで**面に来る前の状態へ丸ごと戻す**: 盤面は `start_stage()` が組み直し、
+ * 点と火薬はここの控えから戻す。残機だけは減る (作者の判断、2026-11-08)。
+ *
+ * 控えるのは `start_stage()` の頭。あそこは**面が新しく始まるときだけ**走る
+ * (`new_game` / `next_stage` / 詰みのやり直し) ので、普通のミスでは上書きされない。
+ */
+static uint8_t sv_score[SCORE_DIGITS];
+static uint8_t sv_stock;
+static uint8_t sv_scored;
+/* 詰みの表示を消してよいか。**詰んだ瞬間はまだキーを押している**ので、
+   そのまま `any_key()` を見ると表示が1フレームで消える。手を離すまで待つ。 */
+static uint8_t stuck_rel;
+
 static void start_stage(void)
 {
+    {
+        uint8_t i;
+        for (i = 0; i < SCORE_DIGITS; i++) {
+            sv_score[i] = score_d[i];
+        }
+        sv_stock = stock;
+        sv_scored = scored_stock;
+    }
     /* **先に音を止める。** ここから面を描き切るまで約1.1秒ブロックする間は
        snd_tick() が回らないので、鳴っていた音を PSG が保持し続けてしまう。
        止めておかないと「ピー」と鳴りっぱなしになり、固まったように聞こえる。 */
@@ -230,9 +286,32 @@ static void start_stage(void)
     state = ST_START;
 }
 
-/* 面クリア時に得点を入れた本数。ストックは次の面へ持ち越すので、これを憶えて
-   おかないと同じ1本に毎面ボーナスが入ってしまう。1本につき1回だけ入れる。 */
-static uint8_t scored_stock;
+/*
+ * 詰みへ入る。**点と火薬を面に来る前へ戻し、残機を1つ減らして、キー待ちにする。**
+ * 盤面を組み直すのはキーを押したあと (`ST_STUCK` の処理)。先に戻した点を見せたいので、
+ * HUD はここで描き替える。
+ */
+static void goto_stuck(void)
+{
+    uint8_t i;
+    snd_stop();
+    snd_play_miss();
+    for (i = 0; i < SCORE_DIGITS; i++) {
+        score_d[i] = sv_score[i];
+    }
+    stock = sv_stock;
+    scored_stock = sv_scored;
+    if (lives) {
+        lives--;                  /* 0 になったらキーのあとゲームオーバー */
+    }
+    hud_reset();                  /* 控えを無効にして全桁描き直させる */
+    hud_draw();
+    show_msg("DEAD END", 8, COL_RED);
+    show_msg2("ONE MISS", 8, COL_WHITE);
+    timer = START_HOLD;       /* 1秒は必ず出す (押しっぱなしで飛ばされないように) */
+    stuck_rel = 0;
+    state = ST_STUCK;
+}
 
 static void new_game(void)
 {
@@ -527,6 +606,27 @@ void main(void)
             continue;
         }
 
+        if (state == ST_STUCK) {
+            /* **出し続ける。** 何かキーを押すまで盤面はそのまま見せておく
+               (何が起きたのか読む時間を取らせる。作者の指示、2026-11-08)。 */
+            draw_actors();
+            if (timer) {
+                timer--;
+            } else if (!stuck_rel) {
+                if (!any_key()) {
+                    stuck_rel = 1;    /* 押していた手を離した。ここから押し直しを待つ */
+                }
+            } else if (any_key()) {
+                if (!lives) {
+                    hud_draw();
+                    goto_gameover();
+                } else {
+                    start_stage();    /* 盤面は面番号から組み直される */
+                }
+            }
+            continue;
+        }
+
         if (state == ST_OVER) {
             if (fire_pressed()) {
                 /* **裏面 (2周目) はコンティニュー不可。** 設定が ON でも効かない。
@@ -655,6 +755,13 @@ void main(void)
             snd_stop();
             snd_play_fanfare();
             state = ST_CLEAR;
+        } else if (!rock_busy() && stage_stuck()) {
+            /* **盤面がもう採り切れない。** 残りを採る手が無くなった形を見つけたら、
+               オーバーヒートを待たせずにここで巻き戻す (`goto_stuck`)。
+               **ミスとクリアを先に見る。** 死んでいるなら普通のミスだし、採り切って
+               いれば詰みではない。**岩が動いている間も判定しない** (`rock_busy`) ――
+               落ちている途中の岩はこれから仕事をするので、止まってから数えないと嘘になる。 */
+            goto_stuck();
         }
 
         draw_actors();

@@ -19,7 +19,8 @@ const COAL_HP_MAX = 11, PILLAR_HP_ADD = 3, GAS_MAX = 4, ROCK_MAX = 8;
 
 /* tiles.png の並び (Makefile の ART_TILE_NAMES) */
 const T = { POWDER: 0, BATH: 1, CAVE: 5, DIA: 6, DIACRK: 8, PILLAR: 9,
-            SPRING: 10, TOIR: 12, TOIL: 13, RAIL: 16, RAILL: 17, RAILR: 18, GAS: 19 };
+            SPRING: 10, TOIR: 12, TOIL: 13, RAIL: 16, RAILL: 17, RAILR: 18, GAS: 19,
+            DIAHARD: 20 };
 /* sprites.png の並び (ART_SPR_NAMES) */
 const SP = { MINER: 0, ROCK: 2, ROCKPROP: 28 };
 
@@ -66,7 +67,7 @@ function blank() {
 
 const isHp = (ch) => HP_CHARS.indexOf(ch) >= 0;
 const hpOf = (ch) => HP_CHARS.indexOf(ch) + 1;
-const isCoal = (ch) => isHp(ch) || ch === 'x';
+const isCoal = (ch) => isHp(ch) || ch === 'x' || ch === 'H';
 const act = () => Math.min(5, Math.floor((ST.stage - 1) / 3) + 1);
 const msx = (v) => `rgb(${Math.round(v[0] * 255 / 7)},${Math.round(v[1] * 255 / 7)},${Math.round(v[2] * 255 / 7)})`;
 const at = (p, c, r) => p && p[0] === c && p[1] === r;
@@ -160,6 +161,8 @@ function draw() {
       if (k === 'O')      { spr(SP.ROCK, c, r); }
       else if (k === 'o') { spr(SP.ROCKPROP, c, r); }
       else if (k === 'x') { tile(T.DIACRK, c, r); }
+      /* 硬磐。数字は出さない (つるはしでは減らないので嘘になる) */
+      else if (k === 'H') { tile(T.DIAHARD, c, r); }
       else if (k === '>') { tile(T.TOIR, c, r); }
       else if (k === '<') { tile(T.TOIL, c, r); }
       else if (isHp(k)) {
@@ -199,6 +202,7 @@ const BRUSHES = [
 
   { id: 'coal',   grp: '升の中身', label: '黒ダイヤ' },
   { id: 'crack',  grp: '升の中身', label: '割れた黒ダイヤ' },
+  { id: 'hard',   grp: '升の中身', label: '硬磐 (岩だけが採る)' },
   { id: 'rock',   grp: '升の中身', label: '岩' },
   { id: 'prop',   grp: '升の中身', label: '岩 (支柱つき)' },
   { id: 'toir',   grp: '升の中身', label: '樋 右下がり' },
@@ -223,7 +227,7 @@ let brush = 'dig';
 const ONE_OFF = new Set(['start', 'nest', 'bath', 'spring', 'gas']);
 
 /* 見本で土を敷くもの (黒ダイヤ・岩・炭柱は土の中にある) */
-const ON_DIRT = new Set(['fill', 'coal', 'rock', 'prop', 'pillar']);
+const ON_DIRT = new Set(['fill', 'coal', 'hard', 'rock', 'prop', 'pillar']);
 
 /* 一覧に出す見本。盤面と同じ絵を 16x16 で1枚だけ描く。 */
 function preview(ctx, id) {
@@ -233,6 +237,7 @@ function preview(ctx, id) {
   switch (id) {
     case 'coal':   t(T.DIA); break;
     case 'crack':  t(T.DIACRK); break;
+    case 'hard':   t(T.DIAHARD); break;
     case 'rock':   s(SP.ROCK); break;
     case 'prop':   s(SP.ROCKPROP); break;
     case 'toir':   t(T.TOIR); break;
@@ -321,6 +326,7 @@ function paint(c, r, erase) {
 
     case 'coal':  put(HP_CHARS[hp - 1]); if (!erase) { ST.dug[r][c] = '.'; } break;
     case 'crack': put('x');              if (!erase) { ST.dug[r][c] = ' '; } break;
+    case 'hard':  put('H');              if (!erase) { ST.dug[r][c] = '.'; } break;
     case 'rock':  put('O'); break;
     case 'prop':  put('o'); break;
     case 'toir':  put('>'); if (!erase) { ST.dug[r][c] = ' '; } break;

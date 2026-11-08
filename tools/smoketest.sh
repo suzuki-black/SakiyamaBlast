@@ -44,7 +44,9 @@ A_WATER=$(addr water)
 A_TLHI=$(addr tl_sec_hi); A_TLLO=$(addr tl_sec_lo)
 A_CARTON=$(addr cart_on); A_CARTR=$(addr cart_r); A_CARTC0=$(addr cart_c0); A_CARTC1=$(addr cart_c1)
 A_GAPVN=$(addr gapv_n); A_GAPVC=$(addr gapv_c); A_GAPVR=$(addr gapv_r)
+A_GAPVBI=$(addr gapv_bi)
 A_ROCKPROP=$(addr rock_prop); A_ROCKX=$(addr rock_x); A_ROCKY=$(addr rock_y)
+A_ROCKSTATE=$(addr rock_state)
 
 # 面1は掘り抜きが数字の「1」(15升) ＋ 敵の湧き出し口1升 = 16升。
 # 自機は掘り抜きの上端、湧き出し口は土の中の独立した1ブロック (位置は乱数)。
@@ -134,6 +136,19 @@ openmsx -machine "$MACHINE" -carta "$ROM" -romtype ASCII8 \
             set pn 0; \
             for {set k 0} {\$k<8} {incr k} { incr pn [debug read memory [expr {$A_ROCKPROP+\$k}]] }; \
             puts \$f \"PROPN \$pn\"; \
+            set hn 0; set hok 1; \
+            for {set k 0} {\$k<\$gn} {incr k} { \
+                set bi [expr {[debug read memory [expr {$A_GAPVBI+\$k*2}]] \
+                              + 256*[debug read memory [expr {$A_GAPVBI+\$k*2+1}]]}]; \
+                if {[debug read memory [expr {$A_COAL+\$bi}]] != 254} { continue }; \
+                incr hn; \
+                set hr [expr {\$bi/16}]; set up 0; \
+                for {set j 0} {\$j<8} {incr j} { \
+                    if {[debug read memory [expr {$A_ROCKSTATE+\$j}]] == 0} { continue }; \
+                    if {[expr {[debug read memory [expr {$A_ROCKY+\$j}]]/16}] <= \$hr-2} { set up 1 } }; \
+                if {!\$up} { set hok 0 } }; \
+            puts \$f \"HARDN \$hn\"; \
+            puts \$f \"HARDOK \$hok\"; \
             close \$f; \
             if {\$cc < 0} { exit }; \
             after time 4 wood }; \
@@ -255,6 +270,19 @@ check CARTLEN  5 "レールの長さが5升"
 check CARTOPEN 1 "レールの升が最初から開いている (鉱車が走れる)"
 check SPRINGON 0 "第四坑に湧き出し口は無い (溜まり湯は広がらない)"
 check BATHON   1 "水風呂が健在 (溜まり湯で潰されていない)"
+check HARDN    0 "第四坑にはまだ硬磐を置かない"
+
+# ここから面13 (第五坑)。**硬磐の黒ダイヤ**はこの幕から。
+# つるはしが通らないので、**貫ける岩が無い盤面は面の開始から詰んでいる**。
+# 置き場 (src/stagegen.c) は岩を載せられた鉱脈にだけ硬磐を置くので、HARDOK は必ず1。
+OUT13=$(mktemp -t sakiyama-smoke13)
+trap 'rm -f "$OUT" "$OUT4" "$OUT7" "$OUT9" "$OUT12" "$OUT13"' EXIT
+run_stage 13 "$OUT13"
+OUT=$OUT13
+check GAPVN    2 "面13 にも下ごしらえの鉱脈が2本ある"
+check HARDN    2 "2本とも一番下が硬磐になっている (第五坑から)"
+check HARDOK   1 "どの硬磐にも、2升以上上に岩がある (貫ける = 開始から詰んでいない)"
+check PROPN    2 "引き金の岩は支柱で止めてある"
 
 [ $fail -eq 0 ] && echo "smoketest: PASS" || echo "smoketest: FAIL"
 exit $fail

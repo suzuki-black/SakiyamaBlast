@@ -69,6 +69,8 @@ static char cell_ch(uint8_t c, uint8_t r)
     if (coal[i]) {
         if (coal[i] == COAL_CRACKED) {
             ch = 'x';
+        } else if (coal[i] == COAL_HARD) {
+            ch = 'H';          /* 硬磐。つるはしが通らず、落ちる岩だけが採る */
         } else if (coal[i] > COAL_HP_MAX) {
             dump_die("升 %u,%u の黒ダイヤの耐久が %u (上限 %u)", c, r, coal[i], COAL_HP_MAX);
         } else {
@@ -555,6 +557,7 @@ void stage_load(const char *path)
             switch (ch) {
             case ' ': break;                                      /* 何も無い */
             case 'x': coal[i] = COAL_CRACKED; break;              /* 割れた黒ダイヤ */
+            case 'H': coal[i] = COAL_HARD; break;                 /* 硬磐 */
             case '>': chute[i] = CHUTE_R; break;
             case '<': chute[i] = CHUTE_L; break;
             case 'O': case 'o':
@@ -580,6 +583,13 @@ void stage_load(const char *path)
             case ' ': break;
             case '*':
                 if (!coal[i]) { jdie(&j, "over の %u 行 %u 列: 炭柱 '*' は黒ダイヤの升にだけ置ける", r, c); }
+                /* **硬磐 (`H`) の上に炭柱は置けない。** 炭柱はつるはしで割って
+                   落盤を起こすための升だが、硬磐はつるはしが通らないので
+                   **プレイヤーには一生折れない支え**になる。 */
+                if (coal[i] == COAL_HARD) {
+                    jdie(&j, "over の %u 行 %u 列: 炭柱 '*' は硬磐 'H' には置けない "
+                             "(つるはしで割れないので落盤を起こせない)", r, c);
+                }
                 cf_set(i, CF_PILLAR);
                 break;
             case 'p':

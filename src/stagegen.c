@@ -315,6 +315,7 @@ static const uint8_t vgap2_tbl[MAX_STAGE] = {  /* 2本目 (第四坑から) */
 };
 
 uint8_t gapv_c[2], gapv_r[2], gapv_n;
+uint16_t gapv_bi[2];
 
 /*
  * (c,r) を一番上として、隙間 g 個の鉱脈が置けるか。place なら置く。
@@ -361,6 +362,7 @@ static uint8_t gap_vein_at(uint8_t c, uint8_t r, uint8_t g, uint8_t hp, uint8_t 
     used[(uint16_t)(r - 1) * COLS + c] = VEIN_GAP_RESV;   /* 岩を載せる升 */
     gapv_c[gapv_n] = c;
     gapv_r[gapv_n] = r;
+    gapv_bi[gapv_n] = i;    /* 上の繰り返しの最後 (k = 2g) が一番下の升 */
     gapv_n++;
     return 1;
 }
@@ -844,6 +846,25 @@ static void place_rocks(void)
             ri = rock_at((int8_t)gapv_c[k], (int8_t)rr);
             if (ri >= 0) {
                 rock_prop[(uint8_t)ri] = 1;
+            }
+            /* **鉱脈の一番下を硬磐にする** (第五坑から。裏はもっと手前から)。
+             *
+             * **置くのは岩を載せられたここだけ。** 硬磐はつるはしが通らないので、
+             * 引き金の岩が無い盤面に置くと**面の開始から詰んでいる**ことになる。
+             * 上の `&& n` と「既に岩がある升は飛ばす」で載らないことがあるため、
+             * 載せた直後に置いて**岩と1対1で釣り合わせる**。
+             *
+             * **一番下に置くのが規則の肝。** 一番上に置くと、支柱を折るだけで岩が
+             * 落ちてきて貫いてしまう (隙間は土なので岩はそこで止まり、上の1枚しか
+             * 採れない)。一番下なら**鉱脈を全部仕込んでから折る**ことになり、
+             * 下ごしらえそのものが条件になる。
+             *
+             * **順番を間違えると岩を失う。** 落ちた岩は「何かを潰した」か
+             * 「2升以上落ちた」なら着地で割れて消える (`rock.c`)。隙間は1升おきなので、
+             * 仕込まずに一段ずつ降ろすと**最初に黒ダイヤを砕いた着地で割れる**。
+             * そうなったら `stage_stuck()` (src/player.c) が詰みとして拾う。 */
+            if (hard_dia_here()) {
+                coal[gapv_bi[k]] = COAL_HARD;
             }
             drop_row(rr);
             n--;

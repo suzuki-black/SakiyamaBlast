@@ -425,6 +425,14 @@ uint8_t coal_hit(int8_t cx, int8_t cy)
         return 0;
     }
     i = (uint16_t)(uint8_t)cy * COLS + (uint8_t)cx;
+    /* **硬磐はつるはしが通らない** (2026-11-08)。耐久も減らさず、「コツン」だけ鳴る
+       (`SFX_NOPE` = 投げられないときの空振りと同じ音)。採れるのは落ちてくる岩が
+       貫いたときだけで、そこは `coal_smash()` が耐久を見ずに採るのでそのまま通る。
+       **体温は減るので、叩き続けること自体が損**になる (振れば +4)。 */
+    if (coal[i] == COAL_HARD) {
+        snd_sfx(SFX_NOPE);
+        return 0;
+    }
     coal[i]--;
     if (coal[i] == 0) {
         {
@@ -523,6 +531,8 @@ uint8_t coal_smash(int8_t cx, int8_t cy)
        実際そこを通り抜けることもできない。
        落盤で先に割れた升 (coal_crack_by_rock) だけが掘られて穴になるので、
        縦2升の鉱脈を貫くと**上だけ穴・下は土**という食い違いが出ていた。 */
+    /* **硬磐 (COAL_HARD) もここで採れる。** 耐久を見ずに COAL_CRACKED へ書き替える
+       ので、種類を落とす後始末は要らない。 */
     coal[i] = COAL_CRACKED;
     dig_sweep((uint8_t)cx, (uint8_t)cy);
     link_open((uint8_t)cx, (uint8_t)cy);
@@ -947,8 +957,15 @@ void draw_coal(uint8_t cx, uint8_t cy)
         return;
     }
     {
-        uint8_t is_p = cf_on((uint16_t)cy * COLS + cx, CF_PILLAR);
+        uint16_t i = (uint16_t)cy * COLS + cx;
+        uint8_t is_p = cf_on(i, CF_PILLAR);
         uint8_t x = 8;
+        /* **硬磐は専用の絵で、数字を出さない。** 耐久はつるはしでは減らないので、
+           残り回数を出すと「あと7回叩けば割れる」という嘘になる (2026-11-08)。 */
+        if (hp == COAL_HARD) {
+            draw_tile(cx, cy, art_tile_of(TILE_DIAHARD), 0);
+            return;
+        }
         draw_tile(cx, cy, art_tile_of(is_p ? TILE_PILLAR : TILE_DIA), 0);
         if (hp == 0) {
             return;
