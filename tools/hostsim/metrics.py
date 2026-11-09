@@ -42,9 +42,17 @@ BURST_S  = 0.3    # 「放出量」を測る窓
 BOTS = ("greedy", "smart", "idle")
 
 
-def run_sim(stage, seed, frames=5400, safe=2, load=None, bot="greedy"):
-    """面番号から組み立てて走らせる。load を渡すとその面データを読む。"""
+def run_sim(stage, seed, frames=5400, safe=2, load=None, bot="greedy", ura=False):
+    """面番号から組み立てて走らせる。load を渡すとその面データを読む。
+
+    ura を立てると**裏面 (2周目) の規則**で組み立てて走らせる。黒ダイヤが固く数も
+    多く、敵が増えて速く、持ち時間が 2/3 になる。**裏の面10 以降は硬磐の黒ダイヤが
+    入るので、ボットは原理的にクリアできない** (段取りが打てない。docs/HOSTSIM.md §2)。
+    そこでクリア率を面の難しさとして読まないこと。
+    """
     what = ["--load", load] if load else ["--stage", str(stage)]
+    if ura:
+        what.append("--ura")
     out = subprocess.run([SIM] + what + ["--seed", str(seed),
                           "--frames", str(frames), "--safe", str(safe),
                           "--bot", bot],
@@ -135,10 +143,10 @@ def analyse(head, rows, tail):
     }
 
 
-def summarise(stage, runs, frames, safe, load=None, bot="greedy"):
+def summarise(stage, runs, frames, safe, load=None, bot="greedy", ura=False):
     rs = []
     for seed in range(1, runs + 1):
-        head, rows, tail = run_sim(stage, seed, frames, safe, load, bot)
+        head, rows, tail = run_sim(stage, seed, frames, safe, load, bot, ura)
         a = analyse(head, rows, tail)
         if a:
             a["seed"] = seed
@@ -157,6 +165,8 @@ def summarise(stage, runs, frames, safe, load=None, bot="greedy"):
         # **腕を数字に貼り付ける。** 添えずに持ち出されると、弱いボットの成績が
         # 面の難しさとして読まれる (docs/HOSTSIM.md §2)。
         "bot": bot,
+        # **表と裏を数字に貼り付ける。** 添えないと、裏の成績が表のものとして読まれる。
+        "loop": 2 if ura else 1,
         "clear_rate": round(len(clears) / len(rs), 2),
         "clear_secs": round(statistics.mean([r["secs"] for r in clears]), 1) if clears else None,
         "scares_per_min": avg("scares_per_min"),
@@ -207,6 +217,8 @@ def main():
                     help="ボットの腕 (既定 greedy = 初見の人に近い弱さ)")
     ap.add_argument("--load", metavar="FILE",
                     help="面データを採点する (面エディタとの接続点)")
+    ap.add_argument("--ura", action="store_true",
+                    help="裏面 (2周目) の規則で採点する")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
 
@@ -217,14 +229,14 @@ def main():
 
     out = []
     if a.load:
-        s = summarise(a.stage, a.runs, a.frames, a.safe, a.load, a.bot)
+        s = summarise(a.stage, a.runs, a.frames, a.safe, a.load, a.bot, a.ura)
         if s:
             s["source"] = a.load
             s["fails"] = verdict(s)
             out.append(s)
     else:
         for st in (range(1, 16) if a.all else [a.stage]):
-            s = summarise(st, a.runs, a.frames, a.safe, None, a.bot)
+            s = summarise(st, a.runs, a.frames, a.safe, None, a.bot, a.ura)
             if s:
                 s["fails"] = verdict(s)
                 out.append(s)
@@ -235,7 +247,11 @@ def main():
 
     src = f", {a.load}" if a.load else ""
     bots = {"greedy": "貪欲", "smart": "先読み", "idle": "動かない"}
-    print(f"面の採点 ({a.runs}回/面, ボット={bots[a.bot]}, safe={a.safe}{src})")
+    loop = "裏面" if a.ura else "表面"
+    print(f"{loop}の採点 ({a.runs}回/面, ボット={bots[a.bot]}, safe={a.safe}{src})")
+    if a.ura:
+        print("  裏の面10 以降は硬磐の黒ダイヤが入るため、**ボットは原理的にクリアできない**。")
+        print("  クリア率を面の難しさとして読まないこと (docs/HOSTSIM.md §2)。")
     print(f"{'面':>3} {'クリア率':>7} {'秒':>5} {'ヒヤリ/分':>8} {'爽快率':>6} "
           f"{'麻痺':>4} {'凡死':>4} {'退屈':>4} {'放出':>4} {'体温':>4}  判定")
     for s in out:
