@@ -228,6 +228,8 @@ proto/        the FunctionBASIC prototype the mechanics were proven in
 - **[docs/PITFALLS.md](docs/PITFALLS.md)** — what went wrong and why: the VDP command engine,
   sprite quirks, how speed is measured, and the rules for replacing the art.
 - **[docs/GAMEDATA_FORMAT.md](docs/GAMEDATA_FORMAT.md)** — the JSON round-trip for external art tools.
+- **[docs/ENDING_ART_BRIEF.md](docs/ENDING_ART_BRIEF.md)** — the two briefs for the ending
+  illustrations, and what the history had to settle before they could be written.
 - Consultation briefs written to ask others for help: **[levelling](docs/CONSULT_LEVELING.md)**,
   **[one more gimmick](docs/CONSULT_GIMMICK.md)**, **[playfulness](docs/CONSULT_PLAYFULNESS.md)**.
 
@@ -483,6 +485,8 @@ proto/        メカニクスを検証した FunctionBASIC のプロトタイプ
 - **[docs/PITFALLS.md](docs/PITFALLS.md)** — つまずいた点。VDP コマンドエンジン、スプライトの癖、
   速度の測り方、絵を差し替えるときの約束。
 - **[docs/GAMEDATA_FORMAT.md](docs/GAMEDATA_FORMAT.md)** — 外部の絵エディタへ渡す JSON の往復。
+- **[docs/ENDING_ART_BRIEF.md](docs/ENDING_ART_BRIEF.md)** — エンディングの一枚絵の指示書（表／裏）と、
+  絵を頼む前に確かめておかなければならなかった史実。
 - 人に相談するために書いた資料: **[レベリング](docs/CONSULT_LEVELING.md)**、
   **[もう一つのギミック](docs/CONSULT_GIMMICK.md)**、**[遊び心](docs/CONSULT_PLAYFULNESS.md)**。
 
