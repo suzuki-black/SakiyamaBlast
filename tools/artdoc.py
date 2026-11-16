@@ -19,7 +19,11 @@ from PIL import Image
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from palette import PALETTE
 
-SCALE = 4                       # 16x16 -> 64x64 (README では width=48 で出す)
+# 16x16 -> 128x128。**README では width=64 で出す** ので、実寸は表示の2倍。
+# 高精細の画面でくっきり出て、そうでない画面でもちょうど 2:1 の縮小なのでぼけない。
+# **絵は表の1列目に置くこと。** 列が多い表だと GitHub が1列目を潰してしまい、
+# width を指定していても 9px まで縮む (実測。2列の表では指定どおり出る)。
+SCALE = 8
 BG = (0, 0, 0)                  # 坑道の黒。要素はこの上に重なって見える
 
 TILE_NAMES = ("powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,"

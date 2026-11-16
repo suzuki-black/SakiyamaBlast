@@ -124,14 +124,14 @@ The pictures are the actual ROM data, not mock-ups (`make artdoc` regenerates th
 count towards the clear condition — none of them is optional, and how much of the pit you dug out
 is a score bonus, not a goal.
 
-| | Which one | Hitting it with the pick | What makes it different |
-|---|---|---|---|
-| <img src="docs/media/elem/dia.png" width="40"> | **Plain black diamond** — the ordinary one | Takes off as much as the swing is worth (1–3). At zero it cracks. | The baseline. Laid in connected seams of up to four, and the durability is set per stage and counted down in the top-right corner of the cell. |
-| <img src="docs/media/elem/pillar.png" width="40"> | **Pillar** — the historical *mitsu-waku* timber set | Breaks, just slower: **+3 durability** on top of the stage's figure | **Breaking it is the cave-in — this is the one that starts the chain.** Every rock resting on coal loses its footing in the same frame. At most two per board. |
-| <img src="docs/media/elem/diahard.png" width="40"> | **Hard seam** | **Nothing at all.** It rings, and the durability does not move — no number is shown either, because it would be a lie | **Only a falling rock can mine it.** It sits at the bottom of a prepared vein, from act 5 on (act 4 in the second loop). Same outline as a plain diamond; told apart by **brightness**, not hue. |
+| | Which one, and what makes it different |
+|---|---|
+| <img src="docs/media/elem/dia.png" width="64"> | **Plain black diamond** — the ordinary one. The pick takes off as much as the swing is worth (1–3), and at zero it cracks. Laid in connected seams of up to four; durability is set per stage and counted down in the top-right corner of the cell. |
+| <img src="docs/media/elem/pillar.png" width="64"> | **Pillar** — the historical *mitsu-waku* timber set. **Breaking it is the cave-in, and this is the one that starts the chain:** every rock resting on coal loses its footing in the same frame. The pick does break it, just slower — **+3 durability** on top of the stage's figure. At most two per board. |
+| <img src="docs/media/elem/diahard.png" width="64"> | **Hard seam. The pick does nothing to it** — it rings, and the durability does not move; no number is shown either, because it would be a lie. **Only a falling rock can mine it.** It sits at the bottom of a prepared vein, from act 5 on (act 4 in the second loop). Same outline as a plain diamond; told apart by **brightness**, not hue. |
 
 **Cracked coal is a state, not a fourth kind.**
-<img src="docs/media/elem/diacrk.png" width="28" align="top"> A diamond at zero durability cracks
+<img src="docs/media/elem/diacrk.png" width="48" align="top"> A diamond at zero durability cracks
 and stays on the board, waiting to be collected: the cell is walkable, and **stepping into it
 collects every connected cracked diamond at once.** A falling rock punches through **only** cells
 in this state — that is the mechanism the whole chain is built on. Leave one lying around and an
@@ -149,22 +149,22 @@ enemy that walks through it fills it back in at durability 1, and one swing re-c
 
 | | What it is |
 |---|---|
-| <img src="docs/media/elem/rock.png" width="40"> | **Rock.** Push it sideways — into dirt as well — but not into coal, another rock, a tub or off the board. It falls when nothing holds it up, and **mines a whole column of cracked diamonds on the way down**. |
-| <img src="docs/media/elem/split.png" width="40"> | **Split rock.** A rock that fell two cells or more, or crushed something, breaks on landing and is gone. Mistime the order and you lose the trigger. |
-| <img src="docs/media/elem/rockprop.png" width="40"> | **Rock on a prop.** The trigger rock of a prepared vein stands on a wooden post. While it stands it **cannot fall, not even in a cave-in**, and cannot be pushed. One swing — any strength — breaks it. |
-| <img src="docs/media/elem/toir.png" width="40"> <img src="docs/media/elem/toibr.png" width="40"> | **Chute** (act 2). A plank that deflects a falling rock one column sideways. **Once** — then it is a broken plank, and the direction it used to run is still readable. |
-| <img src="docs/media/elem/cart.png" width="40"> <img src="docs/media/elem/cartrock.png" width="40"> <img src="docs/media/elem/rail.png" width="40"> | **Mine cart** (act 4). Runs back and forth along a rail; a rock dropped into it rides several cells and is thrown off at the stop. |
+| <img src="docs/media/elem/rock.png" width="64"> | **Rock.** Push it sideways — into dirt as well — but not into coal, another rock, a tub or off the board. It falls when nothing holds it up, and **mines a whole column of cracked diamonds on the way down**. |
+| <img src="docs/media/elem/split.png" width="64"> | **Split rock.** A rock that fell two cells or more, or crushed something, breaks on landing and is gone. Mistime the order and you lose the trigger. |
+| <img src="docs/media/elem/rockprop.png" width="64"> | **Rock on a prop.** The trigger rock of a prepared vein stands on a wooden post. While it stands it **cannot fall, not even in a cave-in**, and cannot be pushed. One swing — any strength — breaks it. |
+| <img src="docs/media/elem/toir.png" width="64"> <img src="docs/media/elem/toibr.png" width="64"> | **Chute** (act 2). A plank that deflects a falling rock one column sideways. **Once** — then it is a broken plank, and the direction it used to run is still readable. |
+| <img src="docs/media/elem/cart.png" width="64"> <img src="docs/media/elem/cartrock.png" width="64"> <img src="docs/media/elem/rail.png" width="64"> | **Mine cart** (act 4). Runs back and forth along a rail; a rock dropped into it rides several cells and is thrown off at the stop. |
 
 **The rest of the pit.**
 
 | | What it is |
 |---|---|
-| <img src="docs/media/elem/bath.png" width="40"> | **Tub of cold water.** It cools you the whole time you stand in it, and two seconds empties a full heat bar — not a tap you brush past. Overlapping it by one pixel is enough. In the second loop it dries up after one use. |
-| <img src="docs/media/elem/spring.png" width="40"> | **Hot spring** (act 3). Floods the tunnels one cell at a time. Rocks dam it, items float on it, enemies cannot cross it without going transparent. |
-| <img src="docs/media/elem/gas.png" width="40"> | **Gas** (second loop only). It gathers at the end of a dead-end tunnel. **Blast there and it ignites — the cell and the ring around it burn, and so do you if you are in them. Dig the other mouth so the air moves through and it clears.** Fire and gas in the same place is what the accident records are full of. |
-| <img src="docs/media/elem/powder.png" width="40"> <img src="docs/media/elem/dyna.png" width="40"> | **Powder** and **a stick of dynamite** lying in the pit. Powder carries over to the next stage. |
-| <img src="docs/media/elem/cave.png" width="40"> | **The hole the enemies come out of.** |
-| <img src="docs/media/elem/bscore.png" width="40"> <img src="docs/media/elem/bcool.png" width="40"> <img src="docs/media/elem/blife.png" width="40"> | **Bonuses** — score, body heat, an extra life. The cooling one is also the **pickled plum** a crushed enemy drops. |
+| <img src="docs/media/elem/bath.png" width="64"> | **Tub of cold water.** It cools you the whole time you stand in it, and two seconds empties a full heat bar — not a tap you brush past. Overlapping it by one pixel is enough. In the second loop it dries up after one use. |
+| <img src="docs/media/elem/spring.png" width="64"> | **Hot spring** (act 3). Floods the tunnels one cell at a time. Rocks dam it, items float on it, enemies cannot cross it without going transparent. |
+| <img src="docs/media/elem/gas.png" width="64"> | **Gas** (second loop only). It gathers at the end of a dead-end tunnel. **Blast there and it ignites — the cell and the ring around it burn, and so do you if you are in them. Dig the other mouth so the air moves through and it clears.** Fire and gas in the same place is what the accident records are full of. |
+| <img src="docs/media/elem/powder.png" width="64"> <img src="docs/media/elem/dyna.png" width="64"> | **Powder** and **a stick of dynamite** lying in the pit. Powder carries over to the next stage. |
+| <img src="docs/media/elem/cave.png" width="64"> | **The hole the enemies come out of.** |
+| <img src="docs/media/elem/bscore.png" width="64"> <img src="docs/media/elem/bcool.png" width="64"> <img src="docs/media/elem/blife.png" width="64"> | **Bonuses** — score, body heat, an extra life. The cooling one is also the **pickled plum** a crushed enemy drops. |
 
 ### Controls
 
@@ -455,14 +455,14 @@ the layout of the pit, the creatures in it and everything else are made for the 
 **黒ダイヤは3種類あって、全部採掘すると面クリア。** 3種類とも**クリア条件に数える**ので、
 どれも採らずには終われない。掘削率はクリア条件ではなく得点ボーナス。
 
-| | どれか | つるはしで叩くと | 何が違うか |
-|---|---|---|---|
-| <img src="docs/media/elem/dia.png" width="40"> | **ふつうの黒ダイヤ** | 威力ぶん（1〜3）減り、0で**割れる** | 基本。**最大4個の炭層**として繋がって置かれる。耐久は面ごとの表で決まり、升の右上に残りが出る。 |
-| <img src="docs/media/elem/pillar.png" width="40"> | **炭柱**（史実の**三ツ枠**＝冠木＋両柱） | 割れる。ただし面の耐久に**+3** されていて時間がかかる | **壊すと落盤 —— 連鎖を起こすのはこれ。** 黒ダイヤに載っている岩が同じフレームに一斉に支えを失う。面に最大2本。 |
-| <img src="docs/media/elem/diahard.png" width="40"> | **硬磐（こうばん）** | **壊れない。**「コツン」と鳴って耐久は**減らない**（嘘になるので数字も出さない） | **落ちてくる岩だけが採れる。** 仕込んだ鉱脈の一番下に居る。表は第五坑から、裏は第四坑から。ふつうの黒ダイヤとの**差は色相ではなく明度**。 |
+| | どれか。何が違うか |
+|---|---|
+| <img src="docs/media/elem/dia.png" width="64"> | **ふつうの黒ダイヤ。** つるはしで**威力ぶん（1〜3）減り、0で割れる**。**最大4個の炭層**として繋がって置かれ、耐久は面ごとの表で決まる（升の右上に残りが出る）。 |
+| <img src="docs/media/elem/pillar.png" width="64"> | **炭柱。壊すと落盤 —— 連鎖を起こすのはこれ。** 史実の三ツ枠（冠木＋両柱）。黒ダイヤに載っている岩が同じフレームに一斉に支えを失う。つるはしで壊せるが、耐久が面の値より 3 多いぶん時間がかかる。面に最大2本。 |
+| <img src="docs/media/elem/diahard.png" width="64"> | **硬磐（こうばん）。つるはしでは壊れない** ——「コツン」と鳴って耐久は**減らない**（嘘になるので数字も出さない）。**落ちてくる岩だけが採れる。** 仕込んだ鉱脈の一番下に居る。表は第五坑から、裏は第四坑から。ふつうの黒ダイヤとの**差は色相ではなく明度**。 |
 
 **「割れた黒ダイヤ」は4種類目ではなく、状態。**
-<img src="docs/media/elem/diacrk.png" width="28" align="top"> 耐久が0になった黒ダイヤは
+<img src="docs/media/elem/diacrk.png" width="48" align="top"> 耐久が0になった黒ダイヤは
 **割れて採掘待ちのまま盤面に残る**。升は通れるようになり、**入ると繋がっている割れた黒ダイヤを
 全部まとめて採る**。そして**落ちてくる岩が貫けるのはこの状態の升だけ** —— 連鎖はここに乗っている。
 放っておくと踏み抜けた敵が耐久1で塞ぎ直し、1振りで割り直せる。
@@ -478,22 +478,22 @@ the layout of the pit, the creatures in it and everything else are made for the 
 
 | | 何か |
 |---|---|
-| <img src="docs/media/elem/rock.png" width="40"> | **岩。** 横へ押せる（**土の中へも押し込める**）。黒ダイヤ・炭柱・別の岩・水風呂・場外へは押せない。支えが無くなれば落ち、**落ちながら割れた黒ダイヤの列を貫いて採る**。 |
-| <img src="docs/media/elem/split.png" width="40"> | **割れた岩。** 2升以上落ちたか、何かを潰した岩は着地で割れて消える。順番を間違えると引き金を失う。 |
-| <img src="docs/media/elem/rockprop.png" width="40"> | **支柱つきの岩。** 仕込んだ鉱脈の引き金。立っている間は**落盤でも落ちず**、押すこともできない。**つるはしで1回**叩けば折れる（威力は問わない）。 |
-| <img src="docs/media/elem/toir.png" width="40"> <img src="docs/media/elem/toibr.png" width="40"> | **樋**（第二坑）。落ちてきた岩を隣の列へ1升逸らす板。**使い切り**で、折れたあとも**どちら向きだったか**が残る。 |
-| <img src="docs/media/elem/cart.png" width="40"> <img src="docs/media/elem/cartrock.png" width="40"> <img src="docs/media/elem/rail.png" width="40"> | **鉱車**（第四坑）。レールの上を往復する。落とし込んだ岩を数升運び、車止めで放り出す。 |
+| <img src="docs/media/elem/rock.png" width="64"> | **岩。** 横へ押せる（**土の中へも押し込める**）。黒ダイヤ・炭柱・別の岩・水風呂・場外へは押せない。支えが無くなれば落ち、**落ちながら割れた黒ダイヤの列を貫いて採る**。 |
+| <img src="docs/media/elem/split.png" width="64"> | **割れた岩。** 2升以上落ちたか、何かを潰した岩は着地で割れて消える。順番を間違えると引き金を失う。 |
+| <img src="docs/media/elem/rockprop.png" width="64"> | **支柱つきの岩。** 仕込んだ鉱脈の引き金。立っている間は**落盤でも落ちず**、押すこともできない。**つるはしで1回**叩けば折れる（威力は問わない）。 |
+| <img src="docs/media/elem/toir.png" width="64"> <img src="docs/media/elem/toibr.png" width="64"> | **樋**（第二坑）。落ちてきた岩を隣の列へ1升逸らす板。**使い切り**で、折れたあとも**どちら向きだったか**が残る。 |
+| <img src="docs/media/elem/cart.png" width="64"> <img src="docs/media/elem/cartrock.png" width="64"> <img src="docs/media/elem/rail.png" width="64"> | **鉱車**（第四坑）。レールの上を往復する。落とし込んだ岩を数升運び、車止めで放り出す。 |
 
 **坑内のもの。**
 
 | | 何か |
 |---|---|
-| <img src="docs/media/elem/bath.png" width="40"> | **水風呂。** 浸かっている間ずっと下がり、**上限から冷まし切るには2秒その場に留まる**（通りすがりでは全快しない）。1px でも重なっていれば効く。裏面では**1回で枯れる**。 |
-| <img src="docs/media/elem/spring.png" width="40"> | **熱水の湧き出し口**（第三坑）。坑道を1升ずつ満たす。岩で堰き止められ、アイテムは浮き、敵は透明化しないと越えられない。 |
-| <img src="docs/media/elem/gas.png" width="40"> | **ガス**（裏面のみ）。**袋小路（鉄砲坑道）の先に溜まる。そこで発破をかけると引火して、その升と隣が燃える（居れば1ミス）。目抜き＝もう一方の口を掘って風を通せば消える。** 事故の記録で一番多いのがガス爆発で、原因欄には「カンテラの灯」が並ぶ。 |
-| <img src="docs/media/elem/powder.png" width="40"> <img src="docs/media/elem/dyna.png" width="40"> | **火薬**と、**落ちているダイナマイト**。火薬は次の面へ持ち越す。 |
-| <img src="docs/media/elem/cave.png" width="40"> | **敵の湧き出し口。** |
-| <img src="docs/media/elem/bscore.png" width="40"> <img src="docs/media/elem/bcool.png" width="40"> <img src="docs/media/elem/blife.png" width="40"> | **ボーナス** —— 得点／体温回復／残機+1。体温回復の絵は、岩で潰した敵が落とす**梅干し**にも使っている。 |
+| <img src="docs/media/elem/bath.png" width="64"> | **水風呂。** 浸かっている間ずっと下がり、**上限から冷まし切るには2秒その場に留まる**（通りすがりでは全快しない）。1px でも重なっていれば効く。裏面では**1回で枯れる**。 |
+| <img src="docs/media/elem/spring.png" width="64"> | **熱水の湧き出し口**（第三坑）。坑道を1升ずつ満たす。岩で堰き止められ、アイテムは浮き、敵は透明化しないと越えられない。 |
+| <img src="docs/media/elem/gas.png" width="64"> | **ガス**（裏面のみ）。**袋小路（鉄砲坑道）の先に溜まる。そこで発破をかけると引火して、その升と隣が燃える（居れば1ミス）。目抜き＝もう一方の口を掘って風を通せば消える。** 事故の記録で一番多いのがガス爆発で、原因欄には「カンテラの灯」が並ぶ。 |
+| <img src="docs/media/elem/powder.png" width="64"> <img src="docs/media/elem/dyna.png" width="64"> | **火薬**と、**落ちているダイナマイト**。火薬は次の面へ持ち越す。 |
+| <img src="docs/media/elem/cave.png" width="64"> | **敵の湧き出し口。** |
+| <img src="docs/media/elem/bscore.png" width="64"> <img src="docs/media/elem/bcool.png" width="64"> <img src="docs/media/elem/blife.png" width="64"> | **ボーナス** —— 得点／体温回復／残機+1。体温回復の絵は、岩で潰した敵が落とす**梅干し**にも使っている。 |
 
 ### 操作
 
