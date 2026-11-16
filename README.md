@@ -120,18 +120,25 @@ and drop rocks through them so the seam comes down in one chain.
 
 The pictures are the actual ROM data, not mock-ups (`make artdoc` regenerates them).
 
-**Coal — the clear condition.** Mine every one of these and the stage is over.
+**There are three kinds of coal, and the stage ends when every one of them is mined.** All three
+count towards the clear condition — none of them is optional, and how much of the pit you dug out
+is a score bonus, not a goal.
 
-| | What it is | The pick | A falling rock |
+| | Which one | Hitting it with the pick | What makes it different |
 |---|---|---|---|
-| <img src="docs/media/elem/dia.png" width="40"> | **Black diamond.** Laid in seams of up to four. Durability is set per stage and counted down in the top-right corner of the cell. | Takes off as much as the swing is worth (1–3). At zero it cracks. | Punches through a **cracked** one and mines it on the way down. |
-| <img src="docs/media/elem/diacrk.png" width="40"> | **Cracked.** The cell is now walkable — **step into it and every connected cracked diamond is collected at once.** Leave it lying around and an enemy that walks through it fills it back in at durability 1. | one swing re-cracks it | this is the only thing a rock can fall through |
-| <img src="docs/media/elem/pillar.png" width="40"> | **Pillar** — the historical *mitsu-waku* timber set. At most two per board, **+3 durability**, and it counts towards the clear condition, so you always have to break it. | breaks it, just slower | — |
-| <img src="docs/media/elem/diahard.png" width="40"> | **Hard seam.** Sits at the **bottom** of a prepared vein, from act 5 on (act 4 in the second loop). Same outline as a black diamond; told apart by **brightness**, not hue. | **nothing.** It rings, and the durability does not move — no number is shown either | **the only thing that mines it** |
+| <img src="docs/media/elem/dia.png" width="40"> | **Plain black diamond** — the ordinary one | Takes off as much as the swing is worth (1–3). At zero it cracks. | The baseline. Laid in connected seams of up to four, and the durability is set per stage and counted down in the top-right corner of the cell. |
+| <img src="docs/media/elem/pillar.png" width="40"> | **Pillar** — the historical *mitsu-waku* timber set | Breaks, just slower: **+3 durability** on top of the stage's figure | **Breaking it is the cave-in — this is the one that starts the chain.** Every rock resting on coal loses its footing in the same frame. At most two per board. |
+| <img src="docs/media/elem/diahard.png" width="40"> | **Hard seam** | **Nothing at all.** It rings, and the durability does not move — no number is shown either, because it would be a lie | **Only a falling rock can mine it.** It sits at the bottom of a prepared vein, from act 5 on (act 4 in the second loop). Same outline as a plain diamond; told apart by **brightness**, not hue. |
 
-- Breaking a **pillar** is the cave-in: **every rock that is resting on coal loses its footing in
-  the same frame** (the coal under it cracks), the screen flashes white and every enemy is stunned.
-  Rocks standing on dirt, on a tunnel floor or on a prop stay where they are.
+**Cracked coal is a state, not a fourth kind.**
+<img src="docs/media/elem/diacrk.png" width="28" align="top"> A diamond at zero durability cracks
+and stays on the board, waiting to be collected: the cell is walkable, and **stepping into it
+collects every connected cracked diamond at once.** A falling rock punches through **only** cells
+in this state — that is the mechanism the whole chain is built on. Leave one lying around and an
+enemy that walks through it fills it back in at durability 1, and one swing re-cracks it.
+
+- The cave-in flashes the screen white and stuns every enemy. Rocks standing on dirt, on a tunnel
+  floor or on a prop stay where they are.
 - A **hard seam does not support a rock.** Push one on top and it falls straight through
   instead of sitting there, so a stalled board can still be rescued with a rock from another column.
 - If the board does become unwinnable (a hard seam left with no rock above it anywhere), the game
@@ -445,17 +452,22 @@ the layout of the pit, the creatures in it and everything else are made for the 
 
 絵は**実際に ROM に入っているデータから起こしたもの**（`make artdoc` で作り直せる）。
 
-**黒ダイヤ（＝クリア条件）。** 盤面のこれを全部採掘すると面クリア。
+**黒ダイヤは3種類あって、全部採掘すると面クリア。** 3種類とも**クリア条件に数える**ので、
+どれも採らずには終われない。掘削率はクリア条件ではなく得点ボーナス。
 
-| | 何か | つるはし | 落ちてくる岩 |
+| | どれか | つるはしで叩くと | 何が違うか |
 |---|---|---|---|
-| <img src="docs/media/elem/dia.png" width="40"> | **黒ダイヤ。** 最大4個の炭層として繋がって置かれる。耐久は面ごとの表で決まり、升の右上に残りが出る。 | 威力ぶん（1〜3）減る。0で**割れる**。 | **割れた**ものを貫いて、落ちながら採る。 |
-| <img src="docs/media/elem/diacrk.png" width="40"> | **割れた黒ダイヤ。** 升が通れるようになる。**入ると、繋がっている割れた黒ダイヤを全部まとめて採る。** 放っておくと、踏み抜けた敵が耐久1で塞ぎ直す。 | 1振りで割り直せる | 岩が通れるのはここだけ |
-| <img src="docs/media/elem/pillar.png" width="40"> | **炭柱**（史実の**三ツ枠**＝冠木＋両柱）。面に最大2本、**耐久+3**。クリア条件に数えるので**必ず壊す**。 | 割れる（時間はかかる） | — |
-| <img src="docs/media/elem/diahard.png" width="40"> | **硬磐。** 仕込んだ鉱脈の**一番下**。表は第五坑から、裏は第四坑から。輪郭は黒ダイヤと同じで、**差は色相ではなく明度**で付けてある。 | **通らない。**「コツン」と鳴って耐久は**減らない**（数字も出ない） | **これだけが採れる** |
+| <img src="docs/media/elem/dia.png" width="40"> | **ふつうの黒ダイヤ** | 威力ぶん（1〜3）減り、0で**割れる** | 基本。**最大4個の炭層**として繋がって置かれる。耐久は面ごとの表で決まり、升の右上に残りが出る。 |
+| <img src="docs/media/elem/pillar.png" width="40"> | **炭柱**（史実の**三ツ枠**＝冠木＋両柱） | 割れる。ただし面の耐久に**+3** されていて時間がかかる | **壊すと落盤 —— 連鎖を起こすのはこれ。** 黒ダイヤに載っている岩が同じフレームに一斉に支えを失う。面に最大2本。 |
+| <img src="docs/media/elem/diahard.png" width="40"> | **硬磐（こうばん）** | **壊れない。**「コツン」と鳴って耐久は**減らない**（嘘になるので数字も出さない） | **落ちてくる岩だけが採れる。** 仕込んだ鉱脈の一番下に居る。表は第五坑から、裏は第四坑から。ふつうの黒ダイヤとの**差は色相ではなく明度**。 |
 
-- **炭柱を壊すと落盤**。**黒ダイヤに載っている岩が同じフレームに支えを失い**（下の黒ダイヤが割れる）、
-  画面が白く飛んで敵が全員よろける。土・坑道・支柱に載っている岩はそのまま。
+**「割れた黒ダイヤ」は4種類目ではなく、状態。**
+<img src="docs/media/elem/diacrk.png" width="28" align="top"> 耐久が0になった黒ダイヤは
+**割れて採掘待ちのまま盤面に残る**。升は通れるようになり、**入ると繋がっている割れた黒ダイヤを
+全部まとめて採る**。そして**落ちてくる岩が貫けるのはこの状態の升だけ** —— 連鎖はここに乗っている。
+放っておくと踏み抜けた敵が耐久1で塞ぎ直し、1振りで割り直せる。
+
+- 落盤では画面が白く飛んで敵が全員よろける。土・坑道・支柱に載っている岩はそのまま。
 - **硬磐は岩を支えない。** 真上へ押した岩はそこで止まらずに落ちて貫くので、
   引き金の岩を失っても別の列から押してきて立て直せる。
 - それでも詰んだとき（硬磐が残っているのに、その上の行に岩が1つも無い）は、
