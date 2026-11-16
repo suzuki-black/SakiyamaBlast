@@ -41,6 +41,11 @@ def main(argv):
                     help="全chがこの階調(0-7)以下の色を黒へ寄せる。背景ノイズに"
                          "パレットを食われるのを防ぐ。0で無効")
     ap.add_argument("--colors", type=int, default=16)
+    ap.add_argument("--black0", action="store_true",
+                    help="0番を必ず真っ黒にする。**0番は背景色レジスタ(R#7)の色として"
+                         "画面の縁にも出る**ので、黒い色を持たない絵 (明るい写真など) "
+                         "では縁が灰色や緑がかった色になる。もともと黒い絵 (タイトルや"
+                         "表のエンディング) では何も変わらない")
     args = ap.parse_args(argv[1:])
 
     im = Image.open(args.src).convert("RGB")
@@ -85,6 +90,14 @@ def main(argv):
     for new, old in enumerate(order):
         remap[old] = new
     entries = [entries[i] for i in order]
+
+    # 0番を真っ黒にする。黒を持たない絵では、そのままだと**画面の縁**まで
+    # その色になる (裏のエンディングの温水プールが緑がかった灰色だった)。
+    # 0番を使っていた画素は**次に暗い色 (1番) へ逃がす**ので、絵は1段ぶん
+    # 浅くなるだけで済む。もともと 0番が黒なら何も起きない。
+    if args.black0 and entries[0] != (0, 0, 0):
+        entries[0] = (0, 0, 0)
+        remap = [1 if v == 0 else v for v in remap]
 
     src = q.load()
     pixels = bytearray(SCR_W * SCR_H // 2)

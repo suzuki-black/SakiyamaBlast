@@ -138,7 +138,10 @@ END_OMOTE_PAL := $(BUILDDIR)/end_omote_pal.h
 END_URA_PAL   := $(BUILDDIR)/end_ura_pal.h
 END_OMOTE_SEG := 16
 END_URA_SEG   := 20
-END_OPTS      := --dither
+# **--black0 は入れておくこと。** 0番は背景色レジスタ (R#7) として画面の縁にも
+# 出るので、黒を持たない絵だと縁がその色になる (裏の温水プールが緑がかった灰色
+# だった。作者の報告、2026-11-16)。表の絵はもともと 0番が黒なので何も変わらない。
+END_OPTS      := --dither --black0
 
 # スプライトと背景タイルの絵。PNG が正で、描き替えて make し直せば差し替わる。
 ART_SPR_SRC  := assets/sprites.png
