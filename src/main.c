@@ -385,6 +385,12 @@ static void goto_gameover(void)
  * 戻すこと。タイトル画像とまったく同じ約束で、忘れると文字の色が化ける。
  *
  * **曲は絵と一緒に始める。** 絵も結びの一部なので、無音で見せない。
+ *
+ * **重い描画は曲より前にぜんぶ済ませる。** 音は主ループ1周に1回しか進まない
+ * (`snd_catch_up`) ので、曲が鳴っている最中に重い描画を挟むと、そのぶん音が
+ * 伸びる (作者の報告、2026-11-16)。だから一枚絵もロールの下ごしらえも、
+ * `snd_play_ending()` より前に置いてある。残る切り替えはパレット16本と
+ * レジスタ1本だけなので、絵からロールへは一瞬で移る。
  */
 static void goto_ending(void)
 {
@@ -393,6 +399,7 @@ static void goto_ending(void)
     oam_flush();
     vdp_display(0);              /* 1枚絵のパレットに切り替わるところを見せない */
     ending_pic();
+    ending_start();              /* ロールの用意。表示はまだページ0 (一枚絵) */
     vdp_display(1);
     snd_play_ending();
     endpic_t = 0;
@@ -404,30 +411,34 @@ static void goto_ending(void)
     state = ST_ENDPIC;
 }
 
-/* 一枚絵からエンドロールへ。 */
+/*
+ * 一枚絵からエンドロールへ。**ここでは重いことを何もしない** (理由は goto_ending)。
+ * ページ1 の中身は用意済みなので、パレットを戻して表示を切り替えるだけ。
+ *
+ * **「掘り尽くす」ではなく「帰る」で書く。** docs/HISTORY.md §8 の通り、
+ * この人物は炭鉱町がにぎわう中をまっすぐ家へ帰る側の人だった。勝利や達成では
+ * なく、番方を終えて帰るのが結びとして合う。
+ * **名前は架空の「丹野3時」のまま。** 実在の先山の名前は ROM にも README にも
+ * 入れない (資料にだけ載せる。`DESIGN.md` の公開前 TODO)。
+ * 文面は `src/endtext.c`、流す仕組みは `src/ending.c`。
+ */
 static void goto_endroll(void)
 {
-    vdp_display(0);
     set_game_palette();          /* 1枚絵のパレットから戻す */
-    vdp_fill(0, 0, 256, SCR_H, COL_TUNNEL);
-    /* **「掘り尽くす」ではなく「帰る」で書く。** docs/HISTORY.md §8 の通り、
-       この人物は炭鉱町がにぎわう中をまっすぐ家へ帰る側の人だった。勝利や達成では
-       なく、番方を終えて帰るのが結びとして合う。
-       **名前は架空の「丹野3時」のまま。** 実在の先山の名前は ROM にも README にも
-       入れない (資料にだけ載せる。`DESIGN.md` の公開前 TODO)。
-       文面は `src/endtext.c`、流す仕組みは `src/ending.c`。 */
-    ending_start();
-    vdp_display(1);
+    ending_show();               /* 表示をページ1 へ */
     state = ST_ENDING;
 }
 
 static void goto_title(void)
 {
     snd_stop();
+    /* **先に幕を下ろす。** ページ0 にはエンディングの一枚絵が残っている
+       (消さずに置いてある) ので、表示をページ0 へ戻す前に消さないと、
+       ゲームのパレットで塗られた一枚絵が一瞬出る。 */
+    vdp_display(0);              /* 1枚絵のパレットに切り替わるところを見せない */
     ending_stop();          /* エンドロールのページ1 表示を戻す (何度呼んでもよい) */
     spr_park_all();         /* 1枚絵の上にスプライトが残らないように */
     oam_flush();
-    vdp_display(0);              /* 1枚絵のパレットに切り替わるところを見せない */
     title_draw();
     vdp_display(1);
     snd_play_title();

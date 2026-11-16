@@ -8,6 +8,10 @@ void text_init(void);
 /* x は偶数、scale は 1 か 2。bg に 0xFF を渡すと背景を塗らない…のではなく、
    本作では常に bg で塗り潰す (消すときは盤面を描き直す)。 */
 extern uint8_t text_bold;   /* 1 = 1ドットずらして重ね、太く見せる (疑似ボールド) */
+/* **描く走査行の範囲。** 既定は 0 / 8 = 文字まるごと。1本ずつに絞れば、長い行を
+   何フレームかに分けて描ける (エンドロールが使う)。**使ったら 0 / 8 へ戻すこと。** */
+extern uint8_t text_row0;
+extern uint8_t text_rows;
 
 void text_draw(uint16_t x, uint16_t y, const char *s,
                uint8_t fg, uint8_t bg, uint8_t scale);

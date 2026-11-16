@@ -120,6 +120,26 @@ static void draw_row(uint8_t i, uint16_t y)
 }
 
 /*
+ * **1行を8回に分けて描く。** 1行 (28文字) をまとめて描くと主ループが **0.12秒**
+ * 止まり、`snd_tick()` が回らないぶん**音が間延びする** (作者の報告、2026-11-16。
+ * openMSX で実測)。走査行を1本ずつにすれば1回が8分の1で済む。
+ *
+ * **どこまで描いたかを覚える変数は持たない。** 変数の領域は RAM 実行の領域と
+ * 接していて1バイトも空きがない (`tools/ihx2rom.py` が止める)。流す位置
+ * `roll_px` の下位4ビットがそのまま進み具合になっているので、そこから引く。
+ */
+static void draw_part(uint8_t i, uint16_t y, uint8_t part)
+{
+    text_row0 = part;
+    text_rows = 1;
+    draw_row(i, y);
+    /* **必ず戻す。** 空行のときは draw_row が text_draw を呼ばずに帰るので、
+       ここで戻さないと次に誰かが描く文字が1本線になる。 */
+    text_row0 = 0;
+    text_rows = 8;
+}
+
+/*
  * **ロールの前に一枚絵を出す。** 表は炭鉱長屋の茶の間、裏はドームの温水プール
  * (`docs/ENDING_ART_BRIEF.md`)。やり方は `title_draw()` とまったく同じで、
  * ROM の4セグメントを VRAM のページ0 の 8KB ブロック 0..3 へそのまま流し込む。
@@ -155,6 +175,15 @@ void ending_pic(void)
     bank_select(DATA_SEG);      /* 窓を絵と曲へ戻す。戻し忘れると音も絵も壊れる */
 }
 
+/*
+ * **ロールの用意だけを先に済ませる。** ページ1 を消して1行目を描くのは重いので、
+ * **一枚絵を出した直後、曲を鳴らし始める前に**ここまでやっておく。
+ * 表示はページ0 (一枚絵) のままで、切り替えは `ending_show()` が受け持つ。
+ *
+ * **こうしないと曲が間延びする** (作者の報告、2026-11-16)。音は主ループ1周に
+ * 1回しか進まない (`snd_catch_up`) ので、絵からロールへ移る瞬間に重い描画を
+ * 挟むと、鳴っている音がそのぶん伸びる。実測で 0.25秒 止まっていた。
+ */
 void ending_start(void)
 {
     roll_px = 0;
@@ -167,12 +196,19 @@ void ending_start(void)
        エンドロールでスプライトは1枚も使わないので、面ごと止めるのが確実。 */
     VDP_REG(8, 0x0A);                           /* SPD=1 / 64K DRAM */
     VDP_REG(23, 0);
-    VDP_REG(2, 0x3F);                           /* 表示をページ1 へ */
     /* **裏面をクリアしたときは裏の物語から流す。** 表は 0 から。
        共通部分 (題・クレジット・献辞) は両方とも同じ行を使う。 */
     roll_i = (uint8_t)(loop_n ? ROLL_URA : 0);
+    /* **1行目だけはまとめて描く。** ここは曲を鳴らし始める前なので止まってよい。 */
     draw_row(roll_i, page1_y(LEAD));
     roll_i++;
+}
+
+/* 表示をページ1 (ロール) へ切り替える。**レジスタ1本なので一瞬で終わる。**
+   重い用意は `ending_start()` が先に済ませてある。 */
+void ending_show(void)
+{
+    VDP_REG(2, 0x3F);
 }
 
 /* 表示をページ0 へ戻す。**エンドロールから抜けるときに必ず呼ぶ。** */
@@ -186,8 +222,18 @@ void ending_stop(void)
 void ending_tick(void)
 {
     uint16_t band;
-    uint8_t i;
+    uint8_t lo;
     if (roll_px == ROLL_OVER) {
+        /* **終わりの塊も走査行1本ずつ置く。** 13行をまとめて描くと 1.5秒 止まり、
+           鳴っている曲がそのぶん伸びる。流し終わった直後なので `roll_t` が空いて
+           いる —— 上位で何行目、下位3ビットで走査行を数える (13行×8本 = 104)。 */
+        if (roll_t < (uint8_t)(ROLL_TAIL * 8)) {
+            lo = (uint8_t)(roll_t >> 3);
+            draw_part((uint8_t)(END_ROLL_N - ROLL_TAIL + lo),
+                      page1_y((uint8_t)(ROLL_TOP + lo * ROW_H)),
+                      (uint8_t)(roll_t & 7));
+            roll_t++;
+        }
         return;
     }
     if (roll_px >= roll_end()) {
@@ -196,11 +242,8 @@ void ending_tick(void)
            見えている範囲を消してから、終わりの塊を同じ位置へ描き直す。 */
         VDP_REG(23, 0);
         vdp_fill(0, PAGE1, 256, SCR_H, COL_TUNNEL);
-        for (i = 0; i < ROLL_TAIL; i++) {
-            draw_row((uint8_t)(END_ROLL_N - ROLL_TAIL + i),
-                     page1_y((uint8_t)(ROLL_TOP + i * ROW_H)));
-        }
         roll_px = ROLL_OVER;
+        roll_t = 0;
         return;
     }
     if (++roll_t < ROLL_WAIT) {
@@ -209,16 +252,25 @@ void ending_tick(void)
     roll_t = 0;
     roll_px++;
     VDP_REG(23, (uint8_t)roll_px);
-    if ((uint8_t)(roll_px & (ROW_H - 1)) == 0) {
-        /* y の作り方は `page1_y()` の説明を見ること (SDCC の都合で関数にしてある)。 */
+    lo = (uint8_t)(roll_px & (ROW_H - 1));
+    /* y の作り方は `page1_y()` の説明を見ること (SDCC の都合で関数にしてある)。 */
+    if (lo == 0) {
         band = page1_y((uint8_t)(roll_px + LEAD));
         vdp_fill(0, band, 256, ROW_H, COL_TUNNEL);
         if (roll_i == ROLL_URA && !loop_n) {
             roll_i = ROLL_CREDITS;      /* 表は裏の物語を飛ばす */
         }
-        if (roll_i < END_ROLL_N) {
-            draw_row(roll_i, band);
+        /* **文字はまだ置かない。** 次の8段で1本ずつ置く。`roll_i` は帯を1つ
+           用意するごとに必ず1つ進めて、**「この帯の行 = roll_i - 1」**にして
+           おく (進み具合を覚える変数を増やさずに済む)。文面を使い切った
+           あとは END_ROLL_N + 1 で止まり、下の `<=` が偽になって何も描かない。 */
+        if (roll_i <= END_ROLL_N) {
             roll_i++;
         }
+    } else if (lo <= 8 && roll_i <= END_ROLL_N) {
+        /* 帯の y は 16画素の切りのよいところ。下位4ビットを落とせば、
+           用意したときと同じ値になる (8ビットで足りる)。 */
+        band = page1_y((uint8_t)((uint8_t)((uint8_t)roll_px & 0xF0) + LEAD));
+        draw_part((uint8_t)(roll_i - 1), band, (uint8_t)(lo - 1));
     }
 }

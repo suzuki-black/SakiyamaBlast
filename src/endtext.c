@@ -117,7 +117,11 @@ const roll_row end_roll[] = {
     { H, "SOUND" },
     { N, "CLAUDE CODE" },
     { N, "" },
-    { H, "TITLE ARTWORK" },
+    /* **タイトルとエンディングの絵は同じ出どころ。** どちらも作者が Microsoft
+       Copilot で出したもので、**画像の権利は作者が持つ** (README のクレジットと
+       同じ扱い)。行を増やさずに見出しだけ広げてある —— 行を足すと ROLL_URA /
+       ROLL_CREDITS の番号がずれ、END_ROLL_N も直さなければならない。 */
+    { H, "TITLE & ENDING ARTWORK" },
     { N, "MICROSOFT COPILOT" },
     { N, "CLAUDE CODE" },
     { N, "" },
