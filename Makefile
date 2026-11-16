@@ -172,7 +172,7 @@ ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,spr
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT
 MACHINE   ?= C-BIOS_MSX2+_JP
 
-.PHONY: hostsim grade diag emotion roundtrip editor all run check fps gamedata gamedata-import enemy-anim clean
+.PHONY: hostsim grade diag emotion roundtrip editor all run check fps gamedata gamedata-import enemy-anim artdoc clean
 
 all: $(ROM)
 
@@ -255,6 +255,12 @@ gamedata-import: gamedata.json tools/import_gamedata.py tools/palette.py
 	python3 tools/import_gamedata.py gamedata.json \
 	    --sprites $(ART_SPR_SRC) --sprite-names $(ART_SPR_NAMES) \
 	    --tiles $(ART_TILE_SRC) --tile-names $(ART_TILE_NAMES)
+
+# README の一覧表で使う、盤面の要素の絵 (docs/media/elem/*.png)。
+# **`all` からは呼ばない** —— ROM のビルドが Pillow の出力に依存すると、
+# 絵を触っていない日まで差分が出る。絵を描き替えたときだけ走らせる。
+artdoc: $(ART_TILE_BIN) $(ART_SPR_BIN) tools/artdoc.py tools/palette.py
+	python3 tools/artdoc.py
 
 clean:
 	rm -rf $(BUILDDIR)
