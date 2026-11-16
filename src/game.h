@@ -512,11 +512,13 @@ uint16_t layout_seed(void);
 void    set_dirt_palette(void);
 void    cavein_flash(void);        /* 落盤の閃光を始める */
 void    flash_reset(void);         /* 閃光の残りを捨てる */
-void    ending_pic(void);          /* ロールの前の一枚絵 (ページ0。絵のパレットに塗り替わる) */
-void    ending_start(void);        /* ロールの用意 (ページ1 を消して1行目を描く。表示は変えない) */
+void    set_game_palette(void);    /* 坑内の色へ焼き直す (1枚絵のパレットから戻す) */
+void    ending_pic(void);          /* ロールの前の一枚絵 (ページ1 の 0..211行) */
+void    ending_start(void);        /* ロールの用意 (ページ1 を消す。絵を置く前に呼ぶ) */
 void    ending_show(void);         /* 表示をページ1 へ切り替える (一瞬で終わる) */
 void    ending_stop(void);         /* 表示をページ0 へ戻す */
 void    ending_tick(void);         /* 毎フレーム呼ぶ。1画素ずつ流す */
+uint8_t ending_sliding(void);      /* 1 = 一枚絵がまだ流れている (スペースを効かせない) */
 void    draw_grain(uint8_t cx, uint8_t cy);  /* 土の升に粒を散らす (地色の上へ) */
 void    cavein_flash_tick(void);   /* 毎フレーム呼ぶ。終わったら色を戻す */   /* 面ごとの土の色 */
 void    coal_shake_tick(void);

@@ -33,10 +33,10 @@
 #define T EROW_ATTR_T
 
 const roll_row end_roll[] = {
-    /* --- 物語 --- */
-    { N, "" },
-    { N, "" },
-    { N, "" },
+    /* --- 物語 ---
+       **頭に空行を置かない** (2026-11-16)。ロールの前に一枚絵が上へ流れていくので、
+       そのあとさらに3行ぶん (約4秒) 真っ暗にすると、間が空きすぎる。
+       裏の物語 (ROLL_URA 以降) も同じ理由で空行なしで始まる。 */
     { N, "TANNO 3JI FINISHES HIS SHIFT" },
     { N, "AND WALKS BACK TO THE ROW HOUSE" },
     { N, "WHERE HIS WIFE AND DAUGHTER" },
