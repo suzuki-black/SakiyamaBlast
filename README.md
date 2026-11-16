@@ -30,6 +30,7 @@ and drop rocks through them so the seam comes down in one chain.
 - [Story](#story)
 - [Overview](#overview)
 - [Features](#features)
+- [The board, piece by piece](#the-board-piece-by-piece)
 - [Controls](#controls)
 - [Requirements](#requirements)
 - [Building](#building)
@@ -58,7 +59,8 @@ and drop rocks through them so the seam comes down in one chain.
   256 KB (2 Mbit) ASCII8 MegaROM.
 - **Genre:** single-player, single-screen dig-and-blast action.
 - **Structure:** 15 stages in 5 acts (3 stages each). The tunnel you start in is carved in the
-  shape of the stage number.
+  shape of the stage number. Clear all 15 and a **second loop** opens, with different boards and
+  a tighter ruleset (see [docs/GAME_RULES.md](docs/GAME_RULES.md) §11b for what changes).
 - **Clear condition:** mine **every black diamond** on the board. How much you dug is a score
   bonus, not a goal.
 - **The core is the chain.** A falling rock punches straight through cracked coal and mines it
@@ -93,8 +95,10 @@ and drop rocks through them so the seam comes down in one chain.
   costs a life. Whatever is left is converted into score in a fast tally at the end of the stage.
 - **Dynamite is a thrown weapon.** It flies up to five cells, explodes on the enemy it hits, and
   does not dig terrain. Powder carries over to the next stage.
+- **An ending** — a full-screen picture, then a credit roll that the picture slides away into.
+  There is **one picture for each loop**.
 - **Hidden settings menu** — the Konami code on the title screen (lives, continue, invincibility,
-  starting stage, instant retry, heat haze).
+  starting stage, instant retry, heat haze, and switches for the FM and the taiko).
 - **Music on the PSG**: *Jōban Tankō-bushi* (a Jōban coal-mining folk song) in the pit and
   *Down in a Coal Mine* (J. B. Geoghegan, 1872, public domain) on the title — both transcribed
   and arranged for three channels for this game.
@@ -112,6 +116,49 @@ and drop rocks through them so the seam comes down in one chain.
   measured conditions — "one swing without preparation pays this much", "digging the gaps pays
   this much more", "no row holds two rocks".
 
+### The board, piece by piece
+
+The pictures are the actual ROM data, not mock-ups (`make artdoc` regenerates them).
+
+**Coal — the clear condition.** Mine every one of these and the stage is over.
+
+| | What it is | The pick | A falling rock |
+|---|---|---|---|
+| <img src="docs/media/elem/dia.png" width="40"> | **Black diamond.** Laid in seams of up to four. Durability is set per stage and counted down in the top-right corner of the cell. | Takes off as much as the swing is worth (1–3). At zero it cracks. | Punches through a **cracked** one and mines it on the way down. |
+| <img src="docs/media/elem/diacrk.png" width="40"> | **Cracked.** The cell is now walkable — **step into it and every connected cracked diamond is collected at once.** Leave it lying around and an enemy that walks through it fills it back in at durability 1. | one swing re-cracks it | this is the only thing a rock can fall through |
+| <img src="docs/media/elem/pillar.png" width="40"> | **Pillar** — the historical *mitsu-waku* timber set. At most two per board, **+3 durability**, and it counts towards the clear condition, so you always have to break it. | breaks it, just slower | — |
+| <img src="docs/media/elem/diahard.png" width="40"> | **Hard seam.** Sits at the **bottom** of a prepared vein, from act 5 on (act 4 in the second loop). Same outline as a black diamond; told apart by **brightness**, not hue. | **nothing.** It rings, and the durability does not move — no number is shown either | **the only thing that mines it** |
+
+- Breaking a **pillar** is the cave-in: **every rock that is resting on coal loses its footing in
+  the same frame** (the coal under it cracks), the screen flashes white and every enemy is stunned.
+  Rocks standing on dirt, on a tunnel floor or on a prop stay where they are.
+- A **hard seam does not support a rock.** Push one on top and it falls straight through
+  instead of sitting there, so a stalled board can still be rescued with a rock from another column.
+- If the board does become unwinnable (a hard seam left with no rock above it anywhere), the game
+  detects it, says so and rebuilds the stage rather than leaving you to overheat. It costs a life;
+  score and powder are rewound to what they were when you walked into the stage.
+
+**Rocks, and the four ways to move one.**
+
+| | What it is |
+|---|---|
+| <img src="docs/media/elem/rock.png" width="40"> | **Rock.** Push it sideways — into dirt as well — but not into coal, another rock, a tub or off the board. It falls when nothing holds it up, and **mines a whole column of cracked diamonds on the way down**. |
+| <img src="docs/media/elem/split.png" width="40"> | **Split rock.** A rock that fell two cells or more, or crushed something, breaks on landing and is gone. Mistime the order and you lose the trigger. |
+| <img src="docs/media/elem/rockprop.png" width="40"> | **Rock on a prop.** The trigger rock of a prepared vein stands on a wooden post. While it stands it **cannot fall, not even in a cave-in**, and cannot be pushed. One swing — any strength — breaks it. |
+| <img src="docs/media/elem/toir.png" width="40"> <img src="docs/media/elem/toibr.png" width="40"> | **Chute** (act 2). A plank that deflects a falling rock one column sideways. **Once** — then it is a broken plank, and the direction it used to run is still readable. |
+| <img src="docs/media/elem/cart.png" width="40"> <img src="docs/media/elem/cartrock.png" width="40"> <img src="docs/media/elem/rail.png" width="40"> | **Mine cart** (act 4). Runs back and forth along a rail; a rock dropped into it rides several cells and is thrown off at the stop. |
+
+**The rest of the pit.**
+
+| | What it is |
+|---|---|
+| <img src="docs/media/elem/bath.png" width="40"> | **Tub of cold water.** It cools you the whole time you stand in it, and two seconds empties a full heat bar — not a tap you brush past. Overlapping it by one pixel is enough. In the second loop it dries up after one use. |
+| <img src="docs/media/elem/spring.png" width="40"> | **Hot spring** (act 3). Floods the tunnels one cell at a time. Rocks dam it, items float on it, enemies cannot cross it without going transparent. |
+| <img src="docs/media/elem/gas.png" width="40"> | **Gas** (second loop only). It gathers at the end of a dead-end tunnel. **Blast there and it ignites — the cell and the ring around it burn, and so do you if you are in them. Dig the other mouth so the air moves through and it clears.** Fire and gas in the same place is what the accident records are full of. |
+| <img src="docs/media/elem/powder.png" width="40"> <img src="docs/media/elem/dyna.png" width="40"> | **Powder** and **a stick of dynamite** lying in the pit. Powder carries over to the next stage. |
+| <img src="docs/media/elem/cave.png" width="40"> | **The hole the enemies come out of.** |
+| <img src="docs/media/elem/bscore.png" width="40"> <img src="docs/media/elem/bcool.png" width="40"> <img src="docs/media/elem/blife.png" width="40"> | **Bonuses** — score, body heat, an extra life. The cooling one is also the **pickled plum** a crushed enemy drops. |
+
 ### Controls
 
 | Input | Action |
@@ -125,9 +172,10 @@ and drop rocks through them so the seam comes down in one chain.
 ### Requirements
 
 - **MSX2 or later** — SCREEN 5 is required. The code is built for the Z80, so it runs on MSX2 /
-  MSX2+ as well; on **MSX turbo R** it simply runs faster. Measured in play: **60.0fps on a
-  turbo R, 56.6fps on a Z80 MSX2**. The heat shimmer costs about 17fps on a Z80, which is why
-  it is drawn in 11 bands there and 16 on a turbo R.
+  MSX2+ as well; on **MSX turbo R** it simply runs faster. Measured with the pick swinging
+  non-stop on stage 1 (`make fps`, the worst case): **59.9fps on a turbo R, 50.2fps on a Z80
+  machine**. Standing still, the same probe reads 59.9 and 56.9. The heat shimmer costs about
+  17fps on a Z80, which is why it is drawn in 11 bands there and 16 on a turbo R.
 - **The sound scales with the machine, and nothing is forced on hardware that lacks it.**
   Every layer is detected at boot; a missing one is simply never touched.
 
@@ -154,6 +202,7 @@ pip3 install Pillow
 make                 # -> build/sakiyama.rom (256 KB ASCII8 MegaROM)
 make run             # launch it in openMSX
 make check           # smoke test: boot it headless and inspect RAM/VRAM
+make fps             # measure the in-game frame rate on both machines
 make clean
 ```
 
@@ -163,6 +212,7 @@ and the ROM has it**. For external pattern editors there is a JSON round-trip:
 ```bash
 make gamedata          # assets/*.png -> gamedata.json
 make gamedata-import   # gamedata.json -> assets/*.png (validated)
+make artdoc            # build/*.bin -> docs/media/elem/*.png (the tables above)
 ```
 
 To measure the boards instead of guessing at them:
@@ -170,6 +220,8 @@ To measure the boards instead of guessing at them:
 ```bash
 make hostsim                              # build the headless simulator
 make grade                                # score all 15 stages
+make editor                               # the stage editor, in a browser (127.0.0.1 only)
+make roundtrip                            # check the stage-file round-trip loses nothing
 tools/hostsim/sim --stage 7 --board       # print a board (* = a gap you must dig)
 python3 tools/hostsim/pick_seeds.py       # sweep 60,000 seeds per stage and pick
 ```
@@ -200,11 +252,14 @@ src/          the game. C (SDCC) + three .s files for the ROM header, the VDP an
   levels.c      per-stage difficulty tables (enemy pool, respawn, ghost timing, face pressure)
   water.c       hot water: flooding, damming, pools
   cart.c        the mine cart
+  ending.c      the ending: the illustration, and the credits that follow it in
   music.c       the song data (the only file to touch when changing the music)
 assets/       the art. PNG is the master; `make` converts it
 tools/        ROM packing, PNG converters, the headless simulator, the smoke test
   hostsim/      compiles the real game logic with gcc and measures the boards
+  stage_editor/ lay a board out in a browser and score it on the spot (`make editor`)
 docs/         design notes, rules, research
+  media/elem/   the element art in the tables above, rendered from the ROM data
 proto/        the FunctionBASIC prototype the mechanics were proven in
 ```
 
@@ -228,6 +283,8 @@ proto/        the FunctionBASIC prototype the mechanics were proven in
 - **[docs/PITFALLS.md](docs/PITFALLS.md)** — what went wrong and why: the VDP command engine,
   sprite quirks, how speed is measured, and the rules for replacing the art.
 - **[docs/GAMEDATA_FORMAT.md](docs/GAMEDATA_FORMAT.md)** — the JSON round-trip for external art tools.
+- **[docs/STAGE_FORMAT.md](docs/STAGE_FORMAT.md)** — the stage file the editor reads and writes.
+- **[docs/KANJI_FORMAT.md](docs/KANJI_FORMAT.md)** — how the kanji glyphs are stored and drawn.
 - **[docs/ENDING_ART_BRIEF.md](docs/ENDING_ART_BRIEF.md)** — the two briefs for the ending
   illustrations, and what the history had to settle before they could be written.
 - Consultation briefs written to ask others for help: **[levelling](docs/CONSULT_LEVELING.md)**,
@@ -246,9 +303,10 @@ This is an **experimental study piece**, and a tribute: the protagonist is model
 author's grandfather, who was a sakiyama in the Jōban coal mine
 ([what that means, and who he was](docs/HISTORY_en.md)).
 
-- **It is still a prototype.** Stages 1–3 have been played properly; the later acts are verified
-  by measurement (headless simulation plus openMSX on both C-BIOS and a real turbo R BIOS)
-  rather than by playing them to death.
+- **It is still a prototype.** Stages 1–3 have been played properly, and the author has since
+  cleared stages 11 and 14, and stage 15 of the second loop, on a real turbo R. The rest of the
+  later acts are verified by measurement (headless simulation plus openMSX on both C-BIOS and a
+  real turbo R BIOS) rather than by playing them to death.
 - **It does not set out to match *Dig Dug* or *Mr. Do!*** Only the mechanics are taken from them,
   and only where they are the right answer; the art, the music, the names and the subject are
   this game's own.
@@ -308,6 +366,7 @@ the layout of the pit, the creatures in it and everything else are made for the 
 - [あらすじ](#あらすじ)
 - [概要](#概要)
 - [特徴](#特徴)
+- [盤面のもの](#盤面のもの)
 - [操作](#操作-1)
 - [動作環境](#動作環境)
 - [ビルド](#ビルド)
@@ -334,6 +393,8 @@ the layout of the pit, the creatures in it and everything else are made for the 
   256KB（2メガビット）の ASCII8 メガROM。
 - **ジャンル:** 1人用・1画面固定の「掘り＋発破」アクション。
 - **構成:** 全15面、3面ずつ5つの幕。面の最初に掘り抜かれている坑道は**面番号の形**をしている。
+  15面をクリアすると**裏面（2周目）**が開く。盤面もルールも別物になる
+  （何が変わるかは [docs/GAME_RULES.md](docs/GAME_RULES.md) §11b）。
 - **クリア条件:** 盤面の**黒ダイヤ（石炭）を全部採掘する**。掘削率はクリア条件ではなく得点ボーナス。
 - **核は連鎖。** 落ちる岩は割れた黒ダイヤを**突き抜けて、その場で採掘する**。
   岩が採ったぶんも自分で採ったぶんも、**3秒以内なら同じ連鎖**として数える。
@@ -362,7 +423,10 @@ the layout of the pit, the creatures in it and everything else are made for the 
   0でミス。クリア時は残り時間が高速に得点へ変わる。
 - **ダイナマイトは投げる武器。** 最大5升飛び、当たった敵のところで爆発する。**地形は掘らない**。
   火薬は次の面へ持ち越す。
-- **隠しの設定メニュー** — タイトルでコナミコマンド（残機・継続・無敵・開始面・面の組み直し・陽炎）。
+- **エンディング** — 一枚絵が出て、その絵が上へ流れ去りながらエンドロールが入ってくる。
+  **絵は表と裏で別のものが1枚ずつ**ある。
+- **隠しの設定メニュー** — タイトルでコナミコマンド（残機・継続・無敵・開始面・面の組み直し・
+  陽炎、FM と和太鼓の入切）。
 - **音楽は PSG 3声**。坑内は**常磐炭坑節**、タイトルは **Down in a Coal Mine**
   （J. B. Geoghegan 作曲、1872年。著作権切れ）。どちらも旋律を採ってこのゲーム用に編曲したもの。
 - **FM 音源（MSX-MUSIC）を、曲データを1バイトも増やさずに添える。** PSG の3声が音を
@@ -377,6 +441,48 @@ the layout of the pit, the creatures in it and everything else are made for the 
   ヘッドレスで回し（`tools/hostsim`）、「段取り無しの一手で何個採れるか」「隙間を掘ると
   何個増えるか」「1行に岩が2個ないか」などを測って、6万通りの種から面ごとの盤面を選んでいる。
 
+### 盤面のもの
+
+絵は**実際に ROM に入っているデータから起こしたもの**（`make artdoc` で作り直せる）。
+
+**黒ダイヤ（＝クリア条件）。** 盤面のこれを全部採掘すると面クリア。
+
+| | 何か | つるはし | 落ちてくる岩 |
+|---|---|---|---|
+| <img src="docs/media/elem/dia.png" width="40"> | **黒ダイヤ。** 最大4個の炭層として繋がって置かれる。耐久は面ごとの表で決まり、升の右上に残りが出る。 | 威力ぶん（1〜3）減る。0で**割れる**。 | **割れた**ものを貫いて、落ちながら採る。 |
+| <img src="docs/media/elem/diacrk.png" width="40"> | **割れた黒ダイヤ。** 升が通れるようになる。**入ると、繋がっている割れた黒ダイヤを全部まとめて採る。** 放っておくと、踏み抜けた敵が耐久1で塞ぎ直す。 | 1振りで割り直せる | 岩が通れるのはここだけ |
+| <img src="docs/media/elem/pillar.png" width="40"> | **炭柱**（史実の**三ツ枠**＝冠木＋両柱）。面に最大2本、**耐久+3**。クリア条件に数えるので**必ず壊す**。 | 割れる（時間はかかる） | — |
+| <img src="docs/media/elem/diahard.png" width="40"> | **硬磐。** 仕込んだ鉱脈の**一番下**。表は第五坑から、裏は第四坑から。輪郭は黒ダイヤと同じで、**差は色相ではなく明度**で付けてある。 | **通らない。**「コツン」と鳴って耐久は**減らない**（数字も出ない） | **これだけが採れる** |
+
+- **炭柱を壊すと落盤**。**黒ダイヤに載っている岩が同じフレームに支えを失い**（下の黒ダイヤが割れる）、
+  画面が白く飛んで敵が全員よろける。土・坑道・支柱に載っている岩はそのまま。
+- **硬磐は岩を支えない。** 真上へ押した岩はそこで止まらずに落ちて貫くので、
+  引き金の岩を失っても別の列から押してきて立て直せる。
+- それでも詰んだとき（硬磐が残っているのに、その上の行に岩が1つも無い）は、
+  システムが見つけてその旨を出し、面を組み直す。残機は1つ減るが、**点と火薬は面に入る前へ
+  巻き戻る**。残機をオーバーヒートで1つずつ溶かさずに済む。
+
+**岩と、岩を動かす4つの手。**
+
+| | 何か |
+|---|---|
+| <img src="docs/media/elem/rock.png" width="40"> | **岩。** 横へ押せる（**土の中へも押し込める**）。黒ダイヤ・炭柱・別の岩・水風呂・場外へは押せない。支えが無くなれば落ち、**落ちながら割れた黒ダイヤの列を貫いて採る**。 |
+| <img src="docs/media/elem/split.png" width="40"> | **割れた岩。** 2升以上落ちたか、何かを潰した岩は着地で割れて消える。順番を間違えると引き金を失う。 |
+| <img src="docs/media/elem/rockprop.png" width="40"> | **支柱つきの岩。** 仕込んだ鉱脈の引き金。立っている間は**落盤でも落ちず**、押すこともできない。**つるはしで1回**叩けば折れる（威力は問わない）。 |
+| <img src="docs/media/elem/toir.png" width="40"> <img src="docs/media/elem/toibr.png" width="40"> | **樋**（第二坑）。落ちてきた岩を隣の列へ1升逸らす板。**使い切り**で、折れたあとも**どちら向きだったか**が残る。 |
+| <img src="docs/media/elem/cart.png" width="40"> <img src="docs/media/elem/cartrock.png" width="40"> <img src="docs/media/elem/rail.png" width="40"> | **鉱車**（第四坑）。レールの上を往復する。落とし込んだ岩を数升運び、車止めで放り出す。 |
+
+**坑内のもの。**
+
+| | 何か |
+|---|---|
+| <img src="docs/media/elem/bath.png" width="40"> | **水風呂。** 浸かっている間ずっと下がり、**上限から冷まし切るには2秒その場に留まる**（通りすがりでは全快しない）。1px でも重なっていれば効く。裏面では**1回で枯れる**。 |
+| <img src="docs/media/elem/spring.png" width="40"> | **熱水の湧き出し口**（第三坑）。坑道を1升ずつ満たす。岩で堰き止められ、アイテムは浮き、敵は透明化しないと越えられない。 |
+| <img src="docs/media/elem/gas.png" width="40"> | **ガス**（裏面のみ）。**袋小路（鉄砲坑道）の先に溜まる。そこで発破をかけると引火して、その升と隣が燃える（居れば1ミス）。目抜き＝もう一方の口を掘って風を通せば消える。** 事故の記録で一番多いのがガス爆発で、原因欄には「カンテラの灯」が並ぶ。 |
+| <img src="docs/media/elem/powder.png" width="40"> <img src="docs/media/elem/dyna.png" width="40"> | **火薬**と、**落ちているダイナマイト**。火薬は次の面へ持ち越す。 |
+| <img src="docs/media/elem/cave.png" width="40"> | **敵の湧き出し口。** |
+| <img src="docs/media/elem/bscore.png" width="40"> <img src="docs/media/elem/bcool.png" width="40"> <img src="docs/media/elem/blife.png" width="40"> | **ボーナス** —— 得点／体温回復／残機+1。体温回復の絵は、岩で潰した敵が落とす**梅干し**にも使っている。 |
+
 ### 操作
 
 | 入力 | 動作 |
@@ -390,7 +496,8 @@ the layout of the pit, the creatures in it and everything else are made for the 
 ### 動作環境
 
 - **MSX2 以降**（SCREEN 5 を使うため）。コードは Z80 で吐いているので MSX2／2+ の実機でも動く。
-  **turbo R ではそのまま速く走る。** プレイ中の実測で **turbo R 60.0fps / Z80 の MSX2 56.6fps**。
+  **turbo R ではそのまま速く走る。** 面1 でつるはしを振り続けた実測（`make fps`。いちばん重い状態）で
+  **turbo R 59.9fps / Z80 機 50.2fps**。同じ測り方で止まったままだと 59.9 と 56.9。
   陽炎は Z80 で約17fps 食うので、帯の数を機種で変えている（Z80 機 11本 / turbo R 16本）。
 - **音は機種なりに増え、載っていないものは触らない。** どの層も起動時に検出して、
   無ければ一度も叩かない。
@@ -418,6 +525,7 @@ pip3 install Pillow
 make                 # build/sakiyama.rom（256KB の ASCII8 メガROM）ができる
 make run             # openMSX で起動
 make check           # スモークテスト（ヘッドレスで起動して RAM/VRAM を検査）
+make fps             # ゲーム中の fps を両機種で測る
 make clean
 ```
 
@@ -427,6 +535,7 @@ ROM に乗る**（コードは触らない）。外部のパターンエディ�
 ```bash
 make gamedata          # assets/*.png -> gamedata.json
 make gamedata-import   # gamedata.json -> assets/*.png（検証つき）
+make artdoc            # build/*.bin -> docs/media/elem/*.png（上の一覧表の絵）
 ```
 
 盤面を勘ではなく実測で決めるための道具:
@@ -434,6 +543,8 @@ make gamedata-import   # gamedata.json -> assets/*.png（検証つき）
 ```bash
 make hostsim                              # ヘッドレスの測定器をビルド
 make grade                                # 全15面を採点
+make editor                               # 面エディタ（ブラウザ。127.0.0.1 にだけ開く）
+make roundtrip                            # 面データの往復に取りこぼしが無いか確かめる
 tools/hostsim/sim --stage 7 --board       # 盤面を出す（* = 掘らせる隙間）
 python3 tools/hostsim/pick_seeds.py       # 面ごとに6万通りの種を総当たりして選ぶ
 ```
@@ -464,11 +575,14 @@ src/          ゲーム本体。C（SDCC）＋ ROM ヘッダ・VDP・BIOS 呼び
   levels.c      面ごとの難易度の表（敵の数・静養・透明化・切羽圧）
   water.c       熱水。出水・堰き止め・溜まり湯
   cart.c        鉱車
+  ending.c      エンディング。一枚絵と、そのあとを追ってくるエンドロール
   music.c       曲データ（**曲の差し替えはここだけ**）
 assets/       絵。**PNG が正**で、make するたびに変換される
 tools/        ROM 化、PNG 変換、ヘッドレスの測定器、スモークテスト
   hostsim/      実機と同じゲームロジックを gcc でビルドして盤面を測る
+  stage_editor/ ブラウザで盤面を置いて、その場で採点する（`make editor`）
 docs/         設計・ルール・調査のノート
+  media/elem/   上の一覧表の絵。ROM に入るデータから起こしてある
 proto/        メカニクスを検証した FunctionBASIC のプロトタイプ
 ```
 
@@ -489,6 +603,8 @@ proto/        メカニクスを検証した FunctionBASIC のプロトタイプ
 - **[docs/PITFALLS.md](docs/PITFALLS.md)** — つまずいた点。VDP コマンドエンジン、スプライトの癖、
   速度の測り方、絵を差し替えるときの約束。
 - **[docs/GAMEDATA_FORMAT.md](docs/GAMEDATA_FORMAT.md)** — 外部の絵エディタへ渡す JSON の往復。
+- **[docs/STAGE_FORMAT.md](docs/STAGE_FORMAT.md)** — 面エディタが読み書きする面データの形式。
+- **[docs/KANJI_FORMAT.md](docs/KANJI_FORMAT.md)** — 漢字の字形の持ち方と描き方。
 - **[docs/ENDING_ART_BRIEF.md](docs/ENDING_ART_BRIEF.md)** — エンディングの一枚絵の指示書（表／裏）と、
   絵を頼む前に確かめておかなければならなかった史実。
 - 人に相談するために書いた資料: **[レベリング](docs/CONSULT_LEVELING.md)**、
@@ -506,7 +622,8 @@ proto/        メカニクスを検証した FunctionBASIC のプロトタイプ
 本作は**実験的な習作**であり、**手向け**でもあります。主人公は、常磐炭鉱で先山をしていた
 作者の祖父がモデルです。
 
-- **まだ試作品です。** 面1〜3 はちゃんと遊んでいますが、後半の幕は**実測で確かめている**段階です
+- **まだ試作品です。** 面1〜3 はちゃんと遊んでいて、面11・14 と裏面15 は実機の turbo R で
+  通してあります。残りの後半の幕は**実測で確かめている**段階です
   （ヘッドレスの測定と、openMSX の C-BIOS・実機 turbo R BIOS の両方での検査）。
 - **『Dig Dug』『Mr. Do!』に並ぶつもりはありません。** 借りているのはメカニクスだけで、
   それも「そちらが正解だから」という場所に限っています。絵・音・名前・題材は本作のものです。
