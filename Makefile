@@ -124,6 +124,22 @@ TITLE_SEG := 4
 # 崩れていて「先」が「光」、「野」が「墅」に見えるため。2つめの --black がその範囲。
 TITLE_OPTS := --black 1275,0,1536,82 --black 330,222,1062,338 --crop 88,0,1498,1024
 
+# **エンディングの一枚絵 (表／裏)。** タイトルと同じ作りで、1枚につき 27,136バイト
+# ＝ ROM のセグメント4本。**これを入れるために ROM を 128KB から 256KB へ増やした**
+# (16セグメントは全部埋まっていて、並べ替えでは1バイトも空かない)。
+# 指示書と史実の裏付けは docs/ENDING_ART_BRIEF.md と docs/HISTORY.md §5.6。
+# **--dither を付ける。** 無しと見比べて、父の顔の階調と水面が目に見えて良い
+# (暗い室内と、明るい水の中という、どちらも中間調が主役の絵なので効く)。
+END_OMOTE_SRC := assets/end_omote.png
+END_URA_SRC   := assets/end_ura.png
+END_OMOTE_BIN := $(BUILDDIR)/end_omote.bin
+END_URA_BIN   := $(BUILDDIR)/end_ura.bin
+END_OMOTE_PAL := $(BUILDDIR)/end_omote_pal.h
+END_URA_PAL   := $(BUILDDIR)/end_ura_pal.h
+END_OMOTE_SEG := 16
+END_URA_SEG   := 20
+END_OPTS      := --dither
+
 # スプライトと背景タイルの絵。PNG が正で、描き替えて make し直せば差し替わる。
 ART_SPR_SRC  := assets/sprites.png
 ART_TILE_SRC := assets/tiles.png
@@ -166,6 +182,12 @@ $(BUILDDIR)/%.rel: $(SRCDIR)/%.s $(MAKEFILE) | $(BUILDDIR)
 $(TITLE_BIN) $(TITLE_PAL): $(TITLE_SRC) tools/png2sc5.py | $(BUILDDIR)
 	python3 tools/png2sc5.py $(TITLE_SRC) $(BUILDDIR)/title $(TITLE_OPTS)
 
+$(END_OMOTE_BIN) $(END_OMOTE_PAL): $(END_OMOTE_SRC) tools/png2sc5.py | $(BUILDDIR)
+	python3 tools/png2sc5.py $(END_OMOTE_SRC) $(BUILDDIR)/end_omote $(END_OPTS)
+
+$(END_URA_BIN) $(END_URA_PAL): $(END_URA_SRC) tools/png2sc5.py | $(BUILDDIR)
+	python3 tools/png2sc5.py $(END_URA_SRC) $(BUILDDIR)/end_ura $(END_OPTS)
+
 $(PAL_H): tools/gen_palette_h.py tools/palette.py | $(BUILDDIR)
 	python3 tools/gen_palette_h.py $@
 
@@ -188,7 +210,7 @@ $(TAIKO_BIN) $(TAIKO_H): tools/gen_taiko.py | $(BUILDDIR)
 $(KANJI_BIN) $(KANJI_H): tools/mkkanji.py | $(BUILDDIR)
 	python3 tools/mkkanji.py --bin $(KANJI_BIN) $(KANJI_H)
 
-$(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(HEADERS) $(MAKEFILE) $(TITLE_PAL) $(ART_SPR) $(ART_TILE) $(PAL_H) $(TAIKO_H) $(KANJI_H) | $(BUILDDIR)
+$(BUILDDIR)/%.rel: $(SRCDIR)/%.c $(HEADERS) $(MAKEFILE) $(TITLE_PAL) $(END_OMOTE_PAL) $(END_URA_PAL) $(ART_SPR) $(ART_TILE) $(PAL_H) $(TAIKO_H) $(KANJI_H) | $(BUILDDIR)
 	$(CC) $(CFLAGS) \
 	  $(if $(filter $<,$(SIZE_SRC)),$(OPT_SIZE),$(OPT_SPEED)) \
 	  $(if $(filter $<,$(MUSIC_SRC)),--codeseg MUSICDATA --constseg MUSICDATA) \
@@ -202,11 +224,12 @@ $(IHX): $(BUILDDIR)/crt0.rel $(AOBJ) $(COBJ)
 	$(CC) $(LDFLAGS) -o $@ $(BUILDDIR)/crt0.rel $(filter-out $(BUILDDIR)/crt0.rel,$(AOBJ)) $(COBJ)
 
 $(ROM): $(IHX) $(TITLE_BIN) $(ART_TILE_BIN) $(ART_SPR_BIN) $(TAIKO_BIN) $(KANJI_BIN) \
-        tools/ihx2rom.py tools/win2check.py
+        $(END_OMOTE_BIN) $(END_URA_BIN) tools/ihx2rom.py tools/win2check.py
 	@python3 tools/win2check.py
-	python3 tools/ihx2rom.py $(IHX) $(ROM) 128 $(TITLE_SEG):$(TITLE_BIN) \
+	python3 tools/ihx2rom.py $(IHX) $(ROM) 256 $(TITLE_SEG):$(TITLE_BIN) \
 	    $(ART_TILE_SEG):$(ART_TILE_BIN) $(ART_SPR_SEG):$(ART_SPR_BIN) \
-	    $(TAIKO_SEG):$(TAIKO_BIN) $(KANJI_SEG):$(KANJI_BIN)
+	    $(TAIKO_SEG):$(TAIKO_BIN) $(KANJI_SEG):$(KANJI_BIN) \
+	    $(END_OMOTE_SEG):$(END_OMOTE_BIN) $(END_URA_SEG):$(END_URA_BIN)
 
 run: $(ROM)
 	openmsx -machine $(MACHINE) -carta $(ROM) -romtype ASCII8

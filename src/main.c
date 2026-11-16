@@ -23,11 +23,18 @@
 #define ST_MISS   6       /* ミス。短いジングルの間、画面をその場で止める */
 #define ST_OVER   7       /* ゲームオーバー */
 #define ST_STUCK  8       /* 詰み。巻き戻した旨を出してキー待ち (goto_stuck) */
+#define ST_ENDPIC 9       /* エンディングの一枚絵。キー待ちでロールへ進む */
+
+/* **一枚絵で止まったままにしない。** 画面に案内を出していないので
+   (絵の上に字を乗せると、絵のパレットから色を選ぶことになり、明度が読めない)、
+   押さなくても 20秒で勝手にロールへ進む。押せばすぐ進む。 */
+#define ENDPIC_HOLD 1200
 
 #define START_HOLD  60    /* 開始表示を出しておくフレーム数 (1秒) */
 #define MSG_ROW     5     /* 開始表示を出すセル行 */
 
 static uint8_t state;
+static uint16_t endpic_t;           /* 一枚絵を出しているフレーム数 */
 static uint8_t player_pat = 0xFF;   /* いま出している自機の絵 (変化時だけ色表を書く) */
 static uint8_t prev_trig;
 uint16_t frame_n;                 /* 実フレーム数。速度計測用 (1フレーム1増) */
@@ -361,7 +368,6 @@ static void draw_actors(void)
     oam_flush();
 }
 
-/* エンディング。中身は仮。15面クリア後は裏面へ、コンフィグから見た場合はタイトルへ戻る。 */
 /* ゲームオーバー。コンティニューが ON なら、その面から続きを遊べる。 */
 static void goto_gameover(void)
 {
@@ -371,13 +377,38 @@ static void goto_gameover(void)
     state = ST_OVER;
 }
 
+/*
+ * エンディングは**一枚絵 → エンドロール**の2段。
+ *
+ * 絵は表と裏で別のものを出す (表=炭鉱長屋の茶の間 / 裏=ドームの温水プール)。
+ * **絵のパレットに塗り替わる**ので、ロールへ移るときに `set_game_palette()` で
+ * 戻すこと。タイトル画像とまったく同じ約束で、忘れると文字の色が化ける。
+ *
+ * **曲は絵と一緒に始める。** 絵も結びの一部なので、無音で見せない。
+ */
 static void goto_ending(void)
 {
     snd_stop();
     spr_park_all();
     oam_flush();
+    vdp_display(0);              /* 1枚絵のパレットに切り替わるところを見せない */
+    ending_pic();
+    vdp_display(1);
+    snd_play_ending();
+    endpic_t = 0;
+    /* **押しっぱなしのスペースで絵を飛ばさない。** コンフィグの SEE ENDING は
+       スペースで決定するので、ここへ来た時点でまだ指が乗っている。`fire_pressed()`
+       は立ち上がりを見るが、コンフィグ中は呼ばれていないので控えが 0 のままで、
+       次のフレームに「押した瞬間」と誤って読む。押されていたことにしておく。 */
+    prev_trig = 1;
+    state = ST_ENDPIC;
+}
+
+/* 一枚絵からエンドロールへ。 */
+static void goto_endroll(void)
+{
     vdp_display(0);
-    set_game_palette();          /* タイトル1枚絵のパレットから戻す */
+    set_game_palette();          /* 1枚絵のパレットから戻す */
     vdp_fill(0, 0, 256, SCR_H, COL_TUNNEL);
     /* **「掘り尽くす」ではなく「帰る」で書く。** docs/HISTORY.md §8 の通り、
        この人物は炭鉱町がにぎわう中をまっすぐ家へ帰る側の人だった。勝利や達成では
@@ -387,7 +418,6 @@ static void goto_ending(void)
        文面は `src/endtext.c`、流す仕組みは `src/ending.c`。 */
     ending_start();
     vdp_display(1);
-    snd_play_ending();
     state = ST_ENDING;
 }
 
@@ -562,6 +592,15 @@ void main(void)
                 new_game();
             } else if (r == CFG_ENDING) {
                 goto_ending();
+            }
+            continue;
+        }
+
+        if (state == ST_ENDPIC) {
+            /* **押さなくても進む。** 絵の上に案内を出していないため (理由は
+               ENDPIC_HOLD の説明)。押せばその場でロールへ移る。 */
+            if (fire_pressed() || ++endpic_t >= ENDPIC_HOLD) {
+                goto_endroll();
             }
             continue;
         }

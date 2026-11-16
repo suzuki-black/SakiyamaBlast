@@ -55,7 +55,7 @@ and drop rocks through them so the seam comes down in one chain.
 ### Overview
 
 - **Target:** MSX2 or later (SCREEN 5 is required). **MSX turbo R recommended** — it holds 60fps.
-  128 KB (1 Mbit) ASCII8 MegaROM.
+  256 KB (2 Mbit) ASCII8 MegaROM.
 - **Genre:** single-player, single-screen dig-and-blast action.
 - **Structure:** 15 stages in 5 acts (3 stages each). The tunnel you start in is carved in the
   shape of the stage number.
@@ -151,7 +151,7 @@ and drop rocks through them so the seam comes down in one chain.
 
 ```bash
 pip3 install Pillow
-make                 # -> build/sakiyama.rom (128 KB ASCII8 MegaROM)
+make                 # -> build/sakiyama.rom (256 KB ASCII8 MegaROM)
 make run             # launch it in openMSX
 make check           # smoke test: boot it headless and inspect RAM/VRAM
 make clean
@@ -238,7 +238,7 @@ proto/        the FunctionBASIC prototype the mechanics were proven in
 | # | Title | Where | What it was |
 |---|---|---|---|
 | 1 | *(prototype)* | [`proto/digbomb.msxb`](proto/digbomb.msxb) | Written in MSX-BASIC with [FunctionBASIC](https://github.com/suzuki-black/FunctionBASIC). The mechanics were proven here first: digging, the rock, the blast. |
-| 2 | **クロダイヤ** | this repository | Rewritten from scratch in C (SDCC) as a 128 KB ASCII8 MegaROM. The BASIC version is kept as a reference implementation, **not** as the source of the port. |
+| 2 | **クロダイヤ** | this repository | Rewritten from scratch in C (SDCC) as a 256 KB ASCII8 MegaROM. The BASIC version is kept as a reference implementation, **not** as the source of the port. |
 
 ### Scope & honest positioning
 
@@ -327,7 +327,7 @@ the layout of the pit, the creatures in it and everything else are made for the 
 ### 概要
 
 - **対応機種:** MSX2 以降（SCREEN 5 を使うため必須）。**MSX turbo R 推奨**（60fps を保てる）。
-  128KB（1メガビット）の ASCII8 メガROM。
+  256KB（2メガビット）の ASCII8 メガROM。
 - **ジャンル:** 1人用・1画面固定の「掘り＋発破」アクション。
 - **構成:** 全15面、3面ずつ5つの幕。面の最初に掘り抜かれている坑道は**面番号の形**をしている。
 - **クリア条件:** 盤面の**黒ダイヤ（石炭）を全部採掘する**。掘削率はクリア条件ではなく得点ボーナス。
@@ -411,7 +411,7 @@ the layout of the pit, the creatures in it and everything else are made for the 
 
 ```bash
 pip3 install Pillow
-make                 # build/sakiyama.rom（128KB の ASCII8 メガROM）ができる
+make                 # build/sakiyama.rom（256KB の ASCII8 メガROM）ができる
 make run             # openMSX で起動
 make check           # スモークテスト（ヘッドレスで起動して RAM/VRAM を検査）
 make clean
@@ -495,7 +495,7 @@ proto/        メカニクスを検証した FunctionBASIC のプロトタイプ
 | # | タイトル | 置き場 | どんなものか |
 |---|---|---|---|
 | 1 | （プロトタイプ） | [`proto/digbomb.msxb`](proto/digbomb.msxb) | [FunctionBASIC](https://github.com/suzuki-black/FunctionBASIC) を使った MSX-BASIC 版。掘る・岩・発破というメカニクスは、まずここで確かめた。 |
-| 2 | **クロダイヤ** | 本リポジトリ | C（SDCC）で一から書き直し、128KB の ASCII8 メガROM にした。BASIC 版は**移植元ではなく参照実装**として残してある。 |
+| 2 | **クロダイヤ** | 本リポジトリ | C（SDCC）で一から書き直し、256KB の ASCII8 メガROM にした。BASIC 版は**移植元ではなく参照実装**として残してある。 |
 
 ### 位置づけ（正直な自己評価）
 

@@ -512,6 +512,7 @@ uint16_t layout_seed(void);
 void    set_dirt_palette(void);
 void    cavein_flash(void);        /* 落盤の閃光を始める */
 void    flash_reset(void);         /* 閃光の残りを捨てる */
+void    ending_pic(void);          /* ロールの前の一枚絵 (ページ0。絵のパレットに塗り替わる) */
 void    ending_start(void);        /* エンドロールを始める (ページ1 へ切り替え) */
 void    ending_stop(void);         /* 表示をページ0 へ戻す */
 void    ending_tick(void);         /* 毎フレーム呼ぶ。1画素ずつ流す */

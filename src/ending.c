@@ -23,6 +23,8 @@
 #include "msx.h"
 #include "text.h"
 #include "endtext.h"
+#include "end_omote_pal.h"
+#include "end_ura_pal.h"
 
 #define PAGE1     256           /* y に足すとページ1 */
 #define ROW_H      16           /* 1行の高さ (16の倍数。256 を割り切ること) */
@@ -115,6 +117,42 @@ static void draw_row(uint8_t i, uint16_t y)
     /* **x は偶数にする** (1バイトが2画素なので、奇数だと隣の画素を巻き込む)。 */
     x = (uint16_t)(((256 - (uint16_t)n * (uint16_t)(8 * sc)) >> 1) & 0xFFFE);
     text_draw(x, y, (const char *)(rbuf + 1), col, COL_TUNNEL, sc);
+}
+
+/*
+ * **ロールの前に一枚絵を出す。** 表は炭鉱長屋の茶の間、裏はドームの温水プール
+ * (`docs/ENDING_ART_BRIEF.md`)。やり方は `title_draw()` とまったく同じで、
+ * ROM の4セグメントを VRAM のページ0 の 8KB ブロック 0..3 へそのまま流し込む。
+ *
+ * **ここは窓2 (PLAYCODE) に置いてよい。** 切り替えるのは1枚目の窓 (0xA000) で、
+ * 0x8000 の窓はそのまま PLAYCODE を向いている。だから `title_draw()` と違って
+ * 固定領域に置く必要がない (固定領域の空きはもう 2.7KB しかない)。
+ *
+ * **絵のパレットに塗り替わる。** 抜けるときに `set_game_palette()` を呼ぶのは
+ * 呼び出し側 (main.c) の役目。タイトル画像とまったく同じ約束。
+ */
+void ending_pic(void)
+{
+    uint8_t i, blk;
+    uint16_t left = 27136;          /* 256 * 212 / 2 */
+    const uint8_t *pal = loop_n ? end_ura_palette : end_omote_palette;
+    uint8_t seg = (uint8_t)(loop_n ? END_URA_SEG : END_OMOTE_SEG);
+
+    for (i = 0; i < 16; i++) {
+        VDP_REG(16, i);
+        vdp_wpal(pal[i * 2]);
+        vdp_wpal(pal[i * 2 + 1]);
+    }
+    VDP_REG(7, 0);                  /* 背景色は黒。パレット0番は背景色として出る。 */
+
+    for (blk = 0; blk < 4 && left; blk++) {
+        vdp_blklen = (left > 8192) ? 8192 : left;
+        bank_select((uint8_t)(seg + blk));
+        vdp_setwrite((uint16_t)((uint16_t)blk << 13));
+        vdp_wblock(BANK_WINDOW);
+        left = (uint16_t)(left - vdp_blklen);
+    }
+    bank_select(DATA_SEG);      /* 窓を絵と曲へ戻す。戻し忘れると音も絵も壊れる */
 }
 
 void ending_start(void)

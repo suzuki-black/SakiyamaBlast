@@ -61,6 +61,11 @@ void bank_select(uint8_t seg) __z88dk_fastcall;
    tools/ihx2rom.py が ROM のこのセグメントへ入れる。 */
 #define ART_TILE_SEG 10        /* 背景タイル。1枚128バイト、先頭から順に */
 #define ART_SPR_SEG  11        /* スプライト: 形 (1枚32バイト) のあとに色 (1枚16バイト) */
+/* **エンディングの一枚絵。** タイトルと同じく1枚で4セグメント (27,136バイト)。
+   **これを入れるために ROM を 256KB へ増やした** (seg0..15 は全部埋まっていた)。
+   読むのは `ending_pic()` (src/ending.c)。**番号は Makefile の END_*_SEG と揃えること。** */
+#define END_OMOTE_SEG 16       /* 表のエンディング: 炭鉱長屋の茶の間 */
+#define END_URA_SEG   20       /* 裏のエンディング: ドームの温水プール */
 
 extern uint8_t bank_cur;   /* いま窓が向いているセグメント (bank_select が控える) */
 /* **2枚目の窓 (0x8000-0x9FFF)。** 同じ 0x8000 へリンクした2つの領域を入れ替える。
