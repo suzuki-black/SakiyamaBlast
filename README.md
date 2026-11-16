@@ -124,11 +124,21 @@ The pictures are the actual ROM data, not mock-ups (`make artdoc` regenerates th
 count towards the clear condition — none of them is optional, and how much of the pit you dug out
 is a score bonus, not a goal.
 
-| | Which one, and what makes it different |
-|---|---|
-| <img src="docs/media/elem/dia.png" width="64"> | **Plain black diamond** — the ordinary one. The pick takes off as much as the swing is worth (1–3), and at zero it cracks. Laid in connected seams of up to four; durability is set per stage and counted down in the top-right corner of the cell. |
-| <img src="docs/media/elem/pillar.png" width="64"> | **Pillar** — the historical *mitsu-waku* timber set. **Breaking it is the cave-in, and this is the one that starts the chain:** every rock resting on coal loses its footing in the same frame. The pick does break it, just slower — **+3 durability** on top of the stage's figure. At most two per board. |
-| <img src="docs/media/elem/diahard.png" width="64"> | **Hard seam. The pick does nothing to it** — it rings, and the durability does not move; no number is shown either, because it would be a lie. **Only a falling rock can mine it.** It sits at the bottom of a prepared vein, from act 5 on (act 4 in the second loop). Same outline as a plain diamond; told apart by **brightness**, not hue. |
+<img src="docs/media/elem/dia.png" width="72" align="top"> &nbsp;**Plain black diamond — the
+ordinary one.** The pick takes off as much as the swing is worth (1–3), and at zero it cracks.
+Laid in connected seams of up to four; durability is set per stage and counted down in the
+top-right corner of the cell.
+
+<img src="docs/media/elem/pillar.png" width="72" align="top"> &nbsp;**Pillar — breaking it is the
+cave-in, and this is the one that starts the chain.** Every rock resting on coal loses its footing
+in the same frame. The historical *mitsu-waku* timber set. The pick does break it, just slower:
+**3 more durability** than the stage's figure. At most two per board.
+
+<img src="docs/media/elem/diahard.png" width="72" align="top"> &nbsp;**Hard seam — the pick does
+nothing to it. Only a falling rock can mine it.** It rings, and the durability does not move; no
+number is shown either, because it would be a lie. It sits at the bottom of a prepared vein, from
+act 5 on (act 4 in the second loop). Same outline as a plain diamond; told apart by **brightness**,
+not hue.
 
 **Cracked coal is a state, not a fourth kind.**
 <img src="docs/media/elem/diacrk.png" width="48" align="top"> A diamond at zero durability cracks
@@ -400,7 +410,7 @@ the layout of the pit, the creatures in it and everything else are made for the 
   256KB（2メガビット）の ASCII8 メガROM。
 - **ジャンル:** 1人用・1画面固定の「掘り＋発破」アクション。
 - **構成:** 全15面、3面ずつ5つの幕。面の最初に掘り抜かれている坑道は**面番号の形**をしている。
-  15面をクリアすると**裏面（2周目）**が開く。盤面もルールも別物になる
+  15面をクリアすると **裏面（2周目）** が開く。盤面もルールも別物になる
   （何が変わるかは [docs/GAME_RULES.md](docs/GAME_RULES.md) §11b）。
 - **クリア条件:** 盤面の**黒ダイヤ（石炭）を全部採掘する**。掘削率はクリア条件ではなく得点ボーナス。
 - **核は連鎖。** 落ちる岩は割れた黒ダイヤを**突き抜けて、その場で採掘する**。
@@ -455,11 +465,19 @@ the layout of the pit, the creatures in it and everything else are made for the 
 **黒ダイヤは3種類あって、全部採掘すると面クリア。** 3種類とも**クリア条件に数える**ので、
 どれも採らずには終われない。掘削率はクリア条件ではなく得点ボーナス。
 
-| | どれか。何が違うか |
-|---|---|
-| <img src="docs/media/elem/dia.png" width="64"> | **ふつうの黒ダイヤ。** つるはしで**威力ぶん（1〜3）減り、0で割れる**。**最大4個の炭層**として繋がって置かれ、耐久は面ごとの表で決まる（升の右上に残りが出る）。 |
-| <img src="docs/media/elem/pillar.png" width="64"> | **炭柱。壊すと落盤 —— 連鎖を起こすのはこれ。** 史実の三ツ枠（冠木＋両柱）。黒ダイヤに載っている岩が同じフレームに一斉に支えを失う。つるはしで壊せるが、耐久が面の値より 3 多いぶん時間がかかる。面に最大2本。 |
-| <img src="docs/media/elem/diahard.png" width="64"> | **硬磐（こうばん）。つるはしでは壊れない** ——「コツン」と鳴って耐久は**減らない**（嘘になるので数字も出さない）。**落ちてくる岩だけが採れる。** 仕込んだ鉱脈の一番下に居る。表は第五坑から、裏は第四坑から。ふつうの黒ダイヤとの**差は色相ではなく明度**。 |
+<img src="docs/media/elem/dia.png" width="72" align="top"> &nbsp;**ふつうの黒ダイヤ。**
+つるはしで威力ぶん（1〜3）減り、0で割れる。**最大4個の炭層**として繋がって置かれ、
+耐久は面ごとの表で決まる（升の右上に残りが出る）。
+
+<img src="docs/media/elem/pillar.png" width="72" align="top"> &nbsp;**炭柱。壊すと落盤 ——
+連鎖を起こすのはこれ。** 黒ダイヤに載っている岩が同じフレームに一斉に支えを失う。
+史実の三ツ枠（冠木＋両柱）。つるはしで壊せるが、耐久が面の値より 3 多いぶん時間がかかる。
+面に最大2本。
+
+<img src="docs/media/elem/diahard.png" width="72" align="top"> &nbsp;**硬磐（こうばん）。
+つるはしでは壊れず、落ちてくる岩だけが採れる。** 叩くと「コツン」と鳴って耐久は減らない
+（嘘になるので数字も出さない）。仕込んだ鉱脈の一番下に居る。表は第五坑から、裏は第四坑から。
+ふつうの黒ダイヤとの**差は色相ではなく明度**。
 
 **「割れた黒ダイヤ」は4種類目ではなく、状態。**
 <img src="docs/media/elem/diacrk.png" width="48" align="top"> 耐久が0になった黒ダイヤは
@@ -674,7 +692,7 @@ proto/        メカニクスを検証した FunctionBASIC のプロトタイプ
 **コード・グラフィック・音楽を含む本リポジトリのすべてを MIT ライセンスで公開**します
 （いずれも本作のために制作したもので、MIT の条件を超える権利主張はしません）。
 
-『Dig Dug』『Mr. Do!』から参照しているのは**ルール（メカニクス）**で、これは著作の対象外です。
+『Dig Dug』『Mr. Do!』から参照しているのは **ルール（メカニクス）** で、これは著作の対象外です。
 両作の名称・キャラクター・画像・音源は一切使用していません。
 
 ### 免責
