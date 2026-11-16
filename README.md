@@ -140,8 +140,8 @@ number is shown either, because it would be a lie. It sits at the bottom of a pr
 act 5 on (act 4 in the second loop). Same outline as a plain diamond; told apart by **brightness**,
 not hue.
 
-**Cracked coal is a state, not a fourth kind.**
-<img src="docs/media/elem/diacrk.png" width="48" align="top"> A diamond at zero durability cracks
+<img src="docs/media/elem/diacrk.png" width="48" align="top"> &nbsp;**Cracked coal is a state, not
+a fourth kind.** A diamond at zero durability cracks
 and stays on the board, waiting to be collected: the cell is walkable, and **stepping into it
 collects every connected cracked diamond at once.** A falling rock punches through **only** cells
 in this state — that is the mechanism the whole chain is built on. Leave one lying around and an
@@ -479,8 +479,8 @@ the layout of the pit, the creatures in it and everything else are made for the 
 （嘘になるので数字も出さない）。仕込んだ鉱脈の一番下に居る。表は第五坑から、裏は第四坑から。
 ふつうの黒ダイヤとの**差は色相ではなく明度**。
 
-**「割れた黒ダイヤ」は4種類目ではなく、状態。**
-<img src="docs/media/elem/diacrk.png" width="48" align="top"> 耐久が0になった黒ダイヤは
+<img src="docs/media/elem/diacrk.png" width="48" align="top"> &nbsp;**「割れた黒ダイヤ」は
+4種類目ではなく、状態。** 耐久が0になった黒ダイヤは
 **割れて採掘待ちのまま盤面に残る**。升は通れるようになり、**入ると繋がっている割れた黒ダイヤを
 全部まとめて採る**。そして**落ちてくる岩が貫けるのはこの状態の升だけ** —— 連鎖はここに乗っている。
 放っておくと踏み抜けた敵が耐久1で塞ぎ直し、1振りで割り直せる。
