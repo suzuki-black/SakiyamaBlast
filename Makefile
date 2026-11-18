@@ -114,6 +114,13 @@ AOBJ      := $(patsubst $(SRCDIR)/%.s,$(BUILDDIR)/%.rel,$(ASRC))
 ROM       := $(BUILDDIR)/$(NAME).rom
 IHX       := $(BUILDDIR)/$(NAME).ihx
 
+# ブラウザ版 (itch.io など) が読む ROM。**build/ と違って git で追跡する。**
+# webmsx.org は別オリジンなので、ROM の置き場は CORS を返す必要がある。
+# raw.githubusercontent.com は返し、itch.io のファイル置き場は返さない (実測) ので、
+# ROM はこのリポジトリに1本持ち、web/index.html がその raw の URL を指す。
+# 詳しい事情は web/index.html の冒頭のコメントにある。
+WEB_ROM   := web/kurodaiya.rom
+
 # タイトル1枚絵。assets/title.png -> SC5 のピクセル(27,136B) ＋ パレット(C ヘッダ)
 TITLE_SRC := assets/title.png
 TITLE_BIN := $(BUILDDIR)/title.bin
@@ -172,7 +179,7 @@ ART_TILE_NAMES := powder,bath,bscore,bcool,blife,cave,dia,dyna,diacrk,pillar,spr
 # 開発用の既定機種。turbo R の実 BIOS ROM を持っていれば MACHINE=Panasonic_FS-A1GT
 MACHINE   ?= C-BIOS_MSX2+_JP
 
-.PHONY: hostsim grade diag emotion roundtrip editor all run check fps gamedata gamedata-import enemy-anim artdoc clean
+.PHONY: hostsim grade diag emotion roundtrip editor all run check fps gamedata gamedata-import enemy-anim artdoc clean web release-check
 
 all: $(ROM)
 
@@ -236,6 +243,20 @@ $(ROM): $(IHX) $(TITLE_BIN) $(ART_TILE_BIN) $(ART_SPR_BIN) $(TAIKO_BIN) $(KANJI_
 
 run: $(ROM)
 	openmsx -machine $(MACHINE) -carta $(ROM) -romtype ASCII8
+
+# ブラウザ版の ROM を、いまの build の ROM で置き換える。**リリースを切るときに打つ。**
+web: $(ROM)
+	cp $(ROM) $(WEB_ROM)
+	@shasum -a 256 $(WEB_ROM)
+
+# リリース前の検査。ブラウザ版の ROM が古いままなら止める。
+# **普段の make では走らせない。** 開発中は作りかけの ROM と食い違うのが当たり前で、
+# 毎回赤くなっては検査の意味が無くなる。リリースのときだけ回すこと。
+release-check: $(ROM)
+	@cmp -s $(ROM) $(WEB_ROM) || { \
+	  echo "$(WEB_ROM) が $(ROM) と違います。make web で更新してください"; \
+	  exit 1; }
+	@echo "$(WEB_ROM) は最新です"
 
 # パターンエディタ等へ渡す、ゲーム1本ぶんのグラフィックデータ (仕様は docs/GAMEDATA_FORMAT.md)
 # 名前は import 側と同じく Makefile から渡す。ツールが自前で名前を持つと、
